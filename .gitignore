@@ -26,3 +26,5 @@ Thumbs.db
 
 # Workdir scratch
 workdir/
+workdir_*.json  
+workdir_*.err  
