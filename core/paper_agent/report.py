@@ -86,9 +86,16 @@ def generate_report(
     ev_exp = _ev_ids_by_kind(prov, "experiment")
     ev_ver = _ev_ids_by_kind(prov, "verification")
     ev_fig = _ev_ids_by_kind(prov, "figure")
+    # C1 证据锚点：有文献命中则绑 literature，否则回退到 P1 检索输出 data 证据
+    p1_data_ev = [e["ev_id"] for e in prov.all_evidence()
+                  if e["kind"] == "data" and e["producer_step"] == "P1_lit_search"]
+    c1_ev = ev_lit if ev_lit else p1_data_ev
 
     c1_text = (f"文献检索命中 {lit['n_hits']} 篇相关文献"
-               f"（degraded={lit.get('degraded', False)}），DOI 集合: {doiset}。")
+               f"（degraded={lit.get('degraded', False)}），DOI 集合: {doiset}。"
+               if lit["n_hits"] > 0 else
+               f"文献检索 0 命中（degraded={lit.get('degraded', False)}），"
+               f"检索输出已留证，请复核 goal 关键词。")
     c2_text = (f"数据清洗将 {clean_rep['input_rows']} 行原始样本归一为 "
                f"{clean_rep['output_rows']} 行有效数据；清洗动作: {act_txt}。")
     c3_text = (f"实验 top3 材料: {top3_txt}；家族 log10 电导率均值: {fam_txt}。")
@@ -96,7 +103,7 @@ def generate_report(
     c5_text = (f"图表 fig1_conductivity.svg 覆盖 {summary.get('n_rows', 0)} 个样本，"
                f"对数坐标横向条形图按 family 着色。")
 
-    prov.link_conclusion("C1", c1_text, ev_lit)
+    prov.link_conclusion("C1", c1_text, c1_ev)
     prov.link_conclusion("C2", c2_text, ev_data)
     prov.link_conclusion("C3", c3_text, ev_exp)
     prov.link_conclusion("C4", c4_text, ev_ver)
@@ -134,7 +141,7 @@ def generate_report(
 
 ## 科研结论（证据绑定）
 
-- **C1 文献检索**：{c1_text} `[{ '; '.join(ev_lit) }]`
+- **C1 文献检索**：{c1_text} `[{ '; '.join(c1_ev) }]`
 - **C2 数据清洗**：{c2_text} `[{ '; '.join(ev_data) }]`
 - **C3 实验 top3**：{c3_text} `[{ '; '.join(ev_exp) }]`
 - **C4 复现验证**：{c4_text} `[{ '; '.join(ev_ver) }]`

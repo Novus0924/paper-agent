@@ -149,8 +149,18 @@ class Pipeline:
                       "year": d.get("year")},
             )
             ev_ids.append(ev)
+        # 无论 0 命中与否，始终登记检索输出文件为 data 证据，
+        # 作为 C1 结论的证据锚点（证据先行：0 命中也留证）。
+        hits_file_ev = self.prov.append_evidence(
+            kind="data",
+            ref=os.path.join("literature", "literature_hits.json"),
+            producer_step="P1_lit_search",
+            file_path=out_path,
+            meta={"n_hits": len(hits), "degraded": full_corpus},
+        )
         return {"n_hits": len(hits), "degraded": full_corpus,
-                "output": out_path, "evidence": ev_ids}
+                "output": out_path, "evidence": ev_ids,
+                "hits_file_ev": hits_file_ev}
 
     def run_p1(self) -> dict:
         sid = "P1_lit_search"
