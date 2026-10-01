@@ -12,6 +12,10 @@ packages/
 # Run instances (per-run artifacts, never committed)
 runs/
 
+# Generated audit pack (deliverable output; template stays tracked)
+audit-pack/
+audit-pack.tar.gz
+
 # Secrets & env
 .env
 *.key

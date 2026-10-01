@@ -32,6 +32,19 @@ from .steps import Pipeline
 from .chaos import clear_chaos_mode
 
 
+def _ensure_utf8_stdio() -> None:
+    """强制 stdout/stderr 为 UTF-8，避免重定向/管道时中文路径被系统码页编码污染。
+
+    设计红线 #2/#3：CLI 的 stdout 必须是机器可解析的单 JSON 对象；
+    中文 run 路径若按 cp936/GBK 输出，下游按 UTF-8 读会解码失败。
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+
+
 def _emit(obj: dict) -> int:
     """stdout 只输出单个 JSON。返回 0。"""
     print(json.dumps(obj, ensure_ascii=False, sort_keys=True, default=str))
@@ -131,6 +144,7 @@ def cmd_run_all(args) -> int:
         # resume 语义：复用已有 run
         pipe = _pipeline(args.run, args.chaos)
         out = pipe.run_all()
+        out["run_id"] = args.run
     else:
         if not args.goal:
             return _emit_fail({"ok": False, "cmd": "run-all",
@@ -202,6 +216,7 @@ _HANDLERS = {
 
 
 def main(argv: list[str] | None = None) -> int:
+    _ensure_utf8_stdio()
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.chaos:
