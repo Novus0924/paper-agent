@@ -1,0 +1,19 @@
+{
+  "name": "@paper-agent/tools",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": "./index.mjs",
+  "description": "AGH hot-tool plugin: 7 paper-agent research pipeline tools (thin shell over Python CLI)",
+  "agnes": {
+    "plugins": [
+      {
+        "export": "paperAgentTools",
+        "id": "ext:paper-agent/tools",
+        "inject": ["extension"]
+      }
+    ]
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
