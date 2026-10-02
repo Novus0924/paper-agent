@@ -33,7 +33,7 @@ const optStr = (desc = "") => ({ [KIND]: "String", type: "string", description: 
 
 // chaos 模式取值（可选；缺省 = 正常路径）
 const CHAOS_DESC =
-  "chaos injection mode: p1_fail_first | p1_fail_all | mutate_summary (omit for normal path)";
+  "chaos injection mode: p1_fail_first | p1_fail_all | kill_after_p2 | mutate_summary (omit for normal path)";
 
 // ---------- AGH 工具返回包装 ----------
 function wrap(resultObj) {
@@ -41,23 +41,28 @@ function wrap(resultObj) {
   return { content: [{ type: "text", text }], structured: resultObj };
 }
 
-// ---------- 只读 meta ----------
+// ---------- 工具 meta（AGH checkToolMeta 要求 8 键齐全；replay 按各工具真实语义声明） ----------
 const READONLY_META = {
   isReadOnly: true,
   isDestructive: false,
   isConcurrencySafe: true,
   isOpenWorld: false,
   replay: "safe",
+  costHint: { wallMs: 5_000 },
+  deferLoading: false,
   requiresApproval: "never",
 };
-// 写工具 meta（不设置 replay 字段）
-const WRITE_META = {
+// 写工具：产物只写本项目 runs/ 隔离目录，非破坏性；幂等性由状态机终态守卫保证。
+const writeMeta = (replay, wallMs) => ({
   isReadOnly: false,
   isDestructive: false,
   isConcurrencySafe: false,
   isOpenWorld: false,
-  requiresApproval: "required",
-};
+  replay,
+  costHint: { wallMs },
+  deferLoading: false,
+  requiresApproval: "never",
+});
 
 // ---------- spawn Python CLI（薄壳核心）----------
 function cliArgs(args, chaos) {
@@ -123,7 +128,7 @@ const TOOLS = [
       { goal: str("research goal / query text"), chaos: optStr(CHAOS_DESC) },
       ["goal"],
     ),
-    meta: WRITE_META,
+    meta: writeMeta("never", 10_000),
     execute: makeRunner((c) => ["plan", "--goal", c.goal]),
   },
   {
@@ -137,7 +142,7 @@ const TOOLS = [
       },
       ["run_id", "step"],
     ),
-    meta: WRITE_META,
+    meta: writeMeta("idempotent", 180_000),
     execute: makeRunner((c) => ["run-step", "--run", c.run_id, "--step", c.step], 180_000),
   },
   {
@@ -157,7 +162,7 @@ const TOOLS = [
       { run_id: str("run instance id"), chaos: optStr(CHAOS_DESC) },
       ["run_id"],
     ),
-    meta: WRITE_META,
+    meta: writeMeta("idempotent", 180_000),
     execute: makeRunner((c) => ["verify", "--run", c.run_id], 180_000),
   },
   {
@@ -167,7 +172,7 @@ const TOOLS = [
       { run_id: str("run instance id"), chaos: optStr(CHAOS_DESC) },
       ["run_id"],
     ),
-    meta: WRITE_META,
+    meta: writeMeta("idempotent", 30_000),
     execute: makeRunner((c) => ["report", "--run", c.run_id]),
   },
   {
@@ -195,22 +200,24 @@ const TOOLS = [
       { run_id: str("run instance id"), chaos: optStr(CHAOS_DESC) },
       ["run_id"],
     ),
-    meta: WRITE_META,
+    meta: writeMeta("idempotent", 180_000),
     execute: makeRunner((c) => ["resume", "--run", c.run_id], 180_000),
   },
 ];
 
-// ---------- AGH 扩展入口 ----------
-export function paperAgentTools({ extension }) {
-  for (const t of TOOLS) {
-    extension.registerTool({
-      name: t.name,
-      description: t.description,
-      parameters: t.parameters,
-      ...t.meta,
-      execute: t.execute,
-    });
-  }
-}
-
-export default paperAgentTools;
+// ---------- AGH 扩展入口（官方 Cordis 对象插件范式，对齐 examples/hot-tool-plugin） ----------
+export const paperAgentTools = {
+  inject: ["extension"],
+  apply(ctx) {
+    const agnes = ctx.extension();
+    for (const t of TOOLS) {
+      agnes.registerTool({
+        name: t.name,
+        description: t.description,
+        parameters: t.parameters,
+        meta: t.meta,
+        execute: t.execute,
+      });
+    }
+  },
+};

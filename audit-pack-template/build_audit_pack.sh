@@ -25,12 +25,11 @@ copy "runs/$RUN_ID/verification/verification.json"
 copy "runs/$RUN_ID/report.md"
 copy "HOW-TO-VERIFY.md"
 
-# AGH 会话记录（联调后产生，可能不存在）
-if [ -f "session.jsonl" ]; then
-  cp session.jsonl "$OUT/agh-session.jsonl"
-else
-  echo "  (note) session.jsonl not found; AGH 联调后补充 agh-session.jsonl"
-fi
+# AGH 会话记录（导出于 evidence/；真实 daemon 会话的 tool/call+tool/result 全量账本）
+for f in evidence/session.jsonl evidence/session-full.jsonl; do
+  [ -f "$f" ] && cp "$f" "$OUT/$(basename "$f")" && echo "  (session) $f"
+done
+[ -f "session.jsonl" ] && cp "session.jsonl" "$OUT/agh-session.jsonl"
 
 echo "AUDIT_PACK_OK -> $OUT/"
 ls -1 "$OUT"

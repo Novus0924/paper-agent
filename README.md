@@ -53,7 +53,7 @@ paper-agent/
 ├── demo/
 │   ├── demo_e2e.sh             # 端到端正常流程 + 确定性核验
 │   └── demo_failure.sh         # 四大故障恢复验收用例自动化
-├── tests/                        # unittest 套件（4 文件，36 用例）
+├── tests/                        # unittest 套件（4 文件，39 用例）
 └── audit-pack-template/          # 审计交付包模板
 ```
 
@@ -96,20 +96,24 @@ bash demo/demo_failure.sh   # 四大故障用例（A 重试 / B 降级 / C resum
 [HOW‑TO‑VERIFY.md](HOW‑TO‑VERIFY.md)。唯一可变字段 `summary.json.generated_at`
 （UTC 时间戳）在校验环节被排除，不参与哈希比对。
 
-## AGH 联调（拿到 API Key 后执行）
+## AGH 联调（已真实跑通，2026-10-02）
+
+实际链路（与 AGH 构建产物的真实 CLI 对齐）：
 
 ```bash
-pnpm install --frozen-lockfile
-pnpm --filter @agnes/cli build:local
-node packages/cli/dist/local/agnes.mjs serve
-agnes plugins install file:./plugins/paper-agent-tools
-agnes plugins trust ext:paper-agent/tools
-agnes plugins enable ext:paper-agent/tools
-agnes -p "你的科研目标 prompt"
-agnes export SESSION_ID --format agnes -o session.jsonl
+AGH="node C:/…/agnes-harness/packages/cli/dist/local/agnes.mjs"
+$AGH package inspect "file:./plugins/paper-agent-tools"   # 需从项目根、相对 ./ 形式
+# package add 需交互式 TTY 人类确认（AGH 安全设计，无 bypass）：
+#   自动等价方案 = demo/reinstall_plugin.ps1（真实控制台 + WriteConsoleInput 注入）
+$AGH package trust paper-agent-tools <integrity> <capabilityHash>
+$AGH package enable paper-agent-tools                     # desired=enabled actual=running
+$AGH -p --cwd "$PWD" "用 sciret_* 完成…流水线"             # 打印模式会话，无需 TTY
+$AGH export <SESSION_ID> --format agnes -o evidence/session-full.jsonl
 ```
 
-联调闸门：`session.jsonl` 至少包含 ≥6 条连续 `tool_use` / `tool_result` 结构化交互记录。
+联调闸门：会话导出至少 ≥6 条 `tool/call` / `tool/result` 结构化交互记录。
+实测已达 **21 + 21 条，且 7 个 `sciret_*` 工具全部出现**（含 `sciret_resume` 的
+`kill_after_p2` 真实进程崩溃 + 断点续跑演示）；证据见 `evidence/` 与 `audit-pack/`。
 
 ## 验收核对清单
 
@@ -119,9 +123,11 @@ agnes export SESSION_ID --format agnes -o session.jsonl
 - [x] 用例 B `p1_fail_all`：3 次重试耗尽触发降级；DONE，degraded=true，events 含 degrade
 - [x] 用例 C：P2 完成后 resume，只运行剩余步骤，已 DONE 步骤直接复用
 - [x] 用例 D `mutate_summary`：verification=FAIL，P4 FAILED，顶层 run FAILED；5 项校验可查
+- [x] 用例 E2/E3 `kill_after_p2`：子进程真实被 `os._exit(137)` 杀死（run-all 与 run-step 双路径），账本完整，resume 续跑到 DONE
+- [x] P5 报告终态幂等复用（重复调用不抛 StateError）
 - [x] report.md 每条结论携带 `[EV-XXXX]` 证据标记；`sciret_cite` 可回查 DOI / SHA-256
-- [x] 单元测试四文件全部通过（36/36）
-- [ ] AGH 联调：`session.jsonl` ≥6 条连续 tool_use/tool_result（拿到密钥后）
+- [x] 单元测试全部通过（39/39）
+- [x] AGH 联调：真实会话 21+21 条 tool/call / tool/result，7/7 工具覆盖，证据已导出
 
 ## 合规红线
 

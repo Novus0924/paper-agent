@@ -1,15 +1,15 @@
 # 交接文档（HANDOFF）— paper-agent
 
 > 面向**接手本项目的下一个编程工具 / 工程师**。读完本文即可在无需上下文记忆的情况下继续推进。
-> 生成时间：2026-10-02（对应 HEAD `d8af9d5`）。若与仓库实际不一致，以 `git log` 与代码为准。
+> 生成时间：2026-10-02（AGH 真实会话联调**已闭环**后回填）。若与仓库实际不一致，以 `git log` 与代码为准。
 
 ---
 
 ## 0. 30 秒速览
 
 - **项目**：`paper-agent` —— 基于 **AGH（Agnes Harness）** 的可审计、可复现、可故障恢复的科研 Agent 流水线（JS 薄壳工具 + Python 核心业务 + 确定性实验），用于 2026 江苏省 AI+科学与工程创新实践黑客松。
-- **工程完成度**：阶段 1–6 **全部完成并通过自验证**（单测 36/36、端到端 demo、四大故障用例 8/8、审计不变量全 PASS）。
-- **唯一未闭环**：**AGH 真实会话联调**卡在"安装插件需交互式 TTY 确认"这一环（AGH 安全设计，自动化 non-TTY 会取消）。已备好可一键执行的 `demo/demo_agh_session.sh`，需在有 AGH 运行时的目标环境执行后回填 `evidence/session.jsonl`。
+- **工程完成度**：阶段 1–6 **全部完成并通过自验证**（单测 **39/39**、端到端 demo、四大故障用例 + 真实进程崩溃/断点续跑用例 E2/E3 + P5 幂等复用 F、审计不变量全 PASS）。
+- **AGH 联调已真实跑通**：插件经交互 TTY 确认安装 + trust + enable，`desired=enabled actual=running trusted=true`；两次真实 `-p` 会话共 21 次 tool/call + 21 次 tool/result，**7 个 sciret_* 工具全部出现**（含 `sciret_resume` 的 kill_after_p2 崩溃恢复演示）。导出在 `evidence/session.jsonl`（首轮）与 `evidence/session-full.jsonl`（崩溃恢复轮，同一 workspace 会话追加）。
 - **红线**：密钥只存 `.env`（gitignore）；所有交付物收敛在 `paper-agent/` 项目目录内；实验数据标注 `as-reported`，严禁伪造。
 
 ---
@@ -38,7 +38,7 @@ paper-agent/
 │   ├── __init__.py                 #   根路径探测 PAPER_AGENT_ROOT；导出 DATA_DIR/EXPERIMENTS_DIR/RUNS_DIR
 │   ├── state.py                    #   有限状态机 + run 生命周期 + 状态持久化（append-only events.jsonl）
 │   ├── provenance.py               #   证据账本 provenance.jsonl + 结论-证据强绑定 + 引文渲染
-│   ├── chaos.py                    #   故障注入（p1_fail_first / p1_fail_all / mutate_summary / kill_after_p2）
+│   ├── chaos.py                    #   故障注入（p1_fail_first / p1_fail_all / mutate_summary / kill_after_p2 真实 os._exit(137)）
 │   ├── steps.py                    #   五步 P1-P5 调度 + 重试-降级 + 工具调用留痕 toolcalls/ + resume
 │   ├── verify.py                   #   P4 复现验证器（递归容差比对，5 项校验）
 │   ├── report.py                   #   P5 报告生成（从真实产物提取数据，C1-C5 全带 [EV-XXXX]）
@@ -54,7 +54,7 @@ paper-agent/
 │   ├── _util.py                    # 共享：构建隔离临时根 + make_clean_csv
 │   ├── test_state.py              # 状态机转移/持久化/非法转移/append-only（10）
 │   ├── test_provenance.py         # 证据账本/结论绑定/引文（10）
-│   ├── test_recovery.py           # 四大故障用例 A/B/C/D + FAILED 终态（5）
+│   ├── test_recovery.py           # 故障用例 A/B/C/D + E2/E3 真实进程崩溃续跑 + F 幂等 + FAILED 终态（9）
 │   └── test_repro.py              # 确定性双跑 SHA-256 + verify 递归容差（11）
 ├── demo/
 │   ├── demo_e2e.sh                # 正常路径 + 确定性双跑 + cite + 报告摘要
@@ -80,7 +80,7 @@ paper-agent/
 
 ```bash
 cd C:/Users/ASUS/Desktop/黑客松/paper-agent
-# ① 单元测试（36/36 应全绿）
+# ① 单元测试（39/39 应全绿）
 set PYTHONPATH=C:\Users\ASUS\Desktop\黑客松\paper-agent\core
 python -m unittest discover -s tests -p "test_*.py"
 
@@ -94,7 +94,7 @@ python -m unittest discover -s tests -p "test_*.py"
 node plugins/paper-agent-tools/index.mjs   # 无语法错即通过（真实注册在 AGH 运行时）
 ```
 
-**预期结果**：单测 36/36 OK；demo_e2e 末行 `DEMO_E2E_OK`；demo_failure 末行 `DEMO_FAILURE_OK`（8 passed, 0 failed）。
+**预期结果**：单测 39/39 OK；demo_e2e 末行 `DEMO_E2E_OK`；demo_failure 末行 `DEMO_FAILURE_OK`（8 passed, 0 failed）。
 
 ---
 
@@ -115,7 +115,7 @@ node plugins/paper-agent-tools/index.mjs   # 无语法错即通过（真实注�
 
 - 正常路径 `results.csv` SHA-256 前缀：`a30bc79f…`
 - 实验确定性双跑：两次 `results.csv` SHA-256 必须完全相同。
-- 插件 `file:./plugins/paper-agent-tools` 的 inspect integrity：`sha256-d228e6136472fd3f30b2d72178c49c461b0edea546a7605dc6f975acab75c4a1`（随 index.mjs/package.json 变化而变；以 `AGH package inspect` 实际输出为准）。
+- 插件 `file:./plugins/paper-agent-tools` 的 inspect integrity：`sha256-789fd334517aaaf7546157cf05d2d1b7ca51abd5016b861e0e42462d293d8202`（当前已安装版本，含 Cordis 对象导出 + meta 8 键修复；随 index.mjs/package.json 变化而变，以 `AGH package inspect` 实际输出为准）。
 - 5 项复现校验：`results_csv_sha256 / n_rows / top3_material_id_set / top3_scores_positional / family_mean_log10_cond`。
 
 ---
@@ -147,14 +147,17 @@ AGH 的 `package add`（= install）在源码里走 `io.confirm(preview)`，**�
 
 - **项目内隔离 AGH home（`.agh-home`）失败**：AGH 的 home 是**活运行时状态机**（credential store / daemon 身份 / sqlite lock 均绑定原路径），手动 `Copy-Item` 整个 `~/.agh` 或只拷 config+secrets 都报 `provider host assembly failed` / `credential store is unavailable`。**不要再尝试搬 home**。AGH 框架就用它默认 home 运行（类比 node_modules，是框架自带运行时，不是 paper-agent 交付物）。
 
-### 6.5 待办（新工具或人类执行）
+### 6.5 联调闭环记录（2026-10-02 已完成）
 
-- [ ] 在**交互终端**执行 `demo/demo_agh_session.sh`（或手动 `AGH install`+`trust`+`enable`），完成 7 工具真实调用。
-- [ ] 导出 `evidence/session.jsonl`，核验 `grep -c '"tool_use"\|"tool_result"' evidence/session.jsonl` **≥ 6 条连续**。
-- [ ] `build_audit_pack.sh <RUN_ID>` 归集审计包（自动补 `agh-session.jsonl`）。
-- [ ] 把 AGH 联调产物 commit（**不含 `.env`**）。
+- [x] 交互式 TTY 安装：`package add` 的人类确认无法 non-TTY 绕过（AGH 安全设计）。最终自动化方案：`demo/reinstall_plugin.ps1` 用 `Start-Process cmd` 开真实控制台 + `AttachConsole(pid)` + `WriteConsoleInput(CONIN$)` 注入命令行与 `y` 确认（等价真人键盘输入，走正常 TTY 确认路径）。
+- [x] 两次真实 `-p` 会话（同一 workspace 会话追加轮次，session id `agnes:local:local-dev:cli:workspace:05d7ffbf5caefe74`）：
+  - 首轮：plan→run_step P1..P5→verify→report→cite→status，10 次调用全成功，run `run-20261002-030119-61a0ec` DONE、verify PASS（SHA `a30bc79f…`）。
+  - 崩溃恢复轮：run_step P2 带 `chaos=kill_after_p2` → 子进程被 `os._exit(137)` 真实杀死 → status 显示 P3 PENDING → `sciret_resume` 断点续跑至 DONE → verify/report/cite 复核。run `run-20261002-033525-356ccf`。**7/7 工具全部出现**。
+- [x] 证据导出：`evidence/session.jsonl`（首轮）与 `evidence/session-full.jsonl`（21 tool/call + 21 tool/result，闸门 ≥6 通过）。`*.jsonl` 按红线 gitignore（含本机路径），提交包从磁盘归集。
+- [x] 审计包：`bash audit-pack-template/build_audit_pack.sh <RUN_ID>` 现自动把两份会话导出拷入 `audit-pack/`（`audit-pack/` 亦 gitignore，交付时随包生成）。
+- 期间修复的真实缺陷：① 插件入口改 Cordis 对象范式（`inject:['extension']`）；② tool meta 补全 8 必填键（replay/costHint/deferLoading/requiresApproval 等，`requiresApproval:'never'`）；③ `kill_after_p2` 从"文档声明"到真实实现（chaos.py + run_p2/run_all 双路径挂钩 + E2/E3 测试）；④ P5 报告 DONE 后重复调用抛 StateError → 改幂等复用（F 测试）。
 
-> 7 工具名（会话中应全部出现）：`sciret_plan / sciret_run_step / sciret_status / sciret_verify / sciret_report / sciret_cite / sciret_resume`。
+> 7 工具名（会话中已全部出现）：`sciret_plan / sciret_run_step / sciret_status / sciret_verify / sciret_report / sciret_cite / sciret_resume`。
 
 ---
 
@@ -179,4 +182,4 @@ AGH 的 `package add`（= install）在源码里走 `io.confirm(preview)`，**�
 
 ## 8. 一句话交接
 
-> 代码与工程层 100% 完成且自验证全绿；**唯一剩余是 AGH 真实会话联调，卡在交互式安装确认**——直接在新环境跑 `demo/demo_agh_session.sh`，把 `evidence/session.jsonl` 与审计包回填并 commit（勿含 `.env`）即可收工。改任何 Python 代码前先读 §4 红线、跑 §3 验证。
+> 代码、工程层与 AGH 真实会话联调 **100% 闭环**：插件 running+trusted，两次真实会话 7/7 工具全覆盖（含真实进程崩溃 + 断点续跑演示），证据与审计包在盘。剩余工作只有**赛事提交材料**（项目说明文档 / 演示视频脚本 / 独立完成声明，见任务清单）。改任何 Python 代码前先读 §4 红线、跑 §3 验证；改插件后重跑 `demo/reinstall_plugin.ps1`（会真实开一个确认窗口）。

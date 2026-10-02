@@ -125,6 +125,87 @@ class TestRecovery(unittest.TestCase):
         self.assertFalse(names["top3_scores_positional"])
         self.assertTrue(names["n_rows"])
 
+    def test_case_E2_kill_after_p2_subprocess(self):
+        """kill_after_p2 真实进程崩溃：子进程 exit 137，账本保持完整，resume 续跑到 DONE。"""
+        import subprocess
+        import sys
+        core = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "core")
+        env = dict(os.environ,
+                   PYTHONPATH=os.path.abspath(core),
+                   **{"paper-agent_ROOT": self.root})
+        pr = subprocess.run(
+            [sys.executable, "-m", "paper_agent.cli", "plan",
+             "--goal", "kill demo", "--chaos", "kill_after_p2"],
+            cwd=self.root, env=env, capture_output=True, text=True, timeout=120)
+        self.assertEqual(pr.returncode, 0, pr.stderr)
+        rid = json.loads(pr.stdout.strip())["run_id"]
+        pk = subprocess.run(
+            [sys.executable, "-m", "paper_agent.cli", "run-all",
+             "--run", rid, "--chaos", "kill_after_p2"],
+            cwd=self.root, env=env, capture_output=True, text=True, timeout=180)
+        self.assertEqual(pk.returncode, 137, "P2 后必须被 os._exit(137) 杀死")
+        # 崩溃后：P1/P2 已 DONE，P3-P5 仍 PENDING；双账本逐行可解析（append-only 完整）
+        st = load_state(rid, self.root)
+        self.assertEqual(st.step_status["P1_lit_search"].value, "DONE")
+        self.assertEqual(st.step_status["P2_clean_data"].value, "DONE")
+        self.assertEqual(st.step_status["P3_run_experiment"].value, "PENDING")
+        ev = _run_events(self.root, rid)
+        self.assertTrue(all(isinstance(e, dict) and e.get("run_id") == rid for e in ev))
+        prov_path = os.path.join(self.root, "runs", rid, "provenance.jsonl")
+        with open(prov_path, "r", encoding="utf-8") as fh:
+            for line in fh:
+                if line.strip():
+                    json.loads(line)
+        # 断点续跑收敛
+        pipe = Pipeline(self.root, rid)
+        out = pipe.resume()
+        self.assertEqual(out["run_status"], "DONE")
+
+    def test_case_E3_kill_after_p2_via_run_step(self):
+        """AGH 插件形态（只有 run_step 工具）：run-step P2 --chaos kill_after_p2
+        同样真实杀死子进程（exit 137），resume 断点续跑到 DONE。"""
+        import subprocess
+        import sys
+        core = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "core")
+        env = dict(os.environ,
+                   PYTHONPATH=os.path.abspath(core),
+                   **{"paper-agent_ROOT": self.root})
+        pr = subprocess.run(
+            [sys.executable, "-m", "paper_agent.cli", "plan", "--goal", "runstep kill"],
+            cwd=self.root, env=env, capture_output=True, text=True, timeout=120)
+        self.assertEqual(pr.returncode, 0, pr.stderr)
+        rid = json.loads(pr.stdout.strip())["run_id"]
+        p1 = subprocess.run(
+            [sys.executable, "-m", "paper_agent.cli", "run-step",
+             "--run", rid, "--step", "P1_lit_search"],
+            cwd=self.root, env=env, capture_output=True, text=True, timeout=180)
+        self.assertEqual(p1.returncode, 0, p1.stderr)
+        p2 = subprocess.run(
+            [sys.executable, "-m", "paper_agent.cli", "run-step",
+             "--run", rid, "--step", "P2_clean_data", "--chaos", "kill_after_p2"],
+            cwd=self.root, env=env, capture_output=True, text=True, timeout=180)
+        self.assertEqual(p2.returncode, 137, "run-step P2 路径也必须被杀死")
+        st = load_state(rid, self.root)
+        self.assertEqual(st.step_status["P2_clean_data"].value, "DONE")
+        self.assertEqual(st.step_status["P3_run_experiment"].value, "PENDING")
+        rs = subprocess.run(
+            [sys.executable, "-m", "paper_agent.cli", "resume", "--run", rid],
+            cwd=self.root, env=env, capture_output=True, text=True, timeout=180)
+        self.assertEqual(rs.returncode, 0, rs.stderr)
+        self.assertEqual(json.loads(rs.stdout.strip())["run_status"], "DONE")
+
+    def test_case_F_report_idempotent_after_done(self):
+        """DONE 后重复 sciret_report（cmd_report→run_p5）必须幂等复用而非 StateError。"""
+        rid, pipe = self._plan("")
+        out = pipe.run_all()
+        self.assertEqual(out["run_status"], "DONE")
+        res = pipe.run_p5()  # 第二次报告调用：复用既有 report.md
+        self.assertIn("report", res)
+        self.assertTrue(res.get("idempotent_reuse"))
+        st = load_state(rid, self.root)
+        self.assertEqual(st.step_status["P5_report"].value, "DONE")
+        self.assertEqual(st.attempts["P5_report"], 1)
+
     def test_state_failed_terminal_after_d(self):
         # run FAILED 后不能再 finish_run(DONE)
         from paper_agent.state import StateError

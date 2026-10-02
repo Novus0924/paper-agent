@@ -5,7 +5,8 @@
 - 用例矩阵：
     p1_fail_first : P1 第 1 次 attempt 抛 TransientError；重试后成功
     p1_fail_all   : P1 所有 attempt 都抛 TransientError；触发降级
-    kill_after_p2 : 在 P2 完成后"杀死"流程（上层通过 run-step 中断模拟）
+    kill_after_p2 : run-all 在 P2 完成后 os._exit(137) 杀死进程（真实崩溃模拟，
+                    账本已落盘；后续用 resume 断点续跑）
     mutate_summary: P3/P4 实验子进程注入环境变量 paper-agent_MUTATE=1，制造复现不一致
 - 故障开关通过环境变量 paper-agent_CHAOS=<mode> 设置；
   也允许通过 set_chaos_mode() 直接设定，方便测试与 CLI。
@@ -62,6 +63,19 @@ class _ChaosRegistry:
         if self._mode == "mutate_summary":
             return {CHAOS_ENV: "1"}
         return {}
+
+    def kill_after(self, step_id: str) -> None:
+        """kill_after_p2：在 run-all 循环中 P2 完成后杀死当前进程（os._exit 模拟
+        SIGKILL，退出码 137 = 128+9）。调用点保证位于该步骤账本与状态全部落盘
+        之后，因此 events.jsonl / provenance.jsonl 保持 append-only 完整，
+        P3-P5 仍为 PENDING，可由 resume 断点续跑。"""
+        if self._mode == "kill_after_p2" and step_id == "P2_clean_data":
+            for stream in (getattr(os, "stderr", None), getattr(os, "stdout", None)):
+                try:
+                    stream.flush()
+                except Exception:
+                    pass
+            os._exit(137)
 
 
 # 模块级单例，跨 CLI / steps 共享

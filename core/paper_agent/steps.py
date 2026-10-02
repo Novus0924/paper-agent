@@ -295,6 +295,9 @@ class Pipeline:
                        {"clean": clean_path, "report": rep_path})
         self.state.mark_step_done(sid, {"output_rows": len(clean_rows),
                                         "actions": len(actions)})
+        # 崩溃注入点同样覆盖单步 run-step 路径（AGH 插件只有 run_step 工具）；
+        # 位于 P2 状态与双账本全部落盘之后，append-only 完整性不受影响。
+        chaos.CH.kill_after(sid)
         return {"clean": clean_path, "report": rep_path,
                 "input_rows": in_n, "output_rows": len(clean_rows),
                 "evidence": [ev_data, ev_rep]}
@@ -433,9 +436,9 @@ class Pipeline:
     def run_p5(self) -> dict:
         sid = "P5_report"
         if self.state.step_status[sid] is StepStatus.DONE:
+            # 幂等复用：DONE→DONE 是非法转移（终态守卫），直接返回既有报告路径
             rpath = os.path.join(self.root, "runs", self.run_id, "report.md")
-            self.state.mark_step_done(sid, {"idempotent_reuse": True})
-            return {"report": rpath}
+            return {"report": rpath, "idempotent_reuse": True}
         self.state.mark_step_running(sid)
         from . import report as report_mod
         rpath = report_mod.generate_report(self.root, self.run_id,
@@ -485,6 +488,8 @@ class Pipeline:
                 continue
             res = getattr(self, fn)()
             results[step] = res
+            # 崩溃注入点：位于该步骤状态与双账本全部落盘之后（append-only 完整）
+            chaos.CH.kill_after(step)
             if res.get("failed"):
                 failed = True
                 break
