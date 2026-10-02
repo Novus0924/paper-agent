@@ -5,7 +5,7 @@
 | 项目说明（问题来源 / 目标 / 核心方法 / AGH 执行流程 / 模型名称版本 / 使用环节 / 调用方式 / 验证方法） | `项目说明.md` | ✅ 已就绪 |
 | 可运行作品 | 仓库全量代码（`python + node`，零第三方依赖；一键验证见 README） | ✅ 已就绪 |
 | 3–5 分钟演示视频 | 脚本：`演示视频脚本.md`；成片上传后回填链接 | ⬜ 待录制 |
-| 运行证据 | `../evidence/session-full.jsonl`（21+21 条 tool/call/result，7/7 工具覆盖）；审计包 `../audit-pack/`（`build_audit_pack.sh <RUN_ID>` 现生成） | ✅ 已就绪（*.jsonl 含本机路径，打包前审查/脱敏） |
+| 运行证据 | ① 真实会话 `../evidence/session-full.jsonl`（21+21 条 tool/call/result，7/7 工具覆盖）；② **已入库脱敏账本** `../evidence/agh-session-sanitized.jsonl`（9+9 条，含 5 次连续 `sciret_step_driven`，评审无需环境即可核对）；审计包 `../audit-pack/`（`build_audit_pack.sh <RUN_ID>` 现生成） | ✅ 已就绪（原始 *.jsonl 含本机路径，打包前审查/脱敏） |
 | 独立完成声明 | `../docs/ai_disclosure.md` | ✅ 已就绪 |
 | 数据来源声明 | `../docs/sources.md` | ✅ 已就绪 |
 | 公开发布内容（≥1 条） | GitHub 仓库公开 / 技术分享帖 | ⬜ 团队执行 |

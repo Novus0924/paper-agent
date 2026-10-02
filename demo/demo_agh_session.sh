@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# demo/demo_agh_session.sh — AGH 真实会话联调（触发 7 个科研工具，导出 session.jsonl）
+# demo/demo_agh_session.sh — AGH 真实会话联调（触发 10 个科研工具，导出 session.jsonl）
 #
 # 运行环境：
 #   - AGH 源码已构建：packages/cli/dist/local/agnes.mjs（见 docs/guide/install.md）
@@ -18,8 +18,12 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-# AGH 入口（源码构建产物；可用 AGH_ENTRY 覆盖）
-AGH_ENTRY="${AGH_ENTRY:-C:\Users\ASUS\Desktop\黑客松\agnes-harness\packages\cli\dist\local\agnes.mjs}"
+# AGH 入口（源码构建产物；可用 AGH_ENTRY 覆盖。默认按 PATH 查找，勿写死他人机器路径）
+AGH_ENTRY="${AGH_ENTRY:-agnes.mjs}"
+if [ "$AGH_ENTRY" = "agnes.mjs" ] && [ ! -f "$AGH_ENTRY" ]; then
+  echo "提示：请设置 AGH_ENTRY 指向本机构建的 agnes.mjs，例如"
+  echo "  AGH_ENTRY=/path/to/agnes-harness/packages/cli/dist/local/agnes.mjs bash demo/demo_agh_session.sh"
+fi
 AGH_ENTRY="${AGH_ENTRY//\\//}"   # Windows 反斜杠 → 正斜杠
 AGH() { node "$AGH_ENTRY" "$@"; }
 
@@ -45,14 +49,17 @@ read -r -p "输入 CAPABILITY_HASH（preview 的 capabilityHash）: " CAP_HASH
 [ -n "${INTEGRITY:-}" ] && AGH package trust "paper-agent-tools" "$INTEGRITY" "$CAP_HASH" \
   || echo "  (跳过 trust)"
 
-echo "==> [4/6] 启用插件（daemon 加载并注册 7 工具）"
+echo "==> [4/6] 启用插件（daemon 加载并注册 10 工具 + 1 Skill）"
 AGH package enable "paper-agent-tools"
 
-echo "==> [5/6] 发起科研会话（触发 sciret_plan/run_step/verify/report/cite/resume/status）"
+echo "==> [5/6] 发起科研会话（模型逐步驱动 10 工具）"
+# 主导路径：sciret_plan → sciret_step_driven ×5 → sciret_next → sciret_finish → sciret_cite
 AGH -p --cwd "$PWD" \
-  "请使用科研流水线工具：sciret_plan 规划一个'硫化物固态电解质电导率排序'任务并返回 run_id；" \
-  "然后 sciret_run_step 依次执行 P1 到 P5；sciret_verify 复现验证；sciret_report 生成报告；" \
-  "sciret_cite 回查一条文献证据；sciret_status 查看最终状态。全程用工具完成并给出结论。"
+  "请使用科研流水线工具完成一个'硫化物固态电解质电导率排序'任务。" \
+  "先用 sciret_plan 规划并拿到 run_id；然后用 sciret_step_driven 逐步执行 P1 到 P5，" \
+  "每执行一步都要读返回的 remaining_steps 和 next_tool_candidates，自己决定下一步调哪个工具；" \
+  "五步都完成后用 sciret_next 确认无剩余步骤，再 sciret_finish 收敛状态；" \
+  "最后 sciret_cite 回查一条文献证据。全程必须自己逐步决策，不要指望一次调用跑完。"
 # 记 SESSION_ID（agnes -p 结束会打印 session id；或用 sessions 列表取最新）
 read -r -p "输入 SESSION_ID： " SESSION_ID
 

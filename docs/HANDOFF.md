@@ -160,6 +160,10 @@ AGH 的 `package add`（= install）在源码里走 `io.confirm(preview)`，**�
 - 期间修复的真实缺陷：① 插件入口改 Cordis 对象范式（`inject:['extension']`）；② tool meta 补全 8 必填键（replay/costHint/deferLoading/requiresApproval 等，`requiresApproval:'never'`）；③ `kill_after_p2` 从"文档声明"到真实实现（chaos.py + run_p2/run_all 双路径挂钩 + E2/E3 测试）；④ P5 报告 DONE 后重复调用抛 StateError → 改幂等复用（F 测试）。
 
 > 7 工具名（会话中已全部出现）：`sciret_plan / sciret_run_step / sciret_status / sciret_verify / sciret_report / sciret_cite / sciret_resume`。
+>
+> **注（阶段 7 重构）**：此后新增 `sciret_step_driven / sciret_next / sciret_finish`，
+> 工具总数 **10**，并把核心编排改为**模型驱动**（详见 §0 与 README「编排模型」）。
+> 上表中的 7/7、21+21 为阶段 6 真实会话的历史事实，未改动。
 
 ---
 
@@ -171,7 +175,7 @@ AGH 的 `package add`（= install）在源码里走 `io.confirm(preview)`，**�
 | Node | ≥18（AGH 需 ≥24） | 24.15 |
 | pnpm | 10.34.5（AGH 构建） | 10.34.5 |
 | bash + sha256sum | demo 脚本 | Git Bash（`C:\Program Files\Git\bin\bash.exe`）|
-| AGH 源码 | 已构建 | `C:\Users\ASUS\Desktop\黑客松\agnes-harness` |
+| AGH 源码 | 已构建 | 本机构建路径见 `AGH_ENTRY`（脚本不再写死他人机器绝对路径） |
 
 ### 踩坑备忘（Windows 特有）
 - **WSL shim 拦截**：`bash -c "…"` 或带引号路径调 Git Bash 会被 `wsl.exe` 拦截报 `No such file or directory`。**解法**：`& 'C:\Program Files\Git\bin\bash.exe' '绝对路径.sh'`（PowerShell 直接调脚本，不嵌套 `-c`）。
