@@ -5,7 +5,10 @@
 `certutil -hashfile <file> SHA256` 或 Git Bash 的 `sha256sum`。
 
 > 约定：`ROOT` = 项目根目录；`RUN_ID` = 某次 run 实例 id（形如
-> `run-YYYYMMDD-HHMMSS-xxxxxx`）。
+> `run-YYYYMMDD-HHMMSS-xxxxxx`）；`SNAP` = 快照 id（形如 `snap-...`）。
+>
+> **两条路径**：默认走**快照主线**（真实数据）；
+> 加 `export PAPER_AGENT_SNAPSHOT=none` 可强制走 **legacy 路径**（内置演示语料）。
 
 ```bash
 cd <ROOT>
@@ -15,188 +18,211 @@ PY=python
 
 ---
 
-## 1. 业务流水线 — 正常路径
+# 第一部分 · 快照主线（真实数据）
 
-**验收项**：`run-all` 五步全部 DONE，`degraded=false`，`verification=PASS`。
+## 0. 一键验收（推荐）
 
 ```bash
-$PY -m paper_agent.cli plan --goal "sulfide solid electrolyte ionic conductivity ranking"
-# 取出 RUN_ID（JSON 输出字段 run_id）
-$PY -m paper_agent.cli run-all --run $RUN_ID
+bash demo/demo_mainline.sh
+# 期望：14 passed, 0 failed → 末行 DEMO_MAINLINE_OK
 ```
 
-判定：输出 JSON 中 `run_status=="DONE"` 且 `results.P4_verify.status=="PASS"`。
+该脚本覆盖 [1] 快照强校验 → [2] 全链路 599→562→排序→P4 PASS →
+[3] 两次运行逐字节一致 → [4] 删除判断记录后必须失败 → [5] 判断留痕 →
+[6] fact/judgment 证据回查。
 
-也可一键跑：
+## 1. 快照强校验（含篡改检测）
 
-```bash
-bash demo/demo_e2e.sh
-```
-
----
-
-## 2. 实验确定性 — 两次执行 SHA-256 一致
-
-**验收项**：相同输入两次执行实验脚本，`results.csv` 逐字节一致。
+**验收项**：逐文件 SHA-256 与聚合内容哈希全部吻合。
 
 ```bash
-IN=runs/$RUN_ID/clean/conductivity_clean.csv
-$PY experiments/arrhenius_rank.py --input $IN --outdir runs/$RUN_ID/verify_a --seed 0
-$PY experiments/arrhenius_rank.py --input $IN --outdir runs/$RUN_ID/verify_b --seed 0
-
-# Git Bash / Linux
-sha256sum runs/$RUN_ID/verify_a/results/results.csv \
-          runs/$RUN_ID/verify_b/results/results.csv
-# 两个哈希必须完全相同
-
-# Windows PowerShell
-certutil -hashfile runs/$RUN_ID/verify_a/results/results.csv SHA256
-certutil -hashfile runs/$RUN_ID/verify_b/results/results.csv SHA256
-```
-
-> 注意：`summary.json` 中的 `generated_at` 为唯一可变时间戳，**不参与**哈希比对；
-> 复现校验只对 `results.csv` 与结构化字段做 SHA‑256 / 容差比对。
-
----
-
-## 3. 故障用例
-
-一键自动化：
-
-```bash
-bash demo/demo_failure.sh
-```
-
-或逐用例手动：
-
-### 用例 A：`p1_fail_first`（重试 1 次成功，DONE，degraded=false）
-
-```bash
-$PY -m paper_agent.cli run-all --goal "sulfide solid electrolyte conductivity" \
-     --chaos p1_fail_first
-# 判定：run_status==DONE, degraded==false
-# 验证恰有 1 次 retry 事件：
-grep -c '"type": "retry"' runs/$RUN_ID/events.jsonl   # 期望 1
-```
-
-### 用例 B：`p1_fail_all`（重试耗尽触发降级，DONE，degraded=true，含 degrade 事件）
-
-```bash
-$PY -m paper_agent.cli run-all --goal "garnet solid electrolyte" --chaos p1_fail_all
-# 判定：run_status==DONE, degraded==true
-grep -c '"type": "degrade"' runs/$RUN_ID/events.jsonl   # 期望 >=1
-```
-
-### 用例 C：P2 完成后中断，resume 只跑剩余步骤
-
-```bash
-$PY -m paper_agent.cli plan --goal "argyrodite conductivity ranking"   # 得 RUN_ID
-$PY -m paper_agent.cli run-step --run $RUN_ID --step P1_lit_search
-$PY -m paper_agent.cli run-step --run $RUN_ID --step P2_clean_data
-# 模拟 P2 后进程被杀（P3/P4/P5 仍 PENDING），断点续跑：
-$PY -m paper_agent.cli resume --run $RUN_ID
-# 判定：run_status==DONE；results.P1/P2.reused==true；attempts.P1==attempts.P2==1
-```
-
-### 用例 D：`mutate_summary`（复现 FAIL，P4 FAILED，run FAILED，5 项校验可查）
-
-```bash
-$PY -m paper_agent.cli run-all --goal "sulfide ranking" --chaos mutate_summary
-# 判定：run_status==FAILED, results.P4_verify.status==FAIL
-$PY -c "import json;d=json.load(open('runs/$RUN_ID/verification/verification.json',encoding='utf-8'));print(d['status'], [c['name'] for c in d['checks']])"
-# 期望：FAIL 且 5 项校验名齐全（results_csv_sha256 / n_rows /
-# top3_material_id_set / top3_scores_positional / family_mean_log10_cond）
-```
-
----
-
-## 4. 证据与报告
-
-**验收项**：`report.md` 每条结论携带 `[EV-XXXX]`；`sciret_cite` 可回查 DOI / SHA‑256。
-
-```bash
-$PY -m paper_agent.cli report --run $RUN_ID
-# 检查 report.md 中 C1-C5 是否都带 [EV-xxxx]
-cat runs/$RUN_ID/report.md
-
-# 回查文献证据（输出 DOI + 作者 + 年份）
-$PY -m paper_agent.cli cite --run $RUN_ID --ev EV-0001
-# 回查文件证据（输出 sha256 前 16 位）
-$PY -m paper_agent.cli cite --run $RUN_ID --ev EV-0009
-# 列出全部证据
-$PY -m paper_agent.cli cite --run $RUN_ID
-```
-
-证据一致性机器核验（每条结论引用的 EV 必须存在于 provenance.jsonl）：
-
-```bash
-$PY - <<'PY'
-import json, sys
-run = sys.argv[1] if len(sys.argv)>1 else ""
-import glob
-files = glob.glob(f"runs/{run}/") if run else []
+SNAP=$(ls -d snapshots/snap-* | tail -1)
+$PY - "$SNAP" <<'PY'
+import sys, json
+sys.path.insert(0, "core")
+from paper_agent import snapshot as S
+snap = S.Snapshot(".", sys.argv[1].split("/")[-1])
+print(json.dumps(snap.load(), ensure_ascii=False, indent=2)[:600])
+print("verify:", snap.verify())   # 期望 (True, [])
 PY
 ```
 
-（或运行 `tests/test_provenance.py`，其中 `test_conclusion_requires_existing_evidence`
-即校验该不变量。）
-
----
-
-## 5. 单元测试
+篡改检测（改一个字节即应被发现）：
 
 ```bash
-python -m unittest discover -s tests -p "test_*.py"
-# 期望：Ran 36 tests ... OK
+cp "$SNAP/materials.csv" /tmp/m.csv
+printf 'x' >> "$SNAP/materials.csv"
+$PY -c "import sys;sys.path.insert(0,'core');from paper_agent import snapshot as S;print(S.Snapshot('.','$(basename $SNAP)').verify())"
+# 期望：(False, ['hash mismatch: materials.csv ...', 'content hash mismatch ...'])
+cp /tmp/m.csv "$SNAP/materials.csv"    # 恢复
+```
+
+## 2. 真实数据全链路
+
+**验收项**：599 行输入 → 562 行可用（排除 37 行上界值）→ 排序 → P4 PASS。
+
+```bash
+$PY -m paper_agent.cli run-all --goal "sulfide solid electrolyte ionic conductivity ranking" \
+    > /tmp/run.json
+$PY -c "
+import json; d=json.load(open('/tmp/run.json',encoding='utf-8'))
+p2=d['results']['P2_clean_data']
+print('run_status      :', d['run_status'], '| degraded:', d['degraded'])
+print('P1 文献腿 DOI   :', d['results']['P1_lit_search']['n_hits'])
+print('P1 快照         :', d['results']['P1_lit_search']['snapshot_id'])
+print('P2 行数         :', p2['input_rows'], '->', p2['output_rows'], '| 排除', p2['excluded_rows'])
+print('P4 状态         :', d['results']['P4_verify']['status'])
+print('RUN_ID          :', d['run_id'])
+"
+# 期望：DONE / degraded False / DOI 223 / 599 -> 562 / 排除 37 / P4 PASS
+```
+
+## 3. 确定性（核心契约）
+
+**验收项**：相同快照两次独立运行，`results.csv` 逐字节一致。
+
+```bash
+IN="$SNAP/materials.csv"
+$PY experiments/arrhenius_rank.py --input "$IN" --outdir /tmp/vA --seed 0 >/dev/null
+$PY experiments/arrhenius_rank.py --input "$IN" --outdir /tmp/vB --seed 0 >/dev/null
+sha256sum /tmp/vA/results/results.csv /tmp/vB/results/results.csv
+# 期望：两个哈希完全相同
+```
+
+> 唯一可变字段是 `summary.json.generated_at`（UTC 时间戳），**不参与**哈希比对。
+
+## 4. 判据 4 — 判断记录是报告生成的硬前置
+
+**验收项**：删掉快照的判断记录 → 流水线必须失败；恢复后必须重新通过。
+
+```bash
+cp "$SNAP/judgments.jsonl" /tmp/j.bak
+rm "$SNAP/judgments.jsonl"
+$PY -m paper_agent.cli run-all --goal "sulfide ranking"
+# 期望：run_status=FAILED，P1 报 "file missing: judgments.jsonl"
+cp /tmp/j.bak "$SNAP/judgments.jsonl"
+```
+
+## 5. 三级信任模型 — 判断不得支撑结论
+
+**验收项**：`link_conclusion` 拒绝任何非 fact 级证据。
+
+```bash
+$PY -m unittest tests.test_provenance -v 2>&1 | tail -20
+# 关键用例：test_conclusion_rejects_judgment_evidence / test_invariant_checker_detects_non_fact_binding
+```
+
+## 6. 判断留痕与被排除项可反驳
+
+```bash
+$PY - "$RUN_ID" <<'PY'
+import sys, json
+sys.path.insert(0, "core")
+from paper_agent.provenance import ProvenanceLedger
+prov = ProvenanceLedger(f"runs/{sys.argv[1]}", sys.argv[1])
+print("judgments:", len(prov.judgments()), "| excluded:", len(prov.excluded_judgments()),
+      "| facts:", len(prov.facts()))
+for r in prov.excluded_judgments()[:3]:
+    m = r["meta"]
+    print(f'  {r["ev_id"]} 排除 {m["subject"]}：{m["rationale"]}')
+PY
+```
+
+## 7. 报告与证据绑定
+
+```bash
+cat runs/$RUN_ID/report.md
+# 检查：① "输入来源与判断留痕"章节含快照 id 与内容哈希
+#      ② C1–C5 每条都带 [EV-xxxx]
+#      ③ 证据索引表含"层级"列（fact / judgment）
+$PY -m paper_agent.cli cite --run $RUN_ID --ev EV-0001     # judgment 级示例
+$PY -m paper_agent.cli cite --run $RUN_ID                  # 列出全部证据
+```
+
+## 8. 离线可跑性（判据 5）
+
+**验收项**：无网络、无 key、无第三方库也能跑通主线。
+
+```bash
+$PY -c "import sys; mods=[m for m in ('requests','pandas','numpy') if m in sys.modules]; print('已加载第三方库:', mods)"
+# 期望：已加载第三方库: []  （核心只用标准库）
 ```
 
 ---
 
-## 6. AGH 联调（拿到 API Key 后）
+# 第二部分 · legacy 路径（内置演示语料，回归用）
+
+> 以下用例演示的是**早期内置演示语料**路径，用于保证重构无回归。
+> **必须**先禁用快照，否则会走快照主线而与断言不符。
 
 ```bash
-pnpm install --frozen-lockfile
-pnpm --filter @agnes/cli build:local
-node packages/cli/dist/local/agnes.mjs serve
-agnes plugins install file:./plugins/paper-agent-tools
-agnes plugins trust ext:paper-agent/tools
-agnes plugins enable ext:paper-agent/tools
-agnes -p "你的科研目标 prompt"
-agnes export SESSION_ID --format agnes -o session.jsonl
+export PAPER_AGENT_SNAPSHOT=none
 ```
 
-**验收项**：`session.jsonl` 至少含 ≥6 条连续 `tool_use` / `tool_result` 交互记录：
+## 9. 端到端正常路径
 
 ```bash
-# 统计 tool_use / tool_result 事件数
-grep -c '"tool_use"\|"tool_result"' session.jsonl   # 期望 >=6（连续结构化）
+bash demo/demo_e2e.sh        # 期望末行 DEMO_E2E_OK
+```
+
+## 10. 四大故障恢复用例
+
+```bash
+bash demo/demo_failure.sh    # 期望 DEMO_FAILURE: 8 passed, 0 failed
+```
+
+逐用例手动执行方式见 `docs/redesign-decisions.md` 与 `demo/demo_failure.sh` 内注释
+（用例 A 重试 / B 降级 / C 断点续跑 / D 复现 FAIL）。
+
+## 11. 单元测试
+
+```bash
+$PY -m unittest discover -s tests -p "test_*.py"
+# 期望：Ran 88 tests ... OK
 ```
 
 ---
 
-## 7. 审计交付包
+# 第三部分 · 数据源核验
 
-从完成的 run 收集以下文件打包（见 `audit-pack-template/` 结构）：
-
-| 文件 | 来源 |
-| --- | --- |
-| `state.json` | `runs/<run_id>/state.json` |
-| `events.jsonl` | `runs/<run_id>/events.jsonl` |
-| `provenance.jsonl` | `runs/<run_id>/provenance.jsonl` |
-| `conclusions.jsonl` | `runs/<run_id>/conclusions.jsonl` |
-| `agh-session.jsonl` | 联调导出的 `session.jsonl` |
-| `verification.json` | `runs/<run_id>/verification/verification.json` |
-| `HOW-TO-VERIFY.md` | 本文件 |
+## 12. 数据源探针（离线可复跑）
 
 ```bash
-mkdir -p audit-pack && cp \
-  runs/$RUN_ID/state.json \
-  runs/$RUN_ID/events.jsonl \
-  runs/$RUN_ID/provenance.jsonl \
-  runs/$RUN_ID/conclusions.jsonl \
-  runs/$RUN_ID/verification/verification.json \
-  HOW-TO-VERIFY.md \
-  audit-pack/
-cp session.jsonl audit-pack/agh-session.jsonl 2>/dev/null || true
+$PY tools/probe_obelix.py --input data/external/obelix/all.csv
+# 期望：n_rows 599 / usable 562 / upper_bound 37 / doi_coverage 1.0
+
+# 联网核对 DOI 可解析性（可选，需网络）
+$PY tools/probe_obelix.py --input data/external/obelix/all.csv --doi-sample 10
+# 期望：crossref 10/10、openalex 10/10
+```
+
+## 13. 重新生成快照（离线）
+
+```bash
+$PY tools/freeze_snapshot.py --goal "sulfide solid electrolyte ionic conductivity ranking"
+# 期望：ok=true、verify_problems=[]、stats.in_scope_rows 约 130
+```
+
+---
+
+# 第四部分 · 审计交付包
+
+```bash
+SNAP=<snapshot_id>; RUN_ID=<run_id>
+mkdir -p audit-pack
+cp runs/$RUN_ID/state.json            audit-pack/
+cp runs/$RUN_ID/events.jsonl          audit-pack/
+cp runs/$RUN_ID/provenance.jsonl      audit-pack/
+cp runs/$RUN_ID/conclusions.jsonl     audit-pack/
+cp runs/$RUN_ID/verification/verification.json audit-pack/
+cp runs/$RUN_ID/report.md             audit-pack/
+cp -r snapshots/$SNAP                 audit-pack/input-snapshot/
+cp HOW-TO-VERIFY.md                   audit-pack/
 tar -czf audit-pack.tar.gz audit-pack
 ```
+
+**机器可校验要点**：
+- `provenance.jsonl` 每条含 `ev_id / tier / kind / ref / sha256 / producer_step`
+- `conclusions.jsonl` 每条 `evidence_ids` 必须全部存在**且全部为 fact 级**
+- 快照目录逐文件哈希必须与 `manifest.json` 一致
+- `events.jsonl` append-only，时间戳单调不减
