@@ -1,14 +1,19 @@
 """cli.py — 命令行统一入口（文档 §4.7）。
 
-子命令:
+**主导路径（AGH 会话内）**：由大模型逐步驱动，Python 每次只执行一个步骤
   plan --goal "..." [--chaos MODE]
-  status --run RUN_ID [--chaos MODE]
-  run-step --run RUN_ID --step SID [--chaos MODE]
-  run-all --run RUN_ID [--chaos MODE]
-  resume --run RUN_ID [--chaos MODE]
-  verify --run RUN_ID [--chaos MODE]
-  report --run RUN_ID [--chaos MODE]
-  cite --run RUN_ID [--ev EV-XXXX] [--chaos MODE]
+  next --run RUN_ID                  # 只读：看下一步候选
+  step-driven --run ID --step SID    # ★ 执行单步 + 返回决策上下文
+  finish --run RUN_ID                # 模型确认终态后收尾
+  status --run RUN_ID
+
+**确定性兜底路径（单测 / 离线演示）**：
+  run-step --run RUN_ID --step SID
+  run-all --run RUN_ID
+  resume --run RUN_ID
+
+**可信框架**：
+  verify --run RUN_ID / report --run RUN_ID / cite --run RUN_ID [--ev EV-XXXX]
 
 约定:
 - stdout 严格只输出单个 JSON 对象（UTF-8）
@@ -82,6 +87,19 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--run", required=True)
     p.add_argument("--step", required=True)
 
+    # 模型驱动路径：返回决策上下文（供 AGH 会话内大模型判断下一步）
+    p = mk("step-driven")
+    p.add_argument("--run", required=True)
+    p.add_argument("--step", required=True)
+
+    # 模型确认终态后收尾
+    p = mk("finish")
+    p.add_argument("--run", required=True)
+
+    # 只读：查询下一步候选（不执行任何步骤）
+    p = mk("next")
+    p.add_argument("--run", required=True)
+
     p = mk("run-all")
     p.add_argument("--run", default="", help="existing run_id; omit to plan a new one")
     p.add_argument("--goal", default="", help="required when --run omitted")
@@ -136,6 +154,49 @@ def cmd_run_step(args) -> int:
     res["run_id"] = args.run
     code = 0 if res["ok"] else 1
     return _emit_fail(res, code) if code else _emit(res)
+
+
+def cmd_step_driven(args) -> int:
+    """模型驱动路径：执行单步并返回决策上下文。
+
+    Python 不替模型决定下一步，只如实汇报结果 + 候选 + 需要模型判断的信号。
+    """
+    pipe = _pipeline(args.run, args.chaos)
+    ctx = pipe.run_step_driven(args.step)
+    ctx["ok"] = True
+    ctx["cmd"] = "step-driven"
+    ctx["run_id"] = args.run
+    return _emit(ctx)
+
+
+def cmd_next(args) -> int:
+    """只读：返回当前 run 的下一步候选与状态摘要（不执行任何步骤）。"""
+    pipe = _pipeline(args.run, args.chaos)
+    st = pipe.state
+    plan = st.pending_or_failed()
+    ctx = {
+        "ok": True,
+        "cmd": "next",
+        "run_id": args.run,
+        "run_status": st.run_status.value,
+        "steps": {s: st.step_status[s].value for s in STEP_IDS},
+        "attempts": st.attempts,
+        "degraded": st.degraded,
+        "remaining_steps": plan,
+        "next_tool_candidates": [f"sciret_run_step(step='{s}')" for s in plan],
+    }
+    return _emit(ctx)
+
+
+def cmd_finish(args) -> int:
+    """模型确认流水线已到终态后调用，收敛 run_status。"""
+    pipe = _pipeline(args.run, args.chaos)
+    out = pipe.finish_if_terminal()
+    out["cmd"] = "finish"
+    out["run_id"] = args.run
+    out["ok"] = out.get("run_status") in ("DONE", "FAILED") and "error" not in out
+    code = 0 if out["ok"] else 1
+    return _emit_fail(out, code) if code else _emit(out)
 
 
 def cmd_run_all(args) -> int:
@@ -207,6 +268,9 @@ _HANDLERS = {
     "plan": cmd_plan,
     "status": cmd_status,
     "run-step": cmd_run_step,
+    "step-driven": cmd_step_driven,
+    "next": cmd_next,
+    "finish": cmd_finish,
     "run-all": cmd_run_all,
     "resume": cmd_resume,
     "verify": cmd_verify,

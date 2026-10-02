@@ -1,1 +1,58 @@
-{"corpus_id": "paper-agent-lit-v1", "note": "公开真实 DOI 文献语料库，用于 P1 本地检索。所有数值均为 as-reported 工程演示用途；正式科研使用务必核对原始论文。", "documents": [{"doc_id": "L001", "doi": "10.1038/nmat3006", "title": "Solid-state ionic conductivity of LGPS sulfur-based electrolytes", "authors": ["H. Yamada"], "venue": "Nature Materials", "year": 2011, "keywords": ["LGPS", "sulfide", "solid-state electrolyte", "ionic conductivity", "garnet"], "abstract": "Reports solid-state ionic conductivity of Li10GeP2S12 (LGPS) sulfur-based glass-ceramic electrolyte reaching about 1.2e-2 S/cm at room temperature, enabling thick solid electrolyte layers in all-solid-state batteries. as-reported for engineering demo."}, {"doc_id": "L002", "doi": "10.1038/nenergy.2016.030", "title": "All-solid-state batteries: from research to applications", "authors": ["H. Kato", "M. Takahashi"], "venue": "Nature Energy", "year": 2016, "keywords": ["all-solid-state battery", "solid-state electrolyte", "sulfide", "conduction"], "abstract": "Reviews solid-state batteries and ionic conduction pathways; discusses sulfur-based and other solid electrolyte families with activation energies and conduction figures. as-reported for engineering demo."}, {"doc_id": "L003", "doi": "10.1002/anie.200701144", "title": "Lithium ion conducting garnet solid electrolyte LLZO", "authors": ["M. Murugan"], "venue": "Angewandte Chemie", "year": 2007, "keywords": ["LLZO", "garnet", "lithium", "oxide", "electrolyte"], "abstract": "Reports LLZO oxide garnet solid electrolyte with room-temperature ionic conductivity on the order of 1e-4 to 1e-3 S/cm and chemical stability suitable for all-solid-state cells. as-reported for engineering demo."}, {"doc_id": "L004", "doi": "10.1016/0167-2738(92)90421-F", "title": "Electrochemical properties of amorphous LiPON thin films as solid electrolytes", "authors": ["J. E. Bates"], "venue": "Solid State Ionics", "year": 1992, "keywords": ["LiPON", "thin film", "solid electrolyte", "amorphous"], "abstract": "Characterizes amorphous LiPON thin-film solid electrolyte with room-temperature ionic conductivity near 1e-6 S/cm and good stability with lithium anodes. as-reported for engineering demo."}, {"doc_id": "L005", "doi": "10.1002/anie.200800627", "title": "Li6PS5X argyrodite solid electrolytes with halide substitution", "authors": ["W. Deiseroth"], "venue": "Angewandte Chemie", "year": 2008, "keywords": ["argyrodite", "Li6PS5X", "halide", "sulfide", "conduction"], "abstract": "Reports Li6PS5X argyrodite sulfur-based solid electrolytes with halide substitution; Li6PS5Cl conductivity on the order of mS/cm to 1e-3 S/cm. as-reported for engineering demo."}]}
+{
+  "corpus_id": "paper-agent-lit-v2",
+  "note": "公开真实 DOI 文献语料库，用于 P1 本地检索。全部 DOI 已于 2026-10-02 经 doi.org / Crossref API 逐条权威核验（标题、作者、期刊、年份均与记录一致）。所有数值均为 as-reported 工程演示用途；正式科研使用务必核对原始论文。",
+  "verified_at": "2026-10-02",
+  "verification_method": "Crossref REST API (api.crossref.org/works/<DOI>) 逐条比对 title/author/journal/year",
+  "documents": [
+    {
+      "doc_id": "L001",
+      "doi": "10.1038/nmat3066",
+      "title": "A lithium superionic conductor",
+      "authors": ["N. Kamaya", "K. Homma", "Y. Yamakawa", "M. Hirayama", "R. Kanno"],
+      "venue": "Nature Materials",
+      "year": 2011,
+      "keywords": ["LGPS", "Li10GeP2S12", "sulfide", "solid-state electrolyte", "ionic conductivity", "superionic conductor"],
+      "abstract": "Reports the lithium superionic conductor Li10GeP2S12 (LGPS) with a room-temperature ionic conductivity of about 1.2e-2 S/cm, comparable to liquid electrolytes, enabling all-solid-state lithium batteries. as-reported for engineering demo."
+    },
+    {
+      "doc_id": "L002",
+      "doi": "10.1038/nenergy.2016.30",
+      "title": "High-power all-solid-state batteries using sulfide superionic conductors",
+      "authors": ["Y. Kato", "S. Hori", "T. Saito", "K. Suzuki", "M. Hirayama", "A. Mitsui", "M. Yonemura", "H. Iba", "R. Kanno"],
+      "venue": "Nature Energy",
+      "year": 2016,
+      "keywords": ["all-solid-state battery", "sulfide", "superionic conductor", "Li9.54Si1.74P1.44S11.7Cl0.3", "conduction"],
+      "abstract": "Demonstrates high-power all-solid-state batteries using the sulfide superionic conductor Li9.54Si1.74P1.44S11.7Cl0.3 with a room-temperature conductivity of about 2.5e-2 S/cm. as-reported for engineering demo."
+    },
+    {
+      "doc_id": "L003",
+      "doi": "10.1002/anie.200701144",
+      "title": "Fast Lithium Ion Conduction in Garnet-Type Li7La3Zr2O12",
+      "authors": ["R. Murugan", "V. Thangadurai", "W. Weppner"],
+      "venue": "Angewandte Chemie International Edition",
+      "year": 2007,
+      "keywords": ["LLZO", "Li7La3Zr2O12", "garnet", "lithium", "oxide", "electrolyte"],
+      "abstract": "Reports cubic garnet-type Li7La3Zr2O12 (LLZO) with a room-temperature bulk ionic conductivity around 3e-4 S/cm and good chemical stability against lithium metal. as-reported for engineering demo."
+    },
+    {
+      "doc_id": "L004",
+      "doi": "10.1016/0167-2738(92)90442-r",
+      "title": "Electrical properties of amorphous lithium electrolyte thin films",
+      "authors": ["J. B. Bates", "G. R. Gruzalski", "N. J. Dudney", "C. F. Luck", "X. Yu"],
+      "venue": "Solid State Ionics",
+      "year": 1992,
+      "keywords": ["LiPON", "thin film", "solid electrolyte", "amorphous", "lithium phosphorus oxynitride"],
+      "abstract": "Characterizes amorphous LiPON thin-film solid electrolytes with room-temperature ionic conductivity near 2e-6 S/cm and excellent stability in contact with lithium. as-reported for engineering demo."
+    },
+    {
+      "doc_id": "L005",
+      "doi": "10.1002/anie.200703900",
+      "title": "Li6PS5X: A Class of Crystalline Li-Rich Solids With an Unusually High Li+ Mobility",
+      "authors": ["H.-J. Deiseroth", "S.-T. Kong", "H. Eckert", "J. Vannahme", "C. Reiner", "T. Zai\u00df", "M. Schlosser"],
+      "venue": "Angewandte Chemie International Edition",
+      "year": 2008,
+      "keywords": ["argyrodite", "Li6PS5X", "Li6PS5Cl", "halide", "sulfide", "conduction", "Li+ mobility"],
+      "abstract": "Introduces the Li6PS5X argyrodite family with unusually high lithium-ion mobility; Li6PS5Cl shows room-temperature conductivity in the mS/cm to 1e-3 S/cm range depending on preparation. as-reported for engineering demo."
+    }
+  ]
+}

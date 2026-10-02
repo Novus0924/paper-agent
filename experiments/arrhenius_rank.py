@@ -29,14 +29,78 @@ import json
 import math
 import os
 import platform
+import statistics
 import sys
 import time
 
-STABILITY = {"sulfide": 0.60, "argyrodite": 0.70, "garnet": 0.90, "thin_film": 0.80}
+STABILITY_TABLE = {"sulfide": 0.60, "argyrodite": 0.70, "garnet": 0.90, "thin_film": 0.80}
 BASE_YEAR = 1992
 SPAN = 24
 WEIGHTS = {"cond": 0.6, "stab": 0.25, "rec": 0.15}
 FAMILY_COLOR = {"sulfide": "#d62728", "argyrodite": "#2ca02c", "garnet": "#1f77b4", "thin_film": "#ff7f0e"}
+
+# ---- 文献驱动的稳定性代理（取代原先硬编码常量）----
+#
+# 旧实现的 stability 是四个凭空写死的常量（garnet 固定 0.90），导致排名被
+# 人为拍的系数主导，且与 P1 检索到的文献完全脱节。
+# 现改为：由**文献报出的活化能 Ea** 反推稳定性代理。
+#
+# 物理依据：界面副反应速率 ~ exp(-Ea/kT)，即 Ea 越高，离子迁移与界面反应
+# 越难被激活，宏观上表现为化学/热稳定性越好。故稳定性代理定义为
+# Ea 在样本内的 min-max 归一（Ea 越高 → 代理值越高）。
+#
+# 这样 stability 就真正由数据（文献导出的活化能）决定，而非人工拍定；
+# 且 Ea 缺失时按 material family 中位数插补（与 P2 清洗策略一致），
+# 保证算法对缺失值鲁棒且结果可复现。
+FAMILY_STABILITY_FALLBACK = dict(STABILITY_TABLE)  # 全家族 Ea 缺失时的兜底
+
+
+def _stability_proxy(rows):
+    """由文献活化能导出稳定性代理，返回 (proxy_list, source_label, ea_values)。
+
+    返回的 proxy 与 rows 等长且顺序一致；缺失 Ea 用同 family 中位数插补。
+    """
+    # 1) 按 family 收集有效 Ea，取中位数（与 P2 清洗的插补口径一致）
+    fam_vals = {}
+    for r in rows:
+        try:
+            fam_vals.setdefault(r["family"], []).append(float(r["activation_energy_eV"]))
+        except (ValueError, TypeError):
+            pass
+    fam_median = {fam: statistics.median(v) for fam, v in fam_vals.items() if v}
+
+    # 2) 逐行取 Ea（缺失则用 family 中位数插补）
+    ea_all = []
+    imputed = 0
+    for r in rows:
+        raw = r.get("activation_energy_eV", "")
+        try:
+            ea_all.append(float(raw))
+        except (ValueError, TypeError):
+            med = fam_median.get(r["family"])
+            if med is not None:
+                ea_all.append(med)
+                imputed += 1
+            else:
+                ea_all.append(None)
+
+    # 3) 全部 Ea 都拿不到 → 回退到家族常量表（保证兼容，且显式标注来源）
+    valid = [e for e in ea_all if e is not None]
+    if not valid:
+        return ([FAMILY_STABILITY_FALLBACK.get(r["family"], 0.5) for r in rows],
+                "family_table_fallback", ea_all)
+
+    # 4) min-max 归一：Ea 越高 → 稳定性代理越高
+    lo, hi = min(valid), max(valid)
+    rng = hi - lo
+    proxy = []
+    for e in ea_all:
+        if e is None or rng == 0:
+            proxy.append(0.5)
+        else:
+            proxy.append((e - lo) / rng)
+    return proxy, f"activation_energy_minmax(imputed={imputed})", ea_all
+
 
 
 def _sha256_file(path: str) -> str:
@@ -93,10 +157,12 @@ def _minmax(vals):
 def _compute(rows):
     log10 = [math.log10(r["conductivity_Scm"]) for r in rows]
     norm = _minmax(log10)
+    # 稳定性代理由文献活化能导出（不再是硬编码家族常量）
+    stab_proxy, stab_source, ea_all = _stability_proxy(rows)
     scored = []
     for i, r in enumerate(rows):
         cond_norm = norm[i]
-        stab = STABILITY.get(r["family"], 0.5)
+        stab = stab_proxy[i]
         recency = (r["year"] - BASE_YEAR) / SPAN
         score = WEIGHTS["cond"] * cond_norm + WEIGHTS["stab"] * stab + WEIGHTS["rec"] * recency
         scored.append(
@@ -112,24 +178,60 @@ def _compute(rows):
                 "recency": recency,
                 "score": score,
                 "source_doi": r["source_doi"],
+                "activation_energy_eV": ea_all[i],
             }
         )
     # tie-break: score desc, then formula lex, then material_id for total order
     scored.sort(key=lambda s: (-s["score"], s["formula"], s["material_id"]))
     for rank, s in enumerate(scored, start=1):
         s["rank"] = rank
-    return scored
+    return scored, stab_source
+
+
+# ---- 真实 Arrhenius 外推（脚本名 arrhenius_rank 应有的物理内核）----
+#
+# σ(T) = σ_ref * exp( -Ea/k * (1/T - 1/T_ref) )
+# 用文献报出的室温 σ 与活化能 Ea，外推到工作温度，看排序是否变化。
+# 这是真正"用上文献参数"的一步：Ea 全部来自 CSV 的 activation_energy_eV。
+K_BOLTZ_EV = 8.617333262e-5  # eV/K
+T_REF_K = 298.15             # 室温参考 25°C
+T_WORK_C = 60.0              # 工作温度假设 60°C
+
+
+def _arrhenius_extrapolate(rows):
+    """把每个材料的室温电导率外推到工作温度，返回 {material_id: sigma_at_T}。
+
+    Ea 缺失的行不做外推（值为 None），保证可复现且不引入假数据。
+    """
+    t_work = T_WORK_C + 273.15
+    out = {}
+    for r in rows:
+        try:
+            ea = float(r["activation_energy_eV"])
+        except (ValueError, TypeError):
+            out[r["material_id"]] = None
+            continue
+        sigma_ref = r["conductivity_Scm"]
+        exponent = -(ea / K_BOLTZ_EV) * (1.0 / t_work - 1.0 / T_REF_K)
+        out[r["material_id"]] = sigma_ref * math.exp(exponent)
+    return out
+
 
 
 def _results_csv(scored):
     buf = io.StringIO()
-    cols = ["rank", "material_id", "formula", "family", "year", "cond_Scm", "log10_cond", "cond_norm", "stability", "recency", "score"]
+    cols = ["rank", "material_id", "formula", "family", "year", "cond_Scm",
+            "log10_cond", "cond_norm", "stability", "recency", "score",
+            "activation_energy_eV", "source_doi"]
     buf.write(",".join(cols) + "\n")
     for s in scored:
+        ea = s.get("activation_energy_eV")
+        ea_s = f"{ea:.6f}" if isinstance(ea, (int, float)) else ""
         buf.write(
             f"{s['rank']},{s['material_id']},{s['formula']},{s['family']},{s['year']},"
             f"{s['cond_Scm']:.6e},{s['log10_cond']:.6e},{s['cond_norm']:.6f},"
-            f"{s['stability']:.6f},{s['recency']:.6f},{s['score']:.6f}\n"
+            f"{s['stability']:.6f},{s['recency']:.6f},{s['score']:.6f},"
+            f"{ea_s},{s['source_doi']}\n"
         )
     return buf.getvalue()
 
@@ -141,7 +243,7 @@ def _family_mean(scored):
     return {fam: sum(v) / len(v) for fam, v in sorted(groups.items())}
 
 
-def _summary(scored, input_sha, script_sha, seed, mutate):
+def _summary(scored, input_sha, script_sha, seed, mutate, stab_source, extrapolated):
     top3 = scored[:3]
     top3_view = [
         {"rank": t["rank"], "material_id": t["material_id"], "formula": t["formula"], "score": round(t["score"], 9)}
@@ -154,6 +256,15 @@ def _summary(scored, input_sha, script_sha, seed, mutate):
         "top3": top3_view,
         "family_mean_log10_cond": _family_mean(scored),
         "seed": seed,
+        # ---- 文献驱动的计算溯源：说明 stability 从哪来，可被审计 ----
+        "stability_source": stab_source,
+        "weights": dict(WEIGHTS),
+        "arrhenius": {
+            "t_ref_C": T_REF_K - 273.15,
+            "t_work_C": T_WORK_C,
+            "k_boltz_eV": K_BOLTZ_EV,
+            "sigma_at_t_work": extrapolated,
+        },
         "env": [
             platform.python_version(),
             platform.platform(),
@@ -163,6 +274,7 @@ def _summary(scored, input_sha, script_sha, seed, mutate):
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
     return summary
+
 
 
 def _svg(scored):
@@ -233,10 +345,12 @@ def main(argv):
     input_sha = _sha256_file(input_path)
     script_sha = _sha256_text(open(os.path.abspath(__file__), "r", encoding="utf-8").read())
 
-    scored = _compute(rows)
+    scored, stab_source = _compute(rows)
     csv_text = _results_csv(scored)
     mutate = os.environ.get("paper-agent_MUTATE") == "1"
-    summary = _summary(scored, input_sha, script_sha, seed, mutate)
+    extrapolated = _arrhenius_extrapolate(rows)
+    summary = _summary(scored, input_sha, script_sha, seed, mutate,
+                       stab_source, extrapolated)
     svg = _svg(scored)
 
     results_dir = os.path.join(outdir, "results")

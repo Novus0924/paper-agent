@@ -8,8 +8,10 @@
 ## 0. 30 秒速览
 
 - **项目**：`paper-agent` —— 基于 **AGH（Agnes Harness）** 的可审计、可复现、可故障恢复的科研 Agent 流水线（JS 薄壳工具 + Python 核心业务 + 确定性实验），用于 2026 江苏省 AI+科学与工程创新实践黑客松。
-- **工程完成度**：阶段 1–6 **全部完成并通过自验证**（单测 **39/39**、端到端 demo、四大故障用例 + 真实进程崩溃/断点续跑用例 E2/E3 + P5 幂等复用 F、审计不变量全 PASS）。
+- **工程完成度**：阶段 1–7 **全部完成并通过自验证**（单测 **48/48**、端到端 demo、四大故障用例 + 真实进程崩溃/断点续跑用例 E2/E3 + P5 幂等复用 F、审计不变量全 PASS）。
 - **AGH 联调已真实跑通**：插件经交互 TTY 确认安装 + trust + enable，`desired=enabled actual=running trusted=true`；两次真实 `-p` 会话共 21 次 tool/call + 21 次 tool/result，**7 个 sciret_* 工具全部出现**（含 `sciret_resume` 的 kill_after_p2 崩溃恢复演示）。导出在 `evidence/session.jsonl`（首轮）与 `evidence/session-full.jsonl`（崩溃恢复轮，同一 workspace 会话追加）。
+- **编排改为模型驱动（阶段 7 重构）**：核心层新增**单步**工具 `sciret_step_driven`（一次只推进一步并返回决策上下文）、`sciret_next`、`sciret_finish`，插件共 **10 工具 + 1 Skill**（`.agh/skills/sciret-research-pipeline`）；`run-all` 降级为**确定性兜底**。脱敏证据 `evidence/agh-session-sanitized.jsonl`（9 次工具交互）已入库，评审无需 daemon 即可核对「AGH 承担 ≥3 连续步骤」。
+- **数据与计算修复**：5 篇文献 DOI 经 Crossref 权威核验更正；CSV 材料–年份–DOI 自洽；稳定性改由文献活化能导出（不再硬编码常数）；新增 Arrhenius σ(60°C) 外推。
 - **红线**：密钥只存 `.env`（gitignore）；所有交付物收敛在 `paper-agent/` 项目目录内；实验数据标注 `as-reported`，严禁伪造。
 
 ---
@@ -80,7 +82,7 @@ paper-agent/
 
 ```bash
 cd C:/Users/ASUS/Desktop/黑客松/paper-agent
-# ① 单元测试（39/39 应全绿）
+# ① 单元测试（48/48 应全绿）
 set PYTHONPATH=C:\Users\ASUS\Desktop\黑客松\paper-agent\core
 python -m unittest discover -s tests -p "test_*.py"
 
@@ -94,7 +96,7 @@ python -m unittest discover -s tests -p "test_*.py"
 node plugins/paper-agent-tools/index.mjs   # 无语法错即通过（真实注册在 AGH 运行时）
 ```
 
-**预期结果**：单测 39/39 OK；demo_e2e 末行 `DEMO_E2E_OK`；demo_failure 末行 `DEMO_FAILURE_OK`（8 passed, 0 failed）。
+**预期结果**：单测 48/48 OK；demo_e2e 末行 `DEMO_E2E_OK`；demo_failure 末行 `DEMO_FAILURE_OK`（8 passed, 0 failed）。
 
 ---
 

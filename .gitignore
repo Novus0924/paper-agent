@@ -22,7 +22,11 @@ audit-pack.tar.gz
 *.secret
 
 # Evidence exports
+# 原始 daemon 导出含本机绝对路径，不入 git（打包时从磁盘归集）。
 evidence/*.jsonl
+# 例外：由 evidence/record_session.mjs 生成的**脱敏**会话证据，必须入库，
+# 以便评审在仓库内直接看到「AGH 承担核心流程（>=3 连续步骤）」的证据。
+!evidence/agh-session-sanitized.jsonl
 
 # OS
 .DS_Store

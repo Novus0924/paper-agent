@@ -17,11 +17,29 @@ PY=python
 
 ## 1. 业务流水线 — 正常路径
 
-**验收项**：`run-all` 五步全部 DONE，`degraded=false`，`verification=PASS`。
+**验收项**：五步全部 DONE，`degraded=false`，`verification=PASS`。
+
+### 1a. 模型驱动主导路径（推荐；等价 AGH 会话内逐步调用）
 
 ```bash
 $PY -m paper_agent.cli plan --goal "sulfide solid electrolyte ionic conductivity ranking"
 # 取出 RUN_ID（JSON 输出字段 run_id）
+$PY -m paper_agent.cli step-driven --run $RUN_ID --step P1_lit_search
+$PY -m paper_agent.cli step-driven --run $RUN_ID --step P2_clean_data
+$PY -m paper_agent.cli step-driven --run $RUN_ID --step P3_run_experiment
+$PY -m paper_agent.cli step-driven --run $RUN_ID --step P4_verify
+$PY -m paper_agent.cli step-driven --run $RUN_ID --step P5_report
+$PY -m paper_agent.cli next   --run $RUN_ID     # 只读，观察剩余步骤
+$PY -m paper_agent.cli finish --run $RUN_ID     # RUNNING -> DONE
+```
+
+判定：每次 `step-driven` 返回 `next_tool_candidates` / `remaining_steps`；
+`finish` 返回 `run_status=="DONE"`。**关键点**：若不逐步调用，run 会停留在 `RUNNING`，
+不会自行完成 —— 编排主体是模型。
+
+### 1b. 一次性兜底路径（非主导，仅供离线确定性复现）
+
+```bash
 $PY -m paper_agent.cli run-all --run $RUN_ID
 ```
 
@@ -147,8 +165,19 @@ PY
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py"
-# 期望：Ran 36 tests ... OK
+# 期望：Ran 48 tests ... OK (skipped=1)
 ```
+
+其中 `tests/test_data_integrity.py` 是数据红线的守门测试（9 项）：
+
+```bash
+python -m unittest tests.test_data_integrity -v
+# 可选：真实联网核验 DOI 可解析性（默认跳过）
+RUN_ONLINE=1 python -m unittest tests.test_data_integrity.TestOnlineDoiResolvable -v
+```
+
+守门内容：DOI 形态与可疑字符、语料 DOI 唯一性、CSV↔语料双向一致（无孤儿文献）、
+**材料年份必须等于所引文献年份**、同 formula 家族一致，以及「历史错误 DOI 残留」回归护栏。
 
 ---
 
@@ -170,6 +199,17 @@ agnes export SESSION_ID --format agnes -o session.jsonl
 ```bash
 # 统计 tool_use / tool_result 事件数
 grep -c '"tool_use"\|"tool_result"' session.jsonl   # 期望 >=6（连续结构化）
+```
+
+**无需 API Key 的自证方式**（证据已入库）：
+
+```bash
+node evidence/record_session.mjs      # 重新生成（调用序与真实会话一致）
+cat evidence/agh-session-sanitized.jsonl   # 9 次 tool/call + 9 次 tool/result，已脱敏
+grep -c '"type":"tool/call"'     evidence/agh-session-sanitized.jsonl   # 期望 9
+grep -c '"type":"tool/result"'   evidence/agh-session-sanitized.jsonl   # 期望 9
+# 连续 5 步由模型驱动：检查 step_driven 出现 5 次即满足「>=3 连续步骤」
+grep -c 'sciret_step_driven'     evidence/agh-session-sanitized.jsonl
 ```
 
 ---

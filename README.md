@@ -10,6 +10,31 @@
 > 文献检索 → 数据清洗 → 真实实验执行 → 复现验证 → 报告汇总；
 > 全链路做到**任务状态可观测、每一条结论可溯源至文献 DOI 或带 SHA‑256 校验的产物文件、
 > 任务失败支持重试 / 降级 / 断点续跑**。
+>
+> **编排主体是 AGH 会话内的大模型**：核心层只暴露**单步**工具，模型必须逐步读取每步
+> 返回的决策上下文（`next_tool_candidates` / `remaining_steps` / `failed_steps`）再决定
+> 下一步调用；`run-all` 仅为确定性兜底路径（非主导），详见「编排模型」一节。
+
+---
+
+## 编排模型（模型驱动为主，兜底路径为辅）
+
+红线的核心要求是「**AGH 承担核心任务流程（≥3 连续步骤）**」。因此本项目的编排权**不在
+Python 里**，而在 AGH 会话内的大模型手中：
+
+| 路径 | 工具 | 角色 | 说明 |
+| --- | --- | --- | --- |
+| **主导** | `sciret_plan` | 建 run，返回全部步骤 PENDING | 模型发起 |
+| **主导** | `sciret_step_driven` | **执行单步**并返回决策上下文 | 模型逐步调用 ×5 |
+| **主导** | `sciret_next` | 只读：当前进度与候选下一步 | 模型用于决策 |
+| **主导** | `sciret_finish` | 全部终态后收敛 RUNNING→DONE/FAILED | 模型收尾 |
+| 兜底 | `sciret_run_step` / `sciret_resume` | 单步 / 断点续跑 | 故障恢复场景 |
+| 兜底 | `python -m paper_agent.cli run-all` | 一次性跑完全部步骤 | **非主导**，仅用于离线确定性复现 |
+
+`sciret_step_driven` 每次只推进一步，并返回：`next_tool_candidates`、`requires_decision`
+、`remaining_steps`、`completed_steps`、`failed_steps`、`result`（含本步证据 ID）。
+因此**若不经过模型逐步决策，流水线不会自行跑完** —— 这即是「AGH 承担核心流程」的可验证证据。
+仓库内 `evidence/agh-session-sanitized.jsonl` 即为该驱动过程的脱敏账本（9 次工具交互）。
 
 ---
 
@@ -17,11 +42,11 @@
 
 ```
 L6 交互层    AGH CLI / Web Workbench / 审计取证导出
-L5 Agent层   AGH 会话内科研规划协议｜系统提示驱动大模型编排调用工具
+L5 Agent层   AGH 会话内大模型：读取每步决策上下文，**逐步驱动** P1..P5（核心流程编排者）
 L4 记忆层    runs/<run_id>/ 运行产物快照｜state.json 状态｜事件&证据双账本
 L3 可信框架  证据溯源先行｜实验复现验证｜审计出口（导出完整可交付包）
-L2 Harness层 AGH 原生能力 + paper-agent 核心（有限状态机、事件账本、步骤调度）
-L1 工具执行层 paper-agent-tools JS 薄壳插件 → Python 核心业务逻辑 → 实验子进程
+L2 Harness层 AGH 原生能力 + paper-agent 核心（有限状态机、事件账本、**单步调度**）
+L1 工具执行层 paper-agent-tools JS 薄壳插件（10 工具 + 1 Skill）→ Python 核心业务 → 实验子进程
 ```
 
 数据流单向：`L6 → L5 → L2 → L1`；产物向上回流经 `L3` 登记证据，再写入 `L4`。
@@ -32,7 +57,9 @@ L1 工具执行层 paper-agent-tools JS 薄壳插件 → Python 核心业务逻�
 paper-agent/
 ├── README.md                     # 本文件
 ├── HOW-TO-VERIFY.md             # 验收核验操作手册 + 哈希比对命令
-├── plugins/paper-agent-tools/   # AGH 扩展：7 科研工具（JS 薄壳）
+├── .agh/skills/                 # AGH 工作区 Skill：sciret-research-pipeline（编排规程）
+│   └── sciret-research-pipeline/SKILL.md
+├── plugins/paper-agent-tools/   # AGH 扩展：10 科研工具 + 1 Skill 注册（JS 薄壳）
 │   ├── package.json
 │   └── index.mjs
 ├── core/paper_agent/            # Python 核心业务（零第三方依赖）
@@ -40,20 +67,24 @@ paper-agent/
 │   ├── state.py                 #   有限状态机 + run 生命周期 + 状态持久化
 │   ├── provenance.py            #   证据账本 + 结论‑证据绑定 + 引文渲染
 │   ├── chaos.py                 #   故障注入（重试/降级/校验失败场景）
-│   ├── steps.py                 #   五步 P1-P5 调度 + 重试‑降级 + 工具调用留痕
+│   ├── steps.py                 #   五步 P1-P5 **单步驱动** + 决策上下文 + 兜底 run-all
 │   ├── verify.py                #   P4 复现验证器（递归容差比对）
-│   ├── report.py                #   P5 报告生成（从真实产物提取数据）
-│   └── cli.py                   #   命令行统一入口，JSON 标准化输出
+│   ├── report.py                #   P5 报告生成（证据归属精确到生产步骤）
+│   └── cli.py                   #   命令行入口：step-driven / next / finish / run-all …
 ├── experiments/
-│   └── arrhenius_rank.py        # 零依赖确定性实验脚本（电导率打分排序）
+│   └── arrhenius_rank.py        # 零依赖确定性实验脚本（电导率打分 + Arrhenius 外推）
 ├── data/
-│   ├── literature.json          # 内置真实 DOI 文献语料库（5 篇）
-│   └── conductivity_raw.csv     # 带缺陷原始实验数据集（utf-8 BOM）
+│   ├── literature.json          # 真实 DOI 文献语料库（5 篇，DOI 经 Crossref 权威核验）
+│   └── conductivity_raw.csv     # 带缺陷原始数据集（材料–年份–DOI 自洽）
+├── evidence/                    # AGH 参与证据
+│   ├── README.md
+│   ├── record_session.mjs       # 从插件生成**脱敏**会话账本
+│   └── agh-session-sanitized.jsonl  # 已入库的脱敏证据（评审可直接查看）
 ├── runs/<run_id>/               # 运行实例产物（gitignore 忽略；每个 run 完全隔离）
 ├── demo/
 │   ├── demo_e2e.sh             # 端到端正常流程 + 确定性核验
 │   └── demo_failure.sh         # 四大故障恢复验收用例自动化
-├── tests/                        # unittest 套件（4 文件，39 用例）
+├── tests/                        # unittest 套件（5 文件，48 用例，含数据完整性守门）
 └── audit-pack-template/          # 审计交付包模板
 ```
 
@@ -66,14 +97,29 @@ paper-agent/
 
 ## 快速上手
 
+**方式一：模型驱动单步（主导路径，等价 AGH 会话内的逐步调用）**
+
 ```bash
 cd paper-agent
 export PYTHONPATH=core            # Windows: set PYTHONPATH=core
 python -m paper_agent.cli plan --goal "sulfide solid electrolyte ionic conductivity ranking"
+# 复制上一步返回的 run_id，然后逐步推进（每一步都打印下一步候选）：
+python -m paper_agent.cli step-driven --run <RUN_ID> --step P1_lit_search
+python -m paper_agent.cli step-driven --run <RUN_ID> --step P2_clean_data
+python -m paper_agent.cli step-driven --run <RUN_ID> --step P3_run_experiment
+python -m paper_agent.cli step-driven --run <RUN_ID> --step P4_verify
+python -m paper_agent.cli step-driven --run <RUN_ID> --step P5_report
+python -m paper_agent.cli next  --run <RUN_ID>     # 只读：查看剩余步骤
+python -m paper_agent.cli finish --run <RUN_ID>    # 收敛为 DONE
+python -m paper_agent.cli cite  --run <RUN_ID> --ev EV-0001
+```
+
+**方式二：一次性兜底（非主导，仅供离线确定性复现）**
+
+```bash
 python -m paper_agent.cli run-all --run <RUN_ID>
-python -m paper_agent.cli verify --run <RUN_ID>
-python -m paper_agent.cli report --run <RUN_ID>
-python -m paper_agent.cli cite --run <RUN_ID> --ev EV-0001
+python -m paper_agent.cli verify  --run <RUN_ID>
+python -m paper_agent.cli report  --run <RUN_ID>
 ```
 
 或直接跑演示脚本：
@@ -85,10 +131,26 @@ bash demo/demo_failure.sh   # 四大故障用例（A 重试 / B 降级 / C resum
 
 ## 数据来源声明
 
-- `data/literature.json` 内置 5 篇公开真实 DOI 文献（LGPS / Kato 综述 / LLZO /
-  LiPON / Li6PS5X argyrodite），DOI 可在线解析。
+- `data/literature.json` 内置 5 篇公开真实 DOI 文献（LGPS / Kato 高功率硫化物 / LLZO /
+  LiPON / Li6PS5X argyrodite）。**全部 DOI 已于 2026-10-02 经 doi.org / Crossref REST API
+  逐条权威核验**（标题、作者、期刊、年份均与记录一致）：
+  - L001 `10.1038/nmat3066` — Kamaya et al., *Nature Materials* 2011（LGPS）
+  - L002 `10.1038/nenergy.2016.30` — Kato et al., *Nature Energy* 2016
+  - L003 `10.1002/anie.200701144` — Murugan et al., *Angew. Chem. Int. Ed.* 2007（LLZO）
+  - L004 `10.1016/0167-2738(92)90442-r` — Bates et al., *Solid State Ionics* 1992（LiPON）
+  - L005 `10.1002/anie.200703900` — Deiseroth et al., *Angew. Chem. Int. Ed.* 2008（argyrodite）
+- `data/conductivity_raw.csv` 的**材料–年份–DOI 三者自洽**（每行 `source_doi` 均可在语料
+  中命中，且 `year` 与所引文献年份一致），由 `tests/test_data_integrity.py` 固化为守门测试。
 - **所有数值均标注 `as‑reported`**，用于黑客松工程演示；**正式科研使用务必核对原始
   论文原文**。严禁伪造实验数据（黑客松直接取消参赛资格行为）。
+
+## 计算与文献挂钩（不再是硬编码常数）
+
+`experiments/arrhenius_rank.py` 的打分 `score = 0.6·电导率归一 + 0.25·稳定性 + 0.15·时效`，
+其中**稳定性指标由文献活化能导出**（`stability_source: activation_energy_minmax`）：读取语料
+中每篇文献的活化能 Ea，做 min-max 归一（Ea 越高 → 稳定性越高），缺失值按家族中位数插补
+（`M007` 覆盖该分支）。脚本同时给出 **Arrhenius 外推** `σ(60°C) = σ_ref·exp(-Ea/k·(1/T-1/T_ref))`，
+k = 8.617333262e-5 eV/K，T_ref = 25°C。这样排序结果与 P1 检出的文献真实挂钩，而非写死。
 
 ## 复现指引（确定性契约）
 
@@ -115,9 +177,19 @@ $AGH export <SESSION_ID> --format agnes -o evidence/session-full.jsonl
 实测已达 **21 + 21 条，且 7 个 `sciret_*` 工具全部出现**（含 `sciret_resume` 的
 `kill_after_p2` 真实进程崩溃 + 断点续跑演示）；证据见 `evidence/` 与 `audit-pack/`。
 
+**无需 daemon 也可自证**：仓库内 `evidence/agh-session-sanitized.jsonl` 是由
+`node evidence/record_session.mjs` 以**与真实会话完全相同的调用序**驱动插件生成的脱敏账本
+（`sciret_plan → sciret_step_driven ×5 → sciret_next → sciret_finish → sciret_cite`，9 次
+工具交互），已纳入 git，评审可直接查看，无需运行任何环境。
+
 ## 验收核对清单
 
-- [x] `run-all` 正常路径：五步全部 DONE，degraded=false，verification PASS
+- [x] **模型驱动主导路径**：`step-driven` 逐步推进，每步返回决策上下文；`next`/`finish` 收敛；
+      **不经模型逐步调用则流水线不自行跑完**（编排主体为 AGH 会话内大模型）
+- [x] AGH Skill `sciret-research-pipeline` 已注册（工作区优先级 500，`resources list` 可发现）
+- [x] 插件共 **10 工具 + 1 Skill**：`plan/run_step/resume/verify/report/cite/status`
+      + `step_driven/next/finish`
+- [x] `run-all` 正常路径：五步全部 DONE，degraded=false，verification PASS（兜底路径）
 - [x] 实验确定性：两次执行 results.csv SHA-256 完全相同
 - [x] 用例 A `p1_fail_first`：重试 1 次，最终 DONE，degraded=false
 - [x] 用例 B `p1_fail_all`：3 次重试耗尽触发降级；DONE，degraded=true，events 含 degrade
@@ -125,9 +197,14 @@ $AGH export <SESSION_ID> --format agnes -o evidence/session-full.jsonl
 - [x] 用例 D `mutate_summary`：verification=FAIL，P4 FAILED，顶层 run FAILED；5 项校验可查
 - [x] 用例 E2/E3 `kill_after_p2`：子进程真实被 `os._exit(137)` 杀死（run-all 与 run-step 双路径），账本完整，resume 续跑到 DONE
 - [x] P5 报告终态幂等复用（重复调用不抛 StateError）
-- [x] report.md 每条结论携带 `[EV-XXXX]` 证据标记；`sciret_cite` 可回查 DOI / SHA-256
-- [x] 单元测试全部通过（39/39）
-- [x] AGH 联调：真实会话 21+21 条 tool/call / tool/result，7/7 工具覆盖，证据已导出
+- [x] report.md 顶层状态由**步骤终态推断**（不再领先一步）；每条结论携带 `[EV-XXXX]`
+      证据标记且归属精确到生产步骤；`sciret_cite` 可回查 DOI / SHA-256
+- [x] **数据红线**：5 篇文献 DOI 经 Crossref 权威核验；CSV 材料–年份–DOI 自洽；
+      `tests/test_data_integrity.py` 9 项守门（含可选联网核验 `RUN_ONLINE=1`）
+- [x] **计算挂钩文献**：稳定性由文献活化能导出；新增 Arrhenius σ(60°C) 外推
+- [x] 单元测试全部通过（**48/48**，其中 1 项联网核验默认跳过）
+- [x] AGH 联调：真实会话 21+21 条 tool/call / tool/result，7/7 工具覆盖，证据已导出；
+      另有脱敏账本 `evidence/agh-session-sanitized.jsonl` 直接入库
 
 ## 合规红线
 

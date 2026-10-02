@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import os
 
-from .state import PipelineState
+from .state import PipelineState, RunStatus, StepStatus
 from .provenance import ProvenanceLedger
 
 
@@ -18,8 +18,21 @@ def _read_json(path: str):
         return json.load(f)
 
 
-def _ev_ids_by_kind(prov: ProvenanceLedger, kind: str) -> list[str]:
-    return [e["ev_id"] for e in prov.all_evidence() if e["kind"] == kind]
+def _ev_ids_by_kind(prov: ProvenanceLedger, kind: str,
+                    producer_step: str | None = None) -> list[str]:
+    """按 kind 取证据 ID；给 producer_step 时进一步限定生产步骤。
+
+    限定 producer_step 是为了避免"按 kind 全量取"导致的证据归属错位
+    （旧缺陷：C2 数据清洗结论绑定了 P1_lit_search 产出的 evidence）。
+    """
+    out = []
+    for e in prov.all_evidence():
+        if e["kind"] != kind:
+            continue
+        if producer_step is not None and e["producer_step"] != producer_step:
+            continue
+        out.append(e["ev_id"])
+    return out
 
 
 def _state_table(state: PipelineState) -> str:
@@ -70,8 +83,11 @@ def generate_report(
     fam_txt = ", ".join(f"{k}={v:.6f}" for k, v in sorted(family_mean.items())) or "（无）"
 
     n_checks = len(verif.get("checks", []))
-    check_lines = "\n".join(
-        f"  - {c['name']}: {'PASS' if c.get('pass') else 'FAIL'}"
+    n_pass = sum(1 for c in verif.get("checks", []) if c.get("pass"))
+    # 校验明细改为"行内摘要"：旧实现用多行文本会撑断 markdown 列表项，
+    # 导致本行的 [EV-XXXX] 标记被推到后续行，人眼看起来像 C4 没绑证据。
+    check_lines = " / ".join(
+        f"{c['name']}={'PASS' if c.get('pass') else 'FAIL'}"
         for c in verif.get("checks", [])
     )
     doiset = ", ".join(d["doi"] for d in lit.get("hits", [])) or "（无）"
@@ -80,15 +96,14 @@ def generate_report(
         actions_by[a["action"]] = actions_by.get(a["action"], 0) + 1
     act_txt = ", ".join(f"{k}×{v}" for k, v in sorted(actions_by.items())) or "无清洗动作"
 
-    # ---- 五条结论（全部绑定真实证据 ID）----
-    ev_lit = _ev_ids_by_kind(prov, "literature")
-    ev_data = _ev_ids_by_kind(prov, "data")
-    ev_exp = _ev_ids_by_kind(prov, "experiment")
-    ev_ver = _ev_ids_by_kind(prov, "verification")
-    ev_fig = _ev_ids_by_kind(prov, "figure")
+    # ---- 五条结论（全部绑定真实证据 ID，按 producer_step 精确归属）----
+    ev_lit = _ev_ids_by_kind(prov, "literature", "P1_lit_search")
+    ev_data = _ev_ids_by_kind(prov, "data", "P2_clean_data")
+    ev_exp = _ev_ids_by_kind(prov, "experiment", "P3_run_experiment")
+    ev_ver = _ev_ids_by_kind(prov, "verification", "P4_verify")
+    ev_fig = _ev_ids_by_kind(prov, "figure", "P3_run_experiment")
     # C1 证据锚点：有文献命中则绑 literature，否则回退到 P1 检索输出 data 证据
-    p1_data_ev = [e["ev_id"] for e in prov.all_evidence()
-                  if e["kind"] == "data" and e["producer_step"] == "P1_lit_search"]
+    p1_data_ev = _ev_ids_by_kind(prov, "data", "P1_lit_search")
     c1_ev = ev_lit if ev_lit else p1_data_ev
 
     c1_text = (f"文献检索命中 {lit['n_hits']} 篇相关文献"
@@ -99,7 +114,7 @@ def generate_report(
     c2_text = (f"数据清洗将 {clean_rep['input_rows']} 行原始样本归一为 "
                f"{clean_rep['output_rows']} 行有效数据；清洗动作: {act_txt}。")
     c3_text = (f"实验 top3 材料: {top3_txt}；家族 log10 电导率均值: {fam_txt}。")
-    c4_text = (f"复现验证 {verif['status']}（{n_checks} 项校验）:\n{check_lines}")
+    c4_text = (f"复现验证 {verif['status']}（{n_pass}/{n_checks} 项校验通过）: {check_lines}")
     c5_text = (f"图表 fig1_conductivity.svg 覆盖 {summary.get('n_rows', 0)} 个样本，"
                f"对数坐标横向条形图按 family 着色。")
 
@@ -127,10 +142,28 @@ def generate_report(
             "相关结论的证据绑定基于全量语料而非关键词命中，请人工复核。"
         )
 
+    # ---- 终态预测：报告里的"顶层状态"必须是本 run 的真实归宿 ----
+    #
+    # 时序说明：P5 报告生成时 run_status 仍为 RUNNING —— 因为 run 级收尾
+    # （PLANNED→RUNNING→DONE/FAILED）由编排层在全部步骤结束后才做。若此处直接
+    # 写 state.run_status，报告会永远自称 RUNNING（旧实现缺陷）。
+    # 故按本 run 的步骤终态**推断**最终归宿，并显式标注推断依据。
+    all_steps = list(state.step_status.values())
+    if any(st is StepStatus.FAILED for st in all_steps):
+        final_status = RunStatus.FAILED.value
+        final_note = "由步骤终态推断（存在 FAILED 步骤）"
+    elif all(st in (StepStatus.DONE, StepStatus.SKIPPED) for st in all_steps):
+        final_status = RunStatus.DONE.value
+        final_note = "由步骤终态推断（全部步骤已完成）"
+    else:
+        final_status = state.run_status.value
+        final_note = "尚有步骤未完成，此处为生成时刻的实时状态"
+
     report_md = f"""# paper-agent 科研报告 — {run_id}
 
 - 目标: {state.goal or '（未设置）'}
-- 顶层状态: {state.run_status.value}
+- 顶层状态: {final_status}
+- 状态依据: {final_note}
 - 生成: {state.updated_at}
 
 ## 流水线状态总表

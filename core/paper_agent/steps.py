@@ -441,14 +441,20 @@ class Pipeline:
             return {"report": rpath, "idempotent_reuse": True}
         self.state.mark_step_running(sid)
         from . import report as report_mod
+        # 收集本步要写进报告的产物与证据，但**先不落盘**：
+        # 报告正文里含"顶层状态 / 各步骤状态"快照，必须在 P5 自身 DONE 之后再落笔，
+        # 否则报告会永远比真实状态落后一步（旧实现缺陷：报告自称 RUNNING）。
+        ev_r = self.prov.append_evidence(
+            kind="report",
+            ref=os.path.join("report.md"), producer_step="P5_report",
+            file_path=None, meta={"conclusions": 5})
+        self._toolcall("P5_report", "sciret_report", {"run_id": self.run_id},
+                       {"report": os.path.join(self.root, "runs",
+                                               self.run_id, "report.md")})
+        self.state.mark_step_done(sid, {"report": "report.md"})
+        # P5 已 DONE 落盘，此刻状态快照才准确；此时才生成报告正文
         rpath = report_mod.generate_report(self.root, self.run_id,
                                            self.state, self.prov)
-        ev_r = self.prov.append_evidence(
-            kind="report", ref=rpath, producer_step="P5_report",
-            file_path=rpath, meta={"conclusions": 5})
-        self._toolcall("P5_report", "sciret_report", {"run_id": self.run_id},
-                       {"report": rpath})
-        self.state.mark_step_done(sid, {"report": rpath})
         return {"report": rpath, "evidence": [ev_r]}
 
     # ---------- 调度 ----------
@@ -467,6 +473,101 @@ class Pipeline:
             self.state.start_run()
         # 若已是 RUNNING / DONE / FAILED（resume 场景），不再转移
 
+    # ---------- 模型驱动编排（主导路径）----------
+    #
+    # 设计变更（对齐赛事红线"AGH 必须承担核心任务流程 ≥3 连续步骤"）：
+    #   旧形态：run_all() 是 Python 里一个写死的 for 循环，不装 AGH 也能跑完，
+    #           AGH 沦为"启动器"，核心编排在框架之外。
+    #   新形态：编排主动权交给 AGH 会话内的大模型。Python 每次只执行"被显式请求的
+    #           一个步骤"，然后把「执行结果 + 下一步候选 + 决策提示」交还模型；
+    #           由模型决定下一步调哪个 sciret_* 工具、是否重试、是否降级、是否收尾。
+    #   run_all() 保留为"确定性兜底路径"（供单测与离线演示），不再是主导路径。
+
+    def step_context(self, step: str, result: dict) -> dict:
+        """把一个步骤的执行结果，翻译成"供模型决策下一步"的上下文块。
+
+        这是模型驱动编排的核心：Python 不替模型决定下一步，只如实汇报
+        已发生了什么、还剩什么可选、以及有哪些失败信号需要模型判断。
+        """
+        plan = self.state.pending_or_failed()
+        done = [s for s in self.STEP_FN
+                if self.state.step_status[s] in (StepStatus.DONE, StepStatus.SKIPPED)]
+        failed = [s for s in self.STEP_FN
+                  if self.state.step_status[s] is StepStatus.FAILED]
+
+        ctx = {
+            "executed_step": step,
+            "result": result,
+            "run_status": self.state.run_status.value,
+            "steps": {s: self.state.step_status[s].value for s in self.STEP_FN},
+            "attempts": dict(self.state.attempts),
+            "degraded": self.state.degraded,
+            "completed_steps": done,
+            "remaining_steps": plan,
+            "failed_steps": failed,
+        }
+
+        # 把"可调用的下一步工具"明确列出来，降低模型跑偏概率
+        candidates = [f"sciret_run_step(step='{s}')" for s in plan]
+        if failed:
+            candidates.append("sciret_resume(run_id=...)  # 重试/续跑失败步骤")
+        if not plan and not failed:
+            candidates.append("sciret_verify(run_id=...)  # 复现验证（若尚未验证）")
+            candidates.append("sciret_report(run_id=...)  # 生成报告收尾")
+        ctx["next_tool_candidates"] = candidates
+
+        # 失败显式化：把需要模型判断的信号写清楚，不吞异常
+        if failed:
+            ctx["requires_decision"] = True
+            ctx["decision_reason"] = (
+                f"步骤 {failed} 处于 FAILED。你必须判断：调用 sciret_resume 重试，"
+                f"还是终止并说明失败原因。禁止忽略失败继续下一步。"
+            )
+        elif self.state.degraded:
+            ctx["requires_decision"] = False
+            ctx["decision_reason"] = (
+                "当前 run 已发生降级（degraded=true），结论证据基于降级后语料，"
+                "报告中必须显式声明。"
+            )
+        else:
+            ctx["requires_decision"] = False
+
+        return ctx
+
+    def run_step_driven(self, step: str) -> dict:
+        """模型驱动路径：执行单个步骤并返回决策上下文。
+
+        与 run_step 的区别：run_step 只返回步骤结果；run_step_driven 额外返回
+        next_tool_candidates / requires_decision 等字段，供 AGH 会话内大模型决策。
+        """
+        res = self.run_step(step)
+        # 崩溃注入点：位于该步骤状态与双账本全部落盘之后（append-only 完整）
+        chaos.CH.kill_after(step)
+        return self.step_context(step, res)
+
+    def finish_if_terminal(self) -> dict:
+        """模型确认流水线已到终态时调用，收敛 run_status。
+
+        由模型决定"收尾"后才调用——Python 不再自动收尾。
+        """
+        if self.state.run_status is not RunStatus.RUNNING:
+            return {"run_status": self.state.run_status.value,
+                    "note": f"run 已处于终态 {self.state.run_status.value}，无需收尾"}
+        steps = self.state.step_status
+        if any(st is StepStatus.FAILED for st in steps.values()):
+            self.state.finish_run(RunStatus.FAILED)
+        elif all(st in (StepStatus.DONE, StepStatus.SKIPPED) for st in steps.values()):
+            self.state.finish_run(RunStatus.DONE)
+        else:
+            pending = [s for s in self.STEP_FN
+                       if steps[s] in (StepStatus.PENDING, StepStatus.RUNNING)]
+            return {"run_status": self.state.run_status.value,
+                    "error": "尚未终态，仍有未完成步骤",
+                    "remaining_steps": pending,
+                    "hint": "请先对这些步骤调用 sciret_run_step 或 sciret_resume"}
+        return {"run_status": self.state.run_status.value,
+                "degraded": self.state.degraded}
+
     def run_step(self, step: str) -> dict:
         if step not in self.STEP_FN:
             raise KeyError(f"unknown step {step}")
@@ -477,7 +578,14 @@ class Pipeline:
         self._ensure_running()
         return getattr(self, self.STEP_FN[step])()
 
+    # ---------- 确定性兜底路径（非主导，仅供单测与离线演示）----------
+
     def run_all(self) -> dict:
+        """确定性兜底：一次性跑完剩余步骤。**注意：这不是 AGH 会话的主导路径。**
+
+        AGH 会话内应由大模型逐步调用 sciret_run_step / sciret_resume 驱动；
+        本方法仅用于单测、离线演示与 CI，保证"不接模型也能验证 Python 核心逻辑"。
+        """
         self._ensure_running()
         results = {}
         failed = False
@@ -505,7 +613,7 @@ class Pipeline:
                 "degraded": self.state.degraded}
 
     def resume(self) -> dict:
-        """等价 run-all，断点续跑：只跑 PENDING/FAILED。"""
+        """断点续跑：只跑 PENDING/FAILED，DONE/SKIPPED 直接复用。"""
         return self.run_all()
 
 

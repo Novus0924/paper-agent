@@ -47,18 +47,24 @@ def build_temp_root(tmp: str) -> str:
 
 
 def make_clean_csv(tmp: str) -> str:
-    """构造一份含多家族、多行、含 tie 情形的干净 CSV，供实验脚本调用。"""
+    """构造一份含多家族、多行、含 tie 情形的干净 CSV，供实验脚本调用。
+
+    列名与清洗后 schema 对齐（conductivity_Scm / activation_energy_eV /
+    year / source_doi）。DOI 与 data/literature.json 语料一致，
+    材料–年份–DOI 三者自洽（见 tests/test_data_integrity.py）。
+    M007 故意缺失 activation_energy_eV，用于覆盖家族中位数插补分支。
+    """
     import csv
     p = os.path.join(tmp, "clean_for_repro.csv")
     cols = ["material_id", "formula", "family", "conductivity_Scm",
             "activation_energy_eV", "year", "source_doi"]
     rows = [
-        ["M001", "LGPS", "sulfide", "1.2e-2", "0.40", "2011", "10.1038/nmat3006"],
-        ["M002", "Li9.54Si1.74P1.44S11.7Cl0.3", "sulfide", "2.5e-2", "0.45", "2011", "10.1038/nmat3006"],
-        ["M003", "LLZO", "garnet", "3.0e-4", "0.95", "2007", "10.1002/anie.200701144"],
-        ["M004", "LiPON", "thin_film", "2.0e-6", "0.25", "1992", "10.1016/0167-2738(92)90421-F"],
-        ["M005", "Li6PS5Cl", "argyrodite", "4.4e-4", "0.55", "2008", "10.1002/anie.200800627"],
-        ["M007", "LLZO", "garnet", "2.0e-4", "0.95", "2016", "10.1038/nenergy.2016.030"],
+        ["M001", "Li10GeP2S12", "sulfide", "1.2e-2", "0.24", "2011", "10.1038/nmat3066"],
+        ["M002", "Li9.54Si1.74P1.44S11.7Cl0.3", "sulfide", "2.5e-2", "0.21", "2016", "10.1038/nenergy.2016.30"],
+        ["M003", "Li7La3Zr2O12", "garnet", "3.0e-4", "0.34", "2007", "10.1002/anie.200701144"],
+        ["M004", "LiPON", "thin_film", "2.0e-6", "0.55", "1992", "10.1016/0167-2738(92)90442-r"],
+        ["M005", "Li6PS5Cl", "argyrodite", "4.4e-4", "0.36", "2008", "10.1002/anie.200703900"],
+        ["M007", "Li7La3Zr2O12", "garnet", "2.0e-4", "", "2007", "10.1002/anie.200701144"],
     ]
     with open(p, "w", encoding="utf-8-sig", newline="") as f:
         w = csv.writer(f)
