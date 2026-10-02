@@ -1,6 +1,6 @@
 {
-  "content_sha256": "e7ea79a93fe9b3e5374e4083c36b916a58e2a823d791bc5903d61a4cdb2c94e0",
-  "created_at": "2026-10-02T06:17:14Z",
+  "content_sha256": "5a0071827742be0e719591f78b78be118f9caaf2bf007b02b25b1d3594cf556e",
+  "created_at": "2026-10-02T06:52:25Z",
   "files": [
     {
       "bytes": 63476,
@@ -9,9 +9,9 @@
       "sha256": "af2fba373c2aeec5ef796b66c0fce87c9dc7ad0b500029b0f88f2b136b5139da"
     },
     {
-      "bytes": 20361,
+      "bytes": 20342,
       "name": "literature.json",
-      "sha256": "f4314055b02b8444291f20464a6e26cbefc32ec0126a0ab34903288622797fd1"
+      "sha256": "a2b308145f789bca0f297cd91436fc7ef2ab6885f97243d6fb9e436e6d7b00d5"
     },
     {
       "bytes": 12284,
@@ -28,7 +28,7 @@
     ]
   },
   "producer": "bootstrap_rule_v1",
-  "snapshot_id": "snap-20261002-061714-b69898",
+  "snapshot_id": "snap-20261002-065225-5e1fe9",
   "sources": [
     {
       "citation": "Therrien et al., arXiv:2502.14234",
@@ -38,11 +38,23 @@
     }
   ],
   "stats": {
+    "anomalies_acknowledged": [],
+    "anomalies_detected": [],
     "family_empty": 33,
     "goal": "sulfide solid electrolyte ionic conductivity ranking",
     "in_scope_families": 6,
     "in_scope_rows": 130,
+    "judge_impl": "rule",
     "judgments": 43,
+    "leg_join": {
+      "join_rate_of_data": 1.0,
+      "join_rate_of_literature": 1.0,
+      "n_data_dois": 222,
+      "n_literature_dois": 222,
+      "n_literature_supporting_info_dois": 0,
+      "n_matched": 222
+    },
+    "literature_mode": "bootstrap",
     "n_families": 42,
     "n_rows": 599,
     "value_status": {

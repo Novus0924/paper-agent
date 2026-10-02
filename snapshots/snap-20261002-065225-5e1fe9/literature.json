@@ -895,6 +895,6 @@
     }
   ],
   "n_hits": 223,
-  "note": "bootstrap 文献腿：仅为数据集内原始论文 DOI 集合；标题/作者等元数据由第二批的联网文献腿补齐",
+  "note": "bootstrap 文献腿：仅为数据集内原始论文 DOI 集合；联网文献腿请用 --literature network",
   "source": "obelix_bootstrap"
 }
