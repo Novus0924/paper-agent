@@ -31,7 +31,7 @@
 | **可插拔判断器 + 反判据对比工具** | ✅ 已完成（规则式基线可用；模型侧待端点） |
 | **AGH 插件 3 个新工具**（检索 / 待判 / 提交裁决） | ✅ 已完成（10 工具） |
 | **真实模型的判断与反判据结论** | ✅ 已完成（DeepSeek 实测 `model_matters`，见设计文档 §9.5） |
-| AGH 会话内主路径端到端实跑 | ⬜ 待交互式终端装插件（需人工确认） |
+| AGH 会话内主路径端到端实跑 | ⬜ 待你在交互式终端执行（步骤见 [`docs/AGH-SESSION-RUNBOOK.md`](docs/AGH-SESSION-RUNBOOK.md)；已排除 daemon cwd 与 Python 解释器两个坑） |
 
 > 诚实声明（当前批次）：判断器有**规则式**与**模型**两个实现，数据契约相同。
 > 仓库内快照由**规则式**产出（`judged_by=rule`）；模型路径已用标准 OpenAI 兼容
@@ -217,10 +217,17 @@ python tools/compare_judges.py --goal "..."
 - 密钥只放环境变量 / `.env`（gitignore），**绝不入库**。
 - 开发纪律：每个任务结束 commit；主线测试不联网。
 
-## AGH 增强线（第二批）
+## AGH 增强线
 
-插件 `plugins/paper-agent-tools` 提供 7 个 `sciret_*` 工具；
-安装需交互式 TTY 人工确认（AGH 安全设计，无 bypass）：
+插件 `plugins/paper-agent-tools` 提供 **10 个** `sciret_*` 工具；
+安装需交互式 TTY 人工确认（AGH 安全设计，无 bypass）。
+
+> **逐步操作手册（含每步的预期输出与故障对照表）**：
+> [`docs/AGH-SESSION-RUNBOOK.md`](docs/AGH-SESSION-RUNBOOK.md)
+>
+> 两个必须先做的准备（否则一定失败）：
+> ① 设置 `PAPER_AGENT_PYTHON` 指向 Python 3.10+ 绝对路径（本机 PATH 上没有 python）；
+> ② **从项目根目录启动 daemon**（`file:./plugins/...` 相对路径由 daemon 解析）。
 
 ```bash
 AGH="node <agnes-harness>/packages/cli/dist/local/agnes.mjs"
