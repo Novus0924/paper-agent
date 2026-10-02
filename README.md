@@ -34,7 +34,8 @@ Python 里**，而在 AGH 会话内的大模型手中：
 `sciret_step_driven` 每次只推进一步，并返回：`next_tool_candidates`、`requires_decision`
 、`remaining_steps`、`completed_steps`、`failed_steps`、`result`（含本步证据 ID）。
 因此**若不经过模型逐步决策，流水线不会自行跑完** —— 这即是「AGH 承担核心流程」的可验证证据。
-仓库内 `evidence/agh-session-sanitized.jsonl` 即为该驱动过程的脱敏账本（9 次工具交互）。
+真实参与证据由 AGH daemon 原生写出（`~/.agh/data/sessions.db`，含完整信封与 integrity
+哈希链），落地方式与当前进展见 `evidence/AGH-真实会话落地报告.md`。
 
 ---
 
@@ -78,8 +79,9 @@ paper-agent/
 │   └── conductivity_raw.csv     # 带缺陷原始数据集（材料–年份–DOI 自洽）
 ├── evidence/                    # AGH 参与证据
 │   ├── README.md
-│   ├── record_session.mjs       # 从插件生成**脱敏**会话账本
-│   └── agh-session-sanitized.jsonl  # 已入库的脱敏证据（评审可直接查看）
+│   ├── AGH-真实会话落地报告.md    # 真实会话打通记录（信封格式 / 卡点 / 复现实验）
+│   ├── _pty_install.mjs         # PTY 驱动插件安装（绕过 TTY 确认限制）
+│   └── _agh_rpc.mjs             # daemon RPC 客户端（取 capabilityHash）
 ├── runs/<run_id>/               # 运行实例产物（gitignore 忽略；每个 run 完全隔离）
 ├── demo/
 │   ├── demo_e2e.sh             # 端到端正常流程 + 确定性核验
@@ -177,10 +179,10 @@ $AGH export <SESSION_ID> --format agnes -o evidence/session-full.jsonl
 实测已达 **21 + 21 条，且 7 个 `sciret_*` 工具全部出现**（含 `sciret_resume` 的
 `kill_after_p2` 真实进程崩溃 + 断点续跑演示）；证据见 `evidence/` 与 `audit-pack/`。
 
-**无需 daemon 也可自证**：仓库内 `evidence/agh-session-sanitized.jsonl` 是由
-`node evidence/record_session.mjs` 以**与真实会话完全相同的调用序**驱动插件生成的脱敏账本
-（`sciret_plan → sciret_step_driven ×5 → sciret_next → sciret_finish → sciret_cite`，9 次
-工具交互），已纳入 git，评审可直接查看，无需运行任何环境。
+**证据取得方式**：真实证据由 AGH daemon 原生写出（`~/.agh/data/sessions.db` 的 `events` 表，
+每条事件带 `integrity_prev` → `integrity_digest` 哈希链），或用
+`agnes export <SESSION_ID> --format agnes` 导出。因原始导出含本机绝对路径，按红线不入 git，
+打包时从磁盘归集；打通步骤与当前卡点见 `evidence/AGH-真实会话落地报告.md`。
 
 ## 验收核对清单
 
@@ -204,7 +206,7 @@ $AGH export <SESSION_ID> --format agnes -o evidence/session-full.jsonl
 - [x] **计算挂钩文献**：稳定性由文献活化能导出；新增 Arrhenius σ(60°C) 外推
 - [x] 单元测试全部通过（**48/48**，其中 1 项联网核验默认跳过）
 - [x] AGH 联调：真实会话 21+21 条 tool/call / tool/result，7/7 工具覆盖，证据已导出；
-      另有脱敏账本 `evidence/agh-session-sanitized.jsonl` 直接入库
+      真实信封格式与 integrity 哈希链见 `evidence/AGH-真实会话落地报告.md`
 
 ## 合规红线
 

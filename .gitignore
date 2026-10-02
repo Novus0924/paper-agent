@@ -23,10 +23,10 @@ audit-pack.tar.gz
 
 # Evidence exports
 # 原始 daemon 导出含本机绝对路径，不入 git（打包时从磁盘归集）。
+# 注：此前的 evidence/agh-session-sanitized.jsonl 因使用**非 AGH 真实信封**的
+# 自造结构而移除（见 evidence/AGH-真实会话落地报告.md）；真实证据改为在
+# 打包阶段用 `agnes export <SESSION_ID> --format agnes` 归集。
 evidence/*.jsonl
-# 例外：由 evidence/record_session.mjs 生成的**脱敏**会话证据，必须入库，
-# 以便评审在仓库内直接看到「AGH 承担核心流程（>=3 连续步骤）」的证据。
-!evidence/agh-session-sanitized.jsonl
 
 # OS
 .DS_Store

@@ -201,16 +201,21 @@ agnes export SESSION_ID --format agnes -o session.jsonl
 grep -c '"tool_use"\|"tool_result"' session.jsonl   # 期望 >=6（连续结构化）
 ```
 
-**无需 API Key 的自证方式**（证据已入库）：
+**证据的真实来源**（不再提供脱敏自证账本）：
 
 ```bash
-node evidence/record_session.mjs      # 重新生成（调用序与真实会话一致）
-cat evidence/agh-session-sanitized.jsonl   # 9 次 tool/call + 9 次 tool/result，已脱敏
-grep -c '"type":"tool/call"'     evidence/agh-session-sanitized.jsonl   # 期望 9
-grep -c '"type":"tool/result"'   evidence/agh-session-sanitized.jsonl   # 期望 9
-# 连续 5 步由模型驱动：检查 step_driven 出现 5 次即满足「>=3 连续步骤」
-grep -c 'sciret_step_driven'     evidence/agh-session-sanitized.jsonl
+# AGH daemon 原生写的会话事件库（含完整信封 + integrity 哈希链）
+#   ~/.agh/data/sessions.db   —— events 表
+# 或用官方导出
+agnes export <SESSION_ID> --format agnes -o session.jsonl
+grep -c '"type":"tool/call"'   session.jsonl   # 期望 >=6（连续结构化）
+grep -c '"type":"tool/result"' session.jsonl
 ```
+
+> 真实信封形如 `{seq,ts,id,type,actor,origin,trust,source_event_seqs,
+> data:{toolUseId,name,args,...},integrity_mode,integrity_prev,integrity_digest}`。
+> 原始导出含本机绝对路径，按红线不入 git。打通步骤与当前卡点
+> （第三方工具尚未暴露给模型）见 `evidence/AGH-真实会话落地报告.md`。
 
 ---
 
