@@ -8,10 +8,11 @@
 ## 0. 30 秒速览
 
 - **项目**：`paper-agent` —— 基于 **AGH（Agnes Harness）** 的可审计、可复现、可故障恢复的科研 Agent 流水线（JS 薄壳工具 + Python 核心业务 + 确定性实验），用于 2026 江苏省 AI+科学与工程创新实践黑客松。
-- **工程完成度**：阶段 1–7 **全部完成并通过自验证**（单测 **48/48**、端到端 demo、四大故障用例 + 真实进程崩溃/断点续跑用例 E2/E3 + P5 幂等复用 F、审计不变量全 PASS）。
+- **工程完成度**：阶段 1–8 **全部完成并通过自验证**（单测 **62/62**、端到端 demo、四大故障用例 + 真实进程崩溃/断点续跑用例 E2/E3 + P5 幂等复用 F、审计不变量全 PASS）。
 - **AGH 联调已真实跑通**：插件经交互 TTY 确认安装 + trust + enable，`desired=enabled actual=running trusted=true`；两次真实 `-p` 会话共 21 次 tool/call + 21 次 tool/result，**7 个 sciret_* 工具全部出现**（含 `sciret_resume` 的 kill_after_p2 崩溃恢复演示）。导出在 `evidence/session.jsonl`（首轮）与 `evidence/session-full.jsonl`（崩溃恢复轮，同一 workspace 会话追加）。
 - **编排改为模型驱动（阶段 7 重构）**：核心层新增**单步**工具 `sciret_step_driven`（一次只推进一步并返回决策上下文）、`sciret_next`、`sciret_finish`，插件共 **10 工具 + 1 Skill**（`.agh/skills/sciret-research-pipeline`）；`run-all` 降级为**确定性兜底**。真实证据由 AGH daemon 原生写出（`~/.agh/data/sessions.db`，含完整信封 + integrity 哈希链），打通步骤与当前卡点见 `evidence/AGH-真实会话落地报告.md`（注：此前的脱敏自造格式账本已删除）。
 - **数据与计算修复**：5 篇文献 DOI 经 Crossref 权威核验更正；CSV 材料–年份–DOI 自洽；稳定性改由文献活化能导出（不再硬编码常数）；新增 Arrhenius σ(60°C) 外推。
+- **P1 检索后端可切换（阶段 8）**：新增 `core/paper_agent/litsearch.py`（零依赖，仅标准库）——`--lit-source local|arxiv|auto`，默认 `auto`；`arxiv` 走 arXiv 官方 Atom API 实时检索，**不再局限于内置 5 篇语料**。确定性靠**快照冻结**保证：在线结果首跑写入 `runs/<id>/literature/arxiv_snapshot.json`，同一 run 复跑只读快照、不再联网，快照本身作为 `data` 证据留证。单测通过 `paper-agent_LIT_SOURCE=local` 强制离线（`tests/__init__.py`），故 `Ran 62 tests ... OK` 零 skip。**边界**：P1 与 P2/P3 解耦——换课题能换到真文献，但实验数据仍取 `data/conductivity_raw.csv`。
 - **红线**：密钥只存 `.env`（gitignore）；所有交付物收敛在 `paper-agent/` 项目目录内；实验数据标注 `as-reported`，严禁伪造。
 
 ---
@@ -47,7 +48,7 @@ paper-agent/
 │   └── cli.py                      #   命令行入口，stdout 只输出单个 JSON（_ensure_utf8_stdio 强制 UTF-8）
 ├── experiments/arrhenius_rank.py   # 零依赖确定性实验脚本（电导率打分排序；utf-8-sig 读 CSV）
 ├── data/
-│   ├── literature.json             # 内置 5 篇真实 DOI 文献语料
+│   ├── literature.json             # 内置 5 篇真实 DOI 文献语料（local 来源 / 离线兜底）
 │   └── conductivity_raw.csv        # 带缺陷原始数据集（utf-8 BOM，7 行）
 ├── plugins/paper-agent-tools/
 │   ├── package.json                # AGH 插件 manifest（对齐官方形态，见 §6）
@@ -82,7 +83,7 @@ paper-agent/
 
 ```bash
 cd C:/Users/ASUS/Desktop/黑客松/paper-agent
-# ① 单元测试（48/48 应全绿）
+# ① 单元测试（62/62 应全绿）
 set PYTHONPATH=C:\Users\ASUS\Desktop\黑客松\paper-agent\core
 python -m unittest discover -s tests -p "test_*.py"
 
@@ -96,7 +97,7 @@ python -m unittest discover -s tests -p "test_*.py"
 node plugins/paper-agent-tools/index.mjs   # 无语法错即通过（真实注册在 AGH 运行时）
 ```
 
-**预期结果**：单测 48/48 OK；demo_e2e 末行 `DEMO_E2E_OK`；demo_failure 末行 `DEMO_FAILURE_OK`（8 passed, 0 failed）。
+**预期结果**：单测 62/62 OK；demo_e2e 末行 `DEMO_E2E_OK`；demo_failure 末行 `DEMO_FAILURE_OK`（8 passed, 0 failed）。
 
 ---
 

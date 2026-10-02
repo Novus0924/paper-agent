@@ -49,7 +49,9 @@ def _repro_commands(root: str, run_id: str) -> str:
         f"# 复现本 run 的完整流水线（断点续跑语义，已 DONE 步骤直接复用）\n"
         f"# 1) 全新 run（等价 plan + run-all）\n"
         f"cd {base}\n"
-        f"PYTHONPATH=core python -m paper_agent.cli run-all --goal \"<goal>\"\n"
+        f"PYTHONPATH=core python -m paper_agent.cli run-all --goal \"<goal>\" --lit-source local\n"
+        f"#    --lit-source arxiv  实时检索 arXiv（结果快照冻结，保确定性）\n"
+        f"#    --lit-source auto   先试 arXiv，不可用时自动回落到本地语料\n"
         f"\n"
         f"# 2) 对已存在 run {run_id} 断点续跑 / 验证 / 出报告\n"
         f"PYTHONPATH=core python -m paper_agent.cli resume --run {run_id}\n"
@@ -90,7 +92,12 @@ def generate_report(
         f"{c['name']}={'PASS' if c.get('pass') else 'FAIL'}"
         for c in verif.get("checks", [])
     )
-    doiset = ", ".join(d["doi"] for d in lit.get("hits", [])) or "（无）"
+    # 检索来源可能是 arXiv（部分条目无 DOI），故引用串按 DOI → URL → doc_id 回退
+    refs = [str(d.get("doi") or d.get("url") or d.get("doc_id") or "")
+            for d in lit.get("hits", [])]
+    refset = ", ".join(r for r in refs if r) or "（无）"
+    lit_source = lit.get("source", "local")
+    lit_query = lit.get("query", "")
     actions_by = {}
     for a in clean_rep.get("actions", []):
         actions_by[a["action"]] = actions_by.get(a["action"], 0) + 1
@@ -106,10 +113,11 @@ def generate_report(
     p1_data_ev = _ev_ids_by_kind(prov, "data", "P1_lit_search")
     c1_ev = ev_lit if ev_lit else p1_data_ev
 
-    c1_text = (f"文献检索命中 {lit['n_hits']} 篇相关文献"
-               f"（degraded={lit.get('degraded', False)}），DOI 集合: {doiset}。"
+    c1_text = (f"文献检索（来源={lit_source}"
+               f"{'，检索式=' + lit_query if lit_query else ''}）命中 {lit['n_hits']} 篇相关文献"
+               f"（degraded={lit.get('degraded', False)}），引用集合: {refset}。"
                if lit["n_hits"] > 0 else
-               f"文献检索 0 命中（degraded={lit.get('degraded', False)}），"
+               f"文献检索（来源={lit_source}）0 命中（degraded={lit.get('degraded', False)}），"
                f"检索输出已留证，请复核 goal 关键词。")
     c2_text = (f"数据清洗将 {clean_rep['input_rows']} 行原始样本归一为 "
                f"{clean_rep['output_rows']} 行有效数据；清洗动作: {act_txt}。")
@@ -139,7 +147,8 @@ def generate_report(
         degraded_block = (
             "> **降级声明**：本 run 存在步骤降级（degraded=true）。"
             "P1 文献检索在重试耗尽后降级为返回全部本地语料，"
-            "相关结论的证据绑定基于全量语料而非关键词命中，请人工复核。"
+            "或在联网检索不可用时回落本地语料；"
+            "相关结论的证据绑定基于兜底来源而非在线命中，请人工复核。"
         )
 
     # ---- 终态预测：报告里的"顶层状态"必须是本 run 的真实归宿 ----
@@ -162,6 +171,7 @@ def generate_report(
     report_md = f"""# paper-agent 科研报告 — {run_id}
 
 - 目标: {state.goal or '（未设置）'}
+- 文献检索来源: {lit_source}（配置 lit_source={getattr(state, 'lit_source', 'auto')}）
 - 顶层状态: {final_status}
 - 状态依据: {final_note}
 - 生成: {state.updated_at}

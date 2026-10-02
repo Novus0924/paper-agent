@@ -79,6 +79,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = mk("plan")
     p.add_argument("--goal", required=True)
+    p.add_argument("--lit-source", default="", dest="lit_source",
+                   choices=["", "local", "arxiv", "auto"],
+                   help="P1 文献检索来源：local(默认离线) | arxiv(实时检索) | auto(先试 arxiv 再降级)")
 
     p = mk("status")
     p.add_argument("--run", required=True)
@@ -103,6 +106,9 @@ def build_parser() -> argparse.ArgumentParser:
     p = mk("run-all")
     p.add_argument("--run", default="", help="existing run_id; omit to plan a new one")
     p.add_argument("--goal", default="", help="required when --run omitted")
+    p.add_argument("--lit-source", default="", dest="lit_source",
+                   choices=["", "local", "arxiv", "auto"],
+                   help="新 run 的 P1 检索来源：local | arxiv | auto")
 
     p = mk("resume")
     p.add_argument("--run", required=True)
@@ -128,9 +134,11 @@ def _root() -> str:
 
 def cmd_plan(args) -> int:
     rid = new_run_id()
-    st = create_state(rid, _root(), args.goal)
+    st = create_state(rid, _root(), args.goal,
+                      lit_source=(args.lit_source or None))
     return _emit({"ok": True, "cmd": "plan", "run_id": rid,
                   "run_status": st.run_status.value,
+                  "lit_source": st.lit_source,
                   "steps": {s: st.step_status[s].value for s in STEP_IDS}})
 
 
@@ -211,7 +219,8 @@ def cmd_run_all(args) -> int:
             return _emit_fail({"ok": False, "cmd": "run-all",
                                "error": "--goal required when --run omitted"}, 2)
         from .steps import run_pipeline
-        out = run_pipeline(root, args.goal, chaos_mode=args.chaos)
+        out = run_pipeline(root, args.goal, chaos_mode=args.chaos,
+                           lit_source=(args.lit_source or None))
     out["ok"] = out["run_status"] == "DONE"
     out["cmd"] = "run-all"
     code = 0 if out["ok"] else 1

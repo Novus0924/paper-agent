@@ -33,6 +33,7 @@ bad(){ echo "  [FAIL] $1"; fail=$((fail+1)); }
 # ---------- 用例 A：p1_fail_first → 重试 1 次成功，DONE，degraded=False ----------
 echo "==> 用例 A  chaos=p1_fail_first"
 "$PY" -m paper_agent.cli run-all --goal "sulfide solid electrolyte conductivity" \
+      --lit-source local \
       --chaos p1_fail_first > "$T/A.json" 2> "$T/A.err"
 A_RID="$(jfield "$T/A.json" "d['run_id']")"
 A_OK="$(jfield "$T/A.json" "1 if d['run_status']=='DONE' and d['degraded']==False else 0")"
@@ -43,6 +44,7 @@ A_RETRYCNT="$(grep -c '"type": "retry"' "$PAPER_AGENT_ROOT/runs/$A_RID/events.js
 # ---------- 用例 B：p1_fail_all → 耗尽降级，DONE，degraded=True，含 degrade 事件 ----------
 echo "==> 用例 B  chaos=p1_fail_all"
 "$PY" -m paper_agent.cli run-all --goal "garnet solid electrolyte" \
+      --lit-source local \
       --chaos p1_fail_all > "$T/B.json" 2> "$T/B.err"
 B_RID="$(jfield "$T/B.json" "d['run_id']")"
 B_OK="$(jfield "$T/B.json" "1 if d['run_status']=='DONE' and d['degraded']==True else 0")"
@@ -52,7 +54,8 @@ B_DEG="$(grep -c '"type": "degrade"' "$PAPER_AGENT_ROOT/runs/$B_RID/events.jsonl
 
 # ---------- 用例 C：P2 后中断，resume 只跑剩余，已 DONE 步骤复用 ----------
 echo "==> 用例 C  P2 后中断 resume"
-"$PY" -m paper_agent.cli plan --goal "argyrodite conductivity ranking" > "$T/Cplan.json" 2>/dev/null
+"$PY" -m paper_agent.cli plan --goal "argyrodite conductivity ranking" \
+      --lit-source local > "$T/Cplan.json" 2>/dev/null
 C_RID="$(jfield "$T/Cplan.json" "d['run_id']")"
 "$PY" -m paper_agent.cli run-step --run "$C_RID" --step P1_lit_search > /dev/null 2>&1
 "$PY" -m paper_agent.cli run-step --run "$C_RID" --step P2_clean_data > /dev/null 2>&1
@@ -66,6 +69,7 @@ C_REUSE="$(jfield "$T/C.json" "1 if d['results']['P1_lit_search'].get('reused') 
 # ---------- 用例 D：mutate_summary → P4 FAIL，run FAILED，5 项校验可查 ----------
 echo "==> 用例 D  chaos=mutate_summary"
 "$PY" -m paper_agent.cli run-all --goal "sulfide ranking" \
+      --lit-source local \
       --chaos mutate_summary > "$T/D.json" 2> "$T/D.err"
 D_OK="$(jfield "$T/D.json" "1 if d['run_status']=='FAILED' and d['results']['P4_verify']['status']=='FAIL' else 0")"
 D_CHECKS="$(jfield "$T/D.json" "len(d['results']['P4_verify']['checks'])")"

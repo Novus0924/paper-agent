@@ -24,6 +24,7 @@ from .state import (
 )
 from .provenance import ProvenanceLedger
 from . import chaos
+from . import litsearch
 from .chaos import TransientError
 from . import verify as verify_mod
 
@@ -104,49 +105,103 @@ class Pipeline:
 
     # ---------- P1 文献检索 ----------
 
-    def _p1_search(self, goal: str, full_corpus: bool) -> dict:
-        lit_path = os.path.join(self.root, "data", "literature.json")
-        with open(lit_path, "r", encoding="utf-8") as f:
-            corpus = json.load(f)
-        docs = corpus.get("documents", [])
-        if full_corpus:
-            hits = [d for d in docs]
-        else:
-            toks = _tokenize(goal)
-            scored = []
-            for d in docs:
-                hay = " ".join(
-                    [d.get("title", "")] + d.get("keywords", [])
-                    + [d.get("abstract", ""), d.get("venue", "")]
-                ).lower()
-                score = sum(1 for t in set(toks) if t in hay)
-                if score > 0:
-                    scored.append((score, d))
-            # 排序 key (-score, doc_id)
-            scored.sort(key=lambda x: (-x[0], x[1]["doc_id"]))
-            hits = [d for _, d in scored]
+    def _p1_search(self, goal: str, full_corpus: bool,
+                   lit_source: str | None = None) -> dict:
+        """P1 文献检索：支持 arxiv / local / auto 三种来源。
 
-        out_path = os.path.join(self.root, "runs", self.run_id, "literature",
-                                "literature_hits.json")
+        确定性契约：在线检索（arXiv）结果首次取得后**快照冻结**到 run 目录
+        ``literature/arxiv_snapshot.json``；同一 run 再次执行 P1 只读快照、
+        不再联网 —— 保证「同一 run 逐字节可复现」，同时让检索不再局限于
+        内置的 5 篇语料。
+        """
+        lit_source = (lit_source or self.state.lit_source or "auto").lower()
+        lit_dir = os.path.join(self.root, "runs", self.run_id, "literature")
+        snap_path = os.path.join(lit_dir, "arxiv_snapshot.json")
+
+        docs: list[dict] = []
+        hits: list[dict] = []
+        source_used = "local"
+        query_used = ""
+        fetched_at = ""
+        degraded = bool(full_corpus)
+        note = ""
+
+        if full_corpus:
+            # 降级路径（重试耗尽）：返回全部本地语料
+            docs = litsearch.load_local_corpus(self.root)
+            hits = list(docs)
+            source_used = "local_full_corpus"
+        else:
+            if lit_source in ("arxiv", "auto"):
+                if os.path.exists(snap_path):
+                    # 同一 run 复跑：只读快照，绝不重新联网
+                    with open(snap_path, "r", encoding="utf-8") as f:
+                        snap = json.load(f)
+                    docs = snap.get("documents", [])
+                    query_used = snap.get("query", "")
+                    fetched_at = snap.get("fetched_at", "")
+                    source_used = snap.get("source", "arxiv")
+                    note = "snapshot_reused"
+                else:
+                    try:
+                        docs, query_used = litsearch.search_arxiv(goal)
+                        source_used = "arxiv"
+                        fetched_at = datetime.now(timezone.utc).strftime(
+                            "%Y-%m-%dT%H:%M:%SZ")
+                    except Exception as e:  # 网络/解析异常 → 交由下方降级
+                        docs = []
+                        note = f"arxiv_unavailable:{type(e).__name__}"
+
+            if not docs and lit_source in ("local", "auto"):
+                docs = litsearch.load_local_corpus(self.root)
+                source_used = ("local_fallback" if note else "local")
+                if source_used == "local_fallback":
+                    degraded = True
+
+            # arXiv 侧已由 API 按相关度排序；本地语料需按 goal 关键词过滤
+            hits = (list(docs) if source_used == "arxiv"
+                    else litsearch.filter_by_relevance(docs, goal))
+
+        # 在线首跑成功后冻结快照（含检索式与时间戳，供审计与离线复现）
+        if source_used == "arxiv" and note != "snapshot_reused" and not full_corpus:
+            _write_json(snap_path, {
+                "goal": goal,
+                "query": query_used,
+                "source": "arxiv",
+                "endpoint": litsearch.ARXIV_API,
+                "fetched_at": fetched_at,
+                "n_documents": len(docs),
+                "documents": docs,
+            })
+
+        out_path = os.path.join(lit_dir, "literature_hits.json")
         _write_json(out_path, {
             "goal": goal,
+            "source": source_used,
+            "query": query_used,
+            "fetched_at": fetched_at,
+            "snapshot": ("literature/arxiv_snapshot.json"
+                         if os.path.exists(snap_path) else ""),
+            "note": note,
             "n_hits": len(hits),
-            "degraded": full_corpus,
+            "degraded": degraded,
             "hits": [
-                {"doc_id": d["doc_id"], "doi": d["doi"], "title": d["title"],
-                 "venue": d["venue"], "year": d["year"],
+                {"doc_id": d.get("doc_id", ""), "doi": d.get("doi", ""),
+                 "title": d.get("title", ""), "venue": d.get("venue", ""),
+                 "year": d.get("year", 0), "url": d.get("url", ""),
+                 "source": d.get("source", source_used),
                  "matched": full_corpus}
                 for d in hits
             ],
         })
-        # 登记 literature 证据（ref=DOI）
+        # 登记 literature 证据（ref 优先 DOI，其次 arXiv 链接）
         ev_ids = []
         for d in hits:
             ev = self.prov.append_evidence(
-                kind="literature", ref=d["doi"],
+                kind="literature", ref=litsearch.ref_of(d),
                 producer_step="P1_lit_search",
-                meta={"doc_id": d["doc_id"], "title": d.get("title", ""),
-                      "year": d.get("year")},
+                meta={"doc_id": d.get("doc_id", ""), "title": d.get("title", ""),
+                      "year": d.get("year"), "source": d.get("source", "")},
             )
             ev_ids.append(ev)
         # 无论 0 命中与否，始终登记检索输出文件为 data 证据，
@@ -156,9 +211,21 @@ class Pipeline:
             ref=os.path.join("literature", "literature_hits.json"),
             producer_step="P1_lit_search",
             file_path=out_path,
-            meta={"n_hits": len(hits), "degraded": full_corpus},
+            meta={"n_hits": len(hits), "degraded": degraded,
+                  "source": source_used},
         )
-        return {"n_hits": len(hits), "degraded": full_corpus,
+        # 在线检索的冻结快照单独留证：证明「下游用的输入」可追溯
+        if os.path.exists(snap_path):
+            self.prov.append_evidence(
+                kind="data",
+                ref=os.path.join("literature", "arxiv_snapshot.json"),
+                producer_step="P1_lit_search",
+                file_path=snap_path,
+                meta={"query": query_used, "fetched_at": fetched_at,
+                      "n_documents": len(docs)},
+            )
+        return {"n_hits": len(hits), "degraded": degraded,
+                "source": source_used, "query": query_used,
                 "output": out_path, "evidence": ev_ids,
                 "hits_file_ev": hits_file_ev}
 
@@ -186,10 +253,21 @@ class Pipeline:
                 attempt += 1
                 time.sleep(BACKOFF[min(attempt - 2, len(BACKOFF) - 1)])
         self._toolcall("P1_lit_search", "sciret_run_step",
-                       {"goal": goal, "attempt": attempt, "degraded": degraded},
-                       {"n_hits": result["n_hits"]})
+                       {"goal": goal, "attempt": attempt, "degraded": degraded,
+                        "lit_source": self.state.lit_source},
+                       {"n_hits": result["n_hits"],
+                        "source": result.get("source", ""),
+                        "query": result.get("query", "")})
+        step_degraded = bool(result.get("degraded", degraded))
+        if step_degraded and not degraded:
+            # 非「重试耗尽」型的降级：如 arXiv 不可达/0 命中 → 回落本地语料。
+            # 同样要留 degrade 痕迹，让 run 级 degraded 与产物内声明保持一致。
+            self.state.mark_degraded(
+                sid, note=f"lit_source={self.state.lit_source} → "
+                          f"{result.get('source')} ({result.get('query') or 'no-query'})")
         self.state.mark_step_done(sid, {"n_hits": result["n_hits"],
-                                        "degraded": degraded})
+                                        "source": result.get("source", ""),
+                                        "degraded": step_degraded})
         return result
 
     # ---------- P2 数据清洗 ----------
@@ -617,16 +695,18 @@ class Pipeline:
         return self.run_all()
 
 
-def plan_run(root: str, goal: str, chaos_mode: str = "") -> PipelineState:
+def plan_run(root: str, goal: str, chaos_mode: str = "",
+             lit_source: str | None = None) -> PipelineState:
     rid = new_run_id()
-    st = create_state(rid, root, goal)
+    st = create_state(rid, root, goal, lit_source=lit_source)
     return st
 
 
-def run_pipeline(root: str, goal: str, chaos_mode: str = "") -> dict:
+def run_pipeline(root: str, goal: str, chaos_mode: str = "",
+                 lit_source: str | None = None) -> dict:
     """plan + run-all 一步完成。"""
     rid = new_run_id()
-    st = create_state(rid, root, goal)
+    st = create_state(rid, root, goal, lit_source=lit_source)
     pipe = Pipeline(root, rid, chaos_mode=chaos_mode)
     out = pipe.run_all()
     out["run_id"] = rid

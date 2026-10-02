@@ -51,6 +51,44 @@ $PY -m paper_agent.cli run-all --run $RUN_ID
 bash demo/demo_e2e.sh
 ```
 
+### 1c. P1 文献检索来源 — 在线 arXiv / 离线本地
+
+P1 检索后端可切换，**默认 `auto`**（先试 arXiv，不可用自动回落本地语料）：
+
+```bash
+# 实时检索 arXiv（不局限于内置 5 篇语料）
+$PY -m paper_agent.cli run-all --goal "argyrodite solid electrolyte conductivity" \
+    --lit-source arxiv
+# 判定：results.P1_lit_search.source=="arxiv"
+#       且 runs/<run_id>/literature/arxiv_snapshot.json 已生成（快照冻结）
+
+# 纯离线确定性基线
+$PY -m paper_agent.cli run-all --goal "..." --lit-source local
+# 判定：results.P1_lit_search.source=="local"
+```
+
+**确定性验证（快照冻结契约）**：在线检索只在 run 首跑发生一次，之后同一 run
+复跑/续跑**只读快照、不再联网**。
+
+```bash
+# 1) 首跑得到 arxiv 快照
+RID=$(... run-all --lit-source arxiv ... | jq -r .run_id)
+ls runs/$RID/literature/arxiv_snapshot.json
+
+# 2) 删掉检索输出后重跑 P1：若仍能重建且 note=="snapshot_reused"，即证明未联网
+rm runs/$RID/literature/literature_hits.json
+# （P1 已 DONE，如需复跑该步请用 run-step 到新 run；此处只需确认快照被读取）
+
+# 离线单测直接覆盖该契约（不依赖网络）：
+$PY -m unittest tests.test_litsearch -v
+```
+
+**可选在线用例**（默认不定义，故常规运行零 skip）：
+
+```bash
+RUN_ONLINE=1 $PY -m unittest tests.test_litsearch.TestOnlineArxivSearch -v
+```
+
 ---
 
 ## 2. 实验确定性 — 两次执行 SHA-256 一致
@@ -165,10 +203,11 @@ PY
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py"
-# 期望：Ran 48 tests ... OK (skipped=1)
+# 期望：Ran 62 tests ... OK   （零 skip —— 单测默认 paper-agent_LIT_SOURCE=local 强制离线）
 ```
 
-其中 `tests/test_data_integrity.py` 是数据红线的守门测试（9 项）：
+其中 `tests/test_data_integrity.py` 是数据红线的守门测试（8 项离线 + 1 项可选联网）：
+`tests/test_litsearch.py` 是 P1 检索后端的守门测试（15 项，含快照冻结契约）。
 
 ```bash
 python -m unittest tests.test_data_integrity -v

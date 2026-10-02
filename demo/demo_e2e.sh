@@ -11,11 +11,14 @@ export PAPER_AGENT_ROOT="$PWD"
 # 强制 Python stdin/stdout/stderr 为 UTF-8，避免管道读 JSON 时按系统码页(cp936)解码中文路径失败
 export PYTHONIOENCODING="utf-8"
 PY="$(printenv paper-agent_PYTHON || echo python)"
+# P1 检索来源：默认 local（离线、逐字节可复现）。
+# 想看实时 arXiv 检索：LIT_SOURCE=arxiv bash demo/demo_e2e.sh
+LIT_SOURCE="${LIT_SOURCE:-local}"
 TMPJSON="$(mktemp)"
 trap 'rm -f "$TMPJSON"' EXIT
 
-echo "==> [1/4] plan + run-all 正常路径"
-PLAN_JSON=$("$PY" -m paper_agent.cli plan --goal "sulfide solid electrolyte ionic conductivity ranking")
+echo "==> [1/4] plan + run-all 正常路径（lit-source=$LIT_SOURCE）"
+PLAN_JSON=$("$PY" -m paper_agent.cli plan --goal "sulfide solid electrolyte ionic conductivity ranking" --lit-source "$LIT_SOURCE")
 echo "$PLAN_JSON"
 RUN_ID=$(printf '%s' "$PLAN_JSON" | "$PY" -c "import sys,json;print(json.load(sys.stdin)['run_id'])")
 echo "RUN_ID=$RUN_ID"

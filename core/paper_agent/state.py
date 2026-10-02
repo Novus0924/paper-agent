@@ -84,6 +84,19 @@ def _run_id() -> str:
     return f"run-{stamp}-{secrets.token_hex(3)}"
 
 
+# P1 文献检索来源。默认 local（离线、逐字节可复现）；联网检索需显式开启：
+#   --lit-source arxiv  实时检索 arXiv（结果快照冻结，保确定性）
+#   --lit-source auto   先试 arXiv，失败自动降级本地语料
+# 单测通过环境变量 paper-agent_LIT_SOURCE=local 强制离线（见 tests/__init__.py）。
+LIT_SOURCES = ("local", "arxiv", "auto")
+
+
+def default_lit_source() -> str:
+    """解析文献检索来源的默认值（环境变量 > 内置默认）。"""
+    env = os.environ.get("paper-agent_LIT_SOURCE", "").strip().lower()
+    return env if env in LIT_SOURCES else "auto"
+
+
 class PipelineState:
     """一个 run 实例的完整状态机。
 
@@ -92,10 +105,14 @@ class PipelineState:
     并 append 一条事件到 events.jsonl。
     """
 
-    def __init__(self, run_id: str, root: str, goal: str = ""):
+    def __init__(self, run_id: str, root: str, goal: str = "",
+                 lit_source: str | None = None):
         self.run_id = run_id
         self.root = root
         self.goal = goal
+        self.lit_source = (lit_source or default_lit_source()).lower()
+        if self.lit_source not in LIT_SOURCES:
+            self.lit_source = "auto"
         self.run_dir = os.path.join(root, "runs", run_id)
         self.state_path = os.path.join(self.run_dir, "state.json")
         self.events_path = os.path.join(self.run_dir, "events.jsonl")
@@ -119,6 +136,7 @@ class PipelineState:
         if not self._loaded:
             self._append_event("run_planned", {
                 "goal": self.goal,
+                "lit_source": self.lit_source,
                 "created_at": self.created_at,
             })
             self._persist_state()
@@ -135,6 +153,9 @@ class PipelineState:
             self.step_status[sid] = StepStatus(snap["steps"][sid])
             self.attempts[sid] = snap.get("attempts", {}).get(sid, 0)
         self.degraded = snap.get("degraded", False)
+        self.lit_source = snap.get("lit_source", self.lit_source)
+        if self.lit_source not in LIT_SOURCES:
+            self.lit_source = "auto"
         self.created_at = snap.get("created_at", self.created_at)
         self.updated_at = snap.get("updated_at", self.updated_at)
         if snap.get("goal"):
@@ -162,6 +183,7 @@ class PipelineState:
             "attempts": dict(self.attempts),
             "degraded": self.degraded,
             "goal": self.goal,
+            "lit_source": self.lit_source,
             "created_at": self.created_at,
             "updated_at": _utc_now_str(),
         }
@@ -303,8 +325,9 @@ def new_run_id() -> str:
     return _run_id()
 
 
-def create_state(run_id: str, root: str, goal: str = "") -> PipelineState:
-    st = PipelineState(run_id, root, goal)
+def create_state(run_id: str, root: str, goal: str = "",
+                 lit_source: str | None = None) -> PipelineState:
+    st = PipelineState(run_id, root, goal, lit_source=lit_source)
     st.plan()
     return st
 

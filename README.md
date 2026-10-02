@@ -71,6 +71,7 @@ paper-agent/
 │   ├── steps.py                 #   五步 P1-P5 **单步驱动** + 决策上下文 + 兜底 run-all
 │   ├── verify.py                #   P4 复现验证器（递归容差比对）
 │   ├── report.py                #   P5 报告生成（证据归属精确到生产步骤）
+│   ├── litsearch.py             #   P1 检索后端：arXiv 公开 API / 本地语料 + 快照冻结
 │   └── cli.py                   #   命令行入口：step-driven / next / finish / run-all …
 ├── experiments/
 │   └── arrhenius_rank.py        # 零依赖确定性实验脚本（电导率打分 + Arrhenius 外推）
@@ -86,7 +87,7 @@ paper-agent/
 ├── demo/
 │   ├── demo_e2e.sh             # 端到端正常流程 + 确定性核验
 │   └── demo_failure.sh         # 四大故障恢复验收用例自动化
-├── tests/                        # unittest 套件（5 文件，48 用例，含数据完整性守门）
+├── tests/                        # unittest 套件（6 文件，62 用例，含数据完整性守门）
 └── audit-pack-template/          # 审计交付包模板
 ```
 
@@ -130,6 +131,41 @@ python -m paper_agent.cli report  --run <RUN_ID>
 bash demo/demo_e2e.sh       # 正常路径 + 实验确定性 SHA-256 核验
 bash demo/demo_failure.sh   # 四大故障用例（A 重试 / B 降级 / C resume / D 复现 FAIL）
 ```
+
+## 文献检索来源（P1）：不再局限于内置语料
+
+P1 的检索后端有 **两条来源**，输出同一套规范化文档结构（`doc_id / doi / title /
+authors / venue / year / keywords / abstract / url / source`），上层无需区分：
+
+| `--lit-source` | 行为 | 适用场景 |
+| --- | --- | --- |
+| `arxiv` | 调用 arXiv 公开 Atom API **实时检索**，任意课题都是检索式 | 真实科研检索 |
+| `auto`（默认） | 先试 arXiv；网络不可用或 0 命中 → 自动回落本地语料，并置 `degraded=true` | 通用 |
+| `local` | 只读 `data/literature.json` 内置语料 | 离线 / 逐字节确定性基线 |
+
+```bash
+# 实时检索 arXiv（不局限于内置 5 篇）
+PYTHONPATH=core python -m paper_agent.cli run-all \
+  --goal "argyrodite solid electrolyte ionic conductivity" --lit-source arxiv
+
+# 纯离线确定性基线（默认单测走这条）
+PYTHONPATH=core python -m paper_agent.cli run-all --goal "..." --lit-source local
+```
+
+**确定性契约（关键设计）**：arXiv 在线结果随时间变化，若直接喂给下游会破坏
+「同一 run 逐字节可复现」的红线。因此：
+
+1. 在线检索结果首次取得后，**快照冻结**到
+   `runs/<run_id>/literature/arxiv_snapshot.json`（含检索式与 `fetched_at`）；
+2. 同一 run 再次执行 P1（resume / 复跑）**只读快照，不再联网**；
+3. 快照文件本身作为 `data` 证据登记（带 SHA-256），证明"下游实际用过的输入"可追溯。
+
+即 **联网只发生在 run 的首跑，且输入被冻结留证**，之后完全离线可复现。
+
+> 边界说明：本版 P1 的检索来源已可任意指定，但 **P2/P3 仍基于
+> `data/conductivity_raw.csv` 内置数据集**做清洗与排序（P1 与此解耦）。
+> 即"换课题能换到真文献"，但"换课题不会自动换实验数据"——后者需要从论文正文
+> 抽取数值，属更大改造，且必须严防凭空捏造数据。
 
 ## 数据来源声明
 
@@ -204,12 +240,16 @@ $AGH export <SESSION_ID> --format agnes -o evidence/session-full.jsonl
 - [x] **数据红线**：5 篇文献 DOI 经 Crossref 权威核验；CSV 材料–年份–DOI 自洽；
       `tests/test_data_integrity.py` 9 项守门（含可选联网核验 `RUN_ONLINE=1`）
 - [x] **计算挂钩文献**：稳定性由文献活化能导出；新增 Arrhenius σ(60°C) 外推
-- [x] 单元测试全部通过（**48/48**，其中 1 项联网核验默认跳过）
+- [x] **P1 检索后端可切换**：`local`（内置语料）/ `arxiv`（实时检索 arXiv，结果快照冻结）/
+      `auto`（先试 arXiv，不可用自动回落并置 degraded）；引用串按 DOI→URL 回退
+- [x] 单元测试全部通过（**62/62，零 skip**；单测默认 `paper-agent_LIT_SOURCE=local` 强制离线）
 - [x] AGH 联调：真实会话 21+21 条 tool/call / tool/result，7/7 工具覆盖，证据已导出；
       真实信封格式与 integrity 哈希链见 `evidence/AGH-真实会话落地报告.md`
 
 ## 合规红线
 
-- 实验：内置真实 DOI + 带缺陷演示数据集上的真实运行；不做论文全文批量抓取。
+- 实验：内置真实 DOI + 带缺陷演示数据集上的真实运行。
+- 文献检索：`arxiv` 来源只调用 arXiv 官方 Atom API 获取**元数据**（标题/作者/摘要/DOI），
+  不做论文全文批量抓取；结果按 run 快照冻结留证。
 - Agnes Key 只放环境变量，**绝不写入仓库**。
-- 开发纪律：每个任务结束 commit；测试不联网。
+- 开发纪律：每个任务结束 commit；**单测默认不联网**（靠 `paper-agent_LIT_SOURCE=local`）。
