@@ -40,9 +40,14 @@ function projectRoot() {
     || path.resolve(__dirname, "..", "..");
 }
 
-/** Python 解释器：环境变量优先，否则用 PATH 上的 python。 */
-function pythonExe() {
-  return envAny(["PAPER_AGENT_PYTHON", "paper-agent_PYTHON"]) || "python";
+/** Python 解释器候选：环境变量优先；否则按平台常见命名依次尝试。
+ *  多候选是为了避免"python 不在 PATH 上"直接导致所有工具不可用。 */
+function pythonCandidates() {
+  const explicit = envAny(["PAPER_AGENT_PYTHON", "paper-agent_PYTHON"]);
+  if (explicit) return [explicit];
+  return process.platform === "win32"
+    ? ["python", "python3", "py"]
+    : ["python3", "python"];
 }
 
 // ---------- TypeBox schema helpers（对齐 AGH 标准写法）----------
@@ -99,8 +104,8 @@ function cliArgs(args, chaos) {
   return out;
 }
 
-function runCli(argv, timeoutMs = 120_000) {
-  const py = pythonExe();
+/** 用单个解释器跑一次 CLI；spawn 失败（如解释器不存在）时 reject 并带 ENOENT。 */
+function runCliWith(py, argv, timeoutMs) {
   const root = projectRoot();
   const env = {
     ...process.env,
@@ -108,13 +113,23 @@ function runCli(argv, timeoutMs = 120_000) {
     PAPER_AGENT_ROOT: root,
     PYTHONPATH: path.join(root, "core"),
   };
-  return new Promise((resolve) => {
-    const proc = spawn(py, argv, { env, cwd: root, stdio: ["ignore", "pipe", "pipe"] });
+  return new Promise((resolve, reject) => {
+    let proc;
+    try {
+      proc = spawn(py, argv, { env, cwd: root, stdio: ["ignore", "pipe", "pipe"] });
+    } catch (err) {
+      reject(err);
+      return;
+    }
     let stdout = "";
     let stderr = "";
     const timer = setTimeout(() => proc.kill("SIGKILL"), timeoutMs);
     proc.stdout.on("data", (d) => (stdout += d));
     proc.stderr.on("data", (d) => (stderr += d));
+    proc.on("error", (err) => {      // 解释器不存在时会走到这里
+      clearTimeout(timer);
+      reject(err);
+    });
     proc.on("close", (code) => {
       clearTimeout(timer);
       let parsed = null;
@@ -130,11 +145,32 @@ function runCli(argv, timeoutMs = 120_000) {
         stderr: stderr.trim() || undefined,
       });
     });
-    proc.on("error", (err) => {
-      clearTimeout(timer);
-      resolve({ ok: false, exitCode: -1, structured: { ok: false, error: err.message } });
-    });
   });
+}
+
+/** 依次尝试候选解释器，避免"python 不在 PATH 上"直接导致工具全不可用。 */
+async function runCli(argv, timeoutMs = 120_000) {
+  const candidates = pythonCandidates();
+  let lastErr = null;
+  for (let i = 0; i < candidates.length; i++) {
+    try {
+      return await runCliWith(candidates[i], argv, timeoutMs);
+    } catch (err) {
+      lastErr = err;
+      const retryable = err && (err.code === "ENOENT" || /ENOENT/.test(String(err.message)));
+      if (!retryable || i === candidates.length - 1) break;
+    }
+  }
+  return {
+    ok: false,
+    exitCode: -1,
+    structured: {
+      ok: false,
+      error: `cannot launch python (tried: ${candidates.join(", ")}): `
+             + `${lastErr && lastErr.message ? lastErr.message : lastErr}`,
+      hint: "设置 PAPER_AGENT_PYTHON 指向 Python 3.10+ 的绝对路径",
+    },
+  };
 }
 
 /** 统一的工具执行器：调用 CLI，按 AGH 返回格式包装。 */
