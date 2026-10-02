@@ -1,13 +1,21 @@
 # 数据来源声明
 
-| 来源 | 说明 | 条款 / 署名 |
-| --- | --- | --- |
-| arXiv API（`http://export.arxiv.org/api/query`） | 文献元数据检索（标题、作者、摘要、arXiv ID、URL） | 遵守 arXiv API 使用条款与限速（建议 ≤1 req/s） |
-| Semantic Scholar Graph API | 引用关系检查（citation_check 兜底） | 免费层；CC-BY 署名要求 |
-| scikit-learn 内置数据集 | 实验数据来源（BSD，离线零下载） | BSD License |
+本项目**不联网抓取**（P1 文献检索为项目内置 `data/literature.json` 语料的本地匹配），
+全部数据为项目目录内自带的真实可核对素材：
+
+| 来源 | 位置 | 说明 | 条款 / 署名 |
+| --- | --- | --- | --- |
+| 文献语料（5 篇） | `data/literature.json` | 硫化物 / 氧化物固态电解质领域**真实 DOI** 论文的标题与要点摘录（人工整理，非批量抓取） | DOI 可回查：`sciret_cite` 输出含 EV 证据链 |
+| 电导率原始数据集 | `data/conductivity_raw.csv` | 7 行**带缺陷演示数据**（单位混杂 mS/cm 与 S/cm、缺激活能、有整行重复）；数值标注 `as-reported`，出处为文献 DOI（如 `10.1038/nmat3006` LGPS） | 仅用于流水线演示，非系统综述结论 |
+| 确定性实验 | `experiments/arrhenius_rank.py` | 对清洗后数据的**本地真实计算**（Arrhenius 特征打分排序 + 图表），零第三方依赖，相同输入两次运行 `results.csv` 逐字节一致 | 本项目原创代码 |
 
 ## 明确声明
 
-- 文献元数据 = **真实检索**（arXiv / S2 API 实际调用结果）。
-- 实验 = **公开小数据集上的真实运行**（sklearn 内置数据集 + matplotlib 出图）。
-- **不做论文全文批量抓取**（版权红线）。
+- 文献元数据 = **真实 DOI，可公开回查**（`10.1038/nmat3006`、`10.1002/anie.200701144`、
+  `10.1016/0167-2738(92)90421-F`、`10.1002/anie.200800627`、`10.1038/nenergy.2016.030`）；
+  本项目**不做论文全文批量抓取**（版权红线）。
+- 实验 = **自带数据集上的真实本地运行**；所有 run 产物（`runs/<run_id>/`）与双账本
+  （`events.jsonl` / `provenance.jsonl`）可逐条审计。
+- **严禁伪造数据**：`as-reported` 数值保留原文献出处；`mutate_summary` 故障注入仅用于
+  演示验证器抓篡改，注入行为在 events 账本中显式记录，不进入正常路径产物。
+- 结论 C1–C5 逐条绑定 `[EV-XXXX]` 证据锚点（`sciret_cite` 可回查文件与 SHA-256）。
