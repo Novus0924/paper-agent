@@ -61,24 +61,55 @@ def generate_report(
     summary = _read_json(os.path.join(run_dir, "experiment", "results", "summary.json"))
     verif = _read_json(os.path.join(run_dir, "verification", "verification.json"))
 
+    # ---- 判据 4 硬前置：使用快照输入的 run，账本必须携带判断批次 ----
+    # 删除模型判断记录 → 本函数抛 EvidenceError，报告无法生成。
+    uses_snapshot = bool(lit.get("snapshot_id"))
+    if uses_snapshot:
+        prov.require_judgment_batch()
+
+    judgments = prov.judgments()
+    excluded_j = prov.excluded_judgments()
+
     top3 = summary.get("top3", [])
     top3_txt = ", ".join(
         f"#{t['rank']} {t['material_id']} ({t['formula']}) score={t['score']:.6f}"
         for t in top3
     ) or "（无）"
     family_mean = summary.get("family_mean_log10_cond", {})
-    fam_txt = ", ".join(f"{k}={v:.6f}" for k, v in sorted(family_mean.items())) or "（无）"
+    fstats = summary.get("family_stats") or {}
+    if fstats:
+        # 族数量可能达数十个：按样本数取前 8 个，避免报告被统计表淹没
+        top_fams = sorted(fstats.items(), key=lambda kv: (-kv[1].get("n", 0), kv[0]))[:8]
+        fam_txt = ", ".join(
+            f"{k}(n={v.get('n')}, 均值={v.get('mean_log10')})" for k, v in top_fams)
+        if len(fstats) > 8:
+            fam_txt += f" …（共 {len(fstats)} 个族，完整统计见 summary.json）"
+    else:
+        fam_txt = ", ".join(f"{k}={v:.6f}" for k, v in sorted(family_mean.items())) or "（无）"
 
     n_checks = len(verif.get("checks", []))
     check_lines = "\n".join(
         f"  - {c['name']}: {'PASS' if c.get('pass') else 'FAIL'}"
         for c in verif.get("checks", [])
     )
-    doiset = ", ".join(d["doi"] for d in lit.get("hits", [])) or "（无）"
-    actions_by = {}
-    for a in clean_rep.get("actions", []):
-        actions_by[a["action"]] = actions_by.get(a["action"], 0) + 1
-    act_txt = ", ".join(f"{k}×{v}" for k, v in sorted(actions_by.items())) or "无清洗动作"
+    hits = lit.get("hits", [])
+    dois = [d.get("doi", "") for d in hits if d.get("doi")]
+    if len(dois) <= 8:
+        doiset = ", ".join(dois) or "（无）"
+    else:
+        doiset = (", ".join(dois[:5])
+                  + f" …（共 {len(dois)} 个 DOI，完整清单见 "
+                    f"literature/literature_hits.json）")
+    # 兼容两种清洗报告形状：新（action_counts 汇总）与旧（actions 明细）
+    if clean_rep.get("action_counts"):
+        act_txt = ", ".join(f"{k}×{v}"
+                            for k, v in sorted(clean_rep["action_counts"].items()))
+    else:
+        actions_by = {}
+        for a in clean_rep.get("actions", []):
+            actions_by[a["action"]] = actions_by.get(a["action"], 0) + 1
+        act_txt = ", ".join(f"{k}×{v}" for k, v in sorted(actions_by.items()))
+    act_txt = act_txt or "无清洗动作"
 
     # ---- 五条结论（全部绑定真实证据 ID）----
     ev_lit = _ev_ids_by_kind(prov, "literature")
@@ -91,14 +122,24 @@ def generate_report(
                   if e["kind"] == "data" and e["producer_step"] == "P1_lit_search"]
     c1_ev = ev_lit if ev_lit else p1_data_ev
 
+    mode = summary.get("scoring_mode", "weighted")
+    nfam = summary.get("n_families", len(family_mean))
+    excl_n = clean_rep.get("excluded_rows", 0)
+
     c1_text = (f"文献检索命中 {lit['n_hits']} 篇相关文献"
                f"（degraded={lit.get('degraded', False)}），DOI 集合: {doiset}。"
                if lit["n_hits"] > 0 else
                f"文献检索 0 命中（degraded={lit.get('degraded', False)}），"
                f"检索输出已留证，请复核 goal 关键词。")
-    c2_text = (f"数据清洗将 {clean_rep['input_rows']} 行原始样本归一为 "
-               f"{clean_rep['output_rows']} 行有效数据；清洗动作: {act_txt}。")
-    c3_text = (f"实验 top3 材料: {top3_txt}；家族 log10 电导率均值: {fam_txt}。")
+    c2_text = (f"数据清洗将 {clean_rep['input_rows']} 行输入整理为 "
+               f"{clean_rep['output_rows']} 行可计算数据，排除 {excl_n} 行"
+               f"（不可比较的值，已留证于 excluded_rows.json）；"
+               f"清洗动作: {act_txt}。")
+    mode_txt = ("按加权口径打分（含自拟权重）" if mode == "weighted"
+                else "按实测室温离子电导率归一化排序（不使用自拟权重）")
+    c3_text = (f"实验{mode_txt}，覆盖 {summary.get('n_rows', 0)} 种材料、"
+               f"{nfam} 个化学族；top3 材料: {top3_txt}；"
+               f"各族 log10 电导率: {fam_txt}。")
     c4_text = (f"复现验证 {verif['status']}（{n_checks} 项校验）:\n{check_lines}")
     c5_text = (f"图表 fig1_conductivity.svg 覆盖 {summary.get('n_rows', 0)} 个样本，"
                f"对数坐标横向条形图按 family 着色。")
@@ -109,12 +150,29 @@ def generate_report(
     prov.link_conclusion("C4", c4_text, ev_ver)
     prov.link_conclusion("C5", c5_text, ev_fig)
 
+    # ---- 输入来源与判断留痕（三级信任模型的可见化）----
+    snap_id = lit.get("snapshot_id", "")
+    snap_line = (f"- 输入快照: `{snap_id}`（内容哈希 "
+                 f"`{str(lit.get('snapshot_content_sha256') or '')[:16]}…`，"
+                 f"数据腿 {lit.get('materials_rows', 0)} 行 / "
+                 f"可用 {lit.get('materials_usable', 0)} 行）"
+                 if snap_id else "- 输入快照: （未使用快照，回退内置演示语料）")
+    if judgments:
+        judge_line = (f"- 判断记录: {len(judgments)} 条"
+                      f"（含被排除项 {len(excluded_j)} 条；"
+                      f"对象与理由见 provenance.jsonl 的 judgment 级记录）")
+        judge_note = ("判断级记录只影响流程走向，**不作为结论依据**；"
+                      "本报告所有结论仅绑定 fact 级证据。")
+    else:
+        judge_line = "- 判断记录: 无"
+        judge_note = ""
+
     # ---- 证据索引表 ----
-    ev_rows = ["| EV | 类型 | 引用 | SHA-256(前16) | 生产步骤 |",
-               "| --- | --- | --- | --- | --- |"]
+    ev_rows = ["| EV | 层级 | 类型 | 引用 | SHA-256(前16) | 生产步骤 |",
+               "| --- | --- | --- | --- | --- | --- |"]
     for e in prov.all_evidence():
         ev_rows.append(
-            f"| {e['ev_id']} | {e['kind']} | {e['ref']} | "
+            f"| {e['ev_id']} | {prov.tier_of(e)} | {e['kind']} | {e['ref']} | "
             f"{(e.get('sha256') or '')[:16]} | {e['producer_step']} |")
     ev_table = "\n".join(ev_rows)
 
@@ -138,6 +196,13 @@ def generate_report(
 {_state_table(state)}
 
 {degraded_block}
+
+## 输入来源与判断留痕
+
+{snap_line}
+{judge_line}
+
+{judge_note}
 
 ## 科研结论（证据绑定）
 

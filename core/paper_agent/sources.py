@@ -30,7 +30,7 @@ import re
 
 MATERIALS_COLUMNS = [
     "material_id", "formula", "family", "conductivity_Scm", "conductivity_raw",
-    "value_status", "space_group", "source_doi", "data_notes",
+    "value_status", "space_group", "source_doi", "data_notes", "in_scope",
 ]
 
 #: 上界记法：以 < 开头（如 "<1E-10" / "<=1e-12"）
@@ -131,6 +131,8 @@ def map_row(row: dict, cols: dict[str, str | None]) -> dict:
         "space_group": _pick(row, cols["space_group"]),
         "source_doi": _pick(row, cols["source_doi"]),
         "data_notes": _pick(row, cols["data_notes"]),
+        # in_scope 由冻结阶段的判断写入（数据源本身不提供），此处留空
+        "in_scope": "",
     }
 
 
@@ -163,6 +165,20 @@ def to_materials_csv(rows: list[dict]) -> str:
     for r in rows:
         w.writerow({k: r.get(k, "") for k in MATERIALS_COLUMNS})
     return buf.getvalue()
+
+
+def read_materials(path: str) -> list[dict]:
+    """读取**标准列** materials.csv（快照数据腿的产物）。
+
+    与 read_obelix 的区别：这里不再做列名归一，只做标准列的整行读取，
+    供 P2 清洗消费。
+    """
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"materials csv not found: {path}")
+    with open(path, "r", encoding="utf-8-sig", newline="") as f:
+        reader = csv.DictReader(f)
+        return [{k: (v if v is not None else "").strip()
+                 for k, v in r.items()} for r in reader]
 
 
 def summarize(rows: list[dict]) -> dict:

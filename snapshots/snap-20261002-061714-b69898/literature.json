@@ -1,0 +1,900 @@
+{
+  "goal": "sulfide solid electrolyte ionic conductivity ranking",
+  "hits": [
+    {
+      "doi": "10.1002/1521-3765(20020118)8:2<349::aid-chem349>3.0.co;2-5",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1002/adfm.200400044",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1002/adma.201803075",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1002/aenm.201570062|10.1002/aenm.201500096",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1002/ange.201604554",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1002/anie.200701144",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1002/anie.201604554",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1002/anie.201909805",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1002/chem.201502052",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1002/chin.198639014|10.1149/1.2108704",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1002/chin.199345017",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1002/pssa.201001117",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1002/zaac.200500231",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1002/zaac.200900056",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1002/zaac.201000121",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1002/zaac.201200277",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1006/jssc.1995.1140",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1006/jssc.2000.9009",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1006/jssc.2002.9596",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1006/jssc.2002.9701",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1007/bf00549810",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1007/s10008-012-1780-x",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1007/s11164-013-1348-0",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1007/s11581-006-0011-9",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1007/s11581-007-0097-8",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1007/s11581-010-0486-2",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1007/s11581-014-1261-6",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1007/s12039-011-0068-5",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/0022-4596(87)90135-6",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/0022-4596(88)90301-5",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/0025-5408(76)90169-0",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/0025-5408(81)90142-2",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/0025-5408(86)90194-7",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/0025-5408(89)90053-6",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/0167-2738(81)90021-7",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/0167-2738(81)90178-8",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/0167-2738(83)90045-0",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/0167-2738(83)90223-0",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/0167-2738(85)90106-7",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/0167-2738(86)90179-7",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/0167-2738(87)90119-6",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/0167-2738(88)90291-3",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/0167-2738(89)90438-4",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/0167-2738(93)90387-i",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/0167-2738(94)90309-3",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/0167-2738(94)90310-7",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/0167-2738(95)00240-5",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/0925-8388(93)90192-p",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/S0955-2219(99)00055-2",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.elecom.2011.08.014",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.jallcom.2013.04.195",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.jallcom.2015.01.082",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.jallcom.2017.05.278",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.jeurceramsoc.2014.11.023",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.jpowsour.2010.11.089",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.jpowsour.2011.05.031",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.jpowsour.2012.01.131",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.jpowsour.2012.02.100",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.jpowsour.2012.11.098",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.jpowsour.2013.03.049",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.jpowsour.2013.03.166",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.jpowsour.2013.03.175",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.jpowsour.2014.07.159",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.jssc.2005.12.025",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.jssc.2006.06.003",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.jssc.2008.01.023",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.jssc.2009.05.020",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.jssc.2009.10.030",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.jssc.2013.12.015",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.jssc.2014.11.024",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.jssc.2016.08.006",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.jssc.2016.12.001",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.jssc.2017.09.018",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.jssc.2018.05.008",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.matchemphys.2012.03.054",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.materresbull.2007.04.002",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.materresbull.2007.08.007",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.materresbull.2007.10.035",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.materresbull.2012.04.032",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.mseb.2004.07.003",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.mseb.2007.07.009",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.physb.2011.11.006",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.solidstatesciences.2004.05.006",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.ssi.2004.05.010",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.ssi.2008.01.002",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.ssi.2008.01.047",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.ssi.2008.10.022",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.ssi.2009.07.002",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.ssi.2009.11.015",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.ssi.2010.06.003",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.ssi.2010.12.010",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.ssi.2012.03.045",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.ssi.2012.05.011",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.ssi.2012.06.008",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.ssi.2012.12.013",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.ssi.2013.04.002",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.ssi.2014.04.015",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.ssi.2014.07.018",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.ssi.2014.07.018|10.1016/j.ssi.2016.07.010",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.ssi.2015.04.011",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.ssi.2015.08.011",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.ssi.2015.09.001",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.ssi.2015.10.015",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.ssi.2015.10.016",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.ssi.2015.11.027",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.ssi.2017.01.014",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.ssi.2017.03.030",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/j.ssi.2019.01.017",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/s0167-2738(00)00277-0",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/s0167-2738(00)00491-4",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/s0167-2738(00)00493-8",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/s0167-2738(00)00761-x",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/s0167-2738(02)00007-3",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/s0167-2738(96)00565-6",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/s0167-2738(96)00592-9",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/s0167-2738(98)00070-8",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/s0167-2738(98)00414-7",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/s0378-7753(97)02645-1",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1016/s0955-2219(99)00055-2",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acs.chemmater.0c04150",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acs.chemmater.1c00157",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acs.chemmater.5b00940",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acs.chemmater.5b02429",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acs.chemmater.6b02163",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acs.chemmater.6b02516",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acs.chemmater.6b04175",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acs.chemmater.7b00013",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acs.chemmater.7b00886",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acs.chemmater.7b05108",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acs.chemmater.7b05139",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acs.chemmater.8b00266",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acs.chemmater.8b01504",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acs.chemmater.8b02759",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acs.chemmater.8b03175",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acs.chemmater.9b03230",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acs.inorgchem.5b01895",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acs.inorgchem.6b02274",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acs.inorgchem.7b00751",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acs.inorgchem.7b00816",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acs.inorgchem.8b01785",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acs.inorgchem.8b02443",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acsaem.0c00147",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acsami.6b03070",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acsami.6b14402",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acsami.8b00842",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acsami.8b17656",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acsenergylett.9b02599",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/acsomega.8b00377",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/am4060194",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/am503731h",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/cm001207u",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/cm010528i",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/cm020609u",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/cm021717j",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/cm030422i",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/cm034802f",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/cm060992t",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/cm1006857",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/cm300792t",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/cm3011315",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/cm400541n",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/cm5037524",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/cm703677q",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/cm970078n",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/cm980736j",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/ic030208w",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/ic201183e",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/ic400577v",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/ja302255d",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/ja3110895",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/ja407393y",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/jacs.0c10735",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/jacs.5b04444",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/jacs.7b06327",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/jacs.8b10282",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/jp304737x",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1021/jp973296c",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1023/a:1026135806929",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1038/nenergy.2016.30",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1038/nmat3066",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1038/srep18053",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1039/C3DT52917G",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1039/a800234g",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1039/a807007e",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1039/b301189e",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1039/c0ee00052c",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1039/c1cp22108f",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1039/c2dt31318a",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1039/c2jm31413d",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1039/c3cp50991e",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1039/c3ee41655k|10.1016/j.ssi.2007.05.020|10.1016/j.ssi.2006.04.017",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1039/c3ee41728j",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1039/c3ta13252h",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1039/c3ta15087a",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1039/c3ta15264b",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1039/c4fd00143e",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1039/c4ta05231e",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1039/c4ta05231e|10.1021/acs.chemmater.7b00886",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1039/c5ta08545d",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1039/c6ee00633g",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1039/c7ta08581h",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1039/c8ta09170f",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1063/1.2357843",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1063/1.3356981",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1107/s0567740877009443",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1107/s2052520615022283",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1111/j.1551-2916.2005.00060.x",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1134/s002016851103006x",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1140/epjst/e2008-00753-4",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1149/1.1379028",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1149/1.2086597",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1149/1.2096693",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1149/1.2133238",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1149/2.012206eel",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1149/2.024205esl",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1149/2.0501412jes",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.1149/2.1111610jes",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.2320/matertrans.y-m2016816",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.2497/jjspm.65.26",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.3103/s1062873810050199",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.3389/fenrg.2016.00028",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.4028/www.scientific.net/msf.321-324.965",
+      "source": "obelix_bootstrap"
+    },
+    {
+      "doi": "10.4028/www.scientific.net/msf.76.107",
+      "source": "obelix_bootstrap"
+    }
+  ],
+  "n_hits": 223,
+  "note": "bootstrap 文献腿：仅为数据集内原始论文 DOI 集合；标题/作者等元数据由第二批的联网文献腿补齐",
+  "source": "obelix_bootstrap"
+}

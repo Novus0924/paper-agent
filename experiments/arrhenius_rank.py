@@ -1,20 +1,32 @@
 #!/usr/bin/env python3
 """arrhenius_rank — 零依赖确定性实验脚本。
 
-固态电解质电导率打分排序（演示代理模型，非真实物理）。
+固态电解质电导率打分排序。
+
+两种输入 schema 自适应：
+- **legacy**（内置演示数据）：含 ``year`` 列 → 加权打分
+  ``score = 0.6·cond_norm + 0.25·stability + 0.15·recency``
+- **real**（OBELiX 真实数据集，经 P2 清洗）：无 ``year`` 列 →
+  **pure measured-value ranking**，``score = cond_norm``（对实测电导率的归一化）。
+
+  为什么真实数据不再用加权分：权重是本项目自己拟定的启发式，没有文献依据。
+  在只有实测电导率可依据时，**"按实测值排序" 比 "按虚构权重排序" 更诚实**，
+  同时额外输出按化学族的统计（计数 / 均值 / 中位数），这才是数据本身支持的结论。
 
 调用：
     python experiments/arrhenius_rank.py --input <csv> --outdir <dir> --seed 0
 
-输入 CSV 列（需含）：material_id, formula, family, conductivity_Scm, year
+输入 CSV 列（必需）：material_id, conductivity_Scm
+输入 CSV 列（可选）：formula, family, year, activation_energy_eV, space_group,
+                     source_doi, quality_flag, dup_measurement
 输出（相对 outdir）：
     results/results.csv   —— 数值定长格式化，逐字节稳定
-    results/summary.json  —— 统计 + 环境元组；generated_at 为唯一可变时间戳
+    results/summary.json  —— 统计 + 族统计 + 环境元组；generated_at 为唯一可变时间戳
     figures/fig1_conductivity.svg —— 纯标准库 SVG 横向条形图
 
 确定性契约：
     - 无未初始化随机源；seed 仅作输入回显
-    - 排序 tie-break：score 降序，同分按 formula 字典序
+    - 排序 tie-break：score 降序，同分按 formula 字典序，再按 material_id
     - 仅 generated_at 为可变时间戳，复现校验时排除
 
 故障开关：环境变量 paper-agent_MUTATE=1 时，交换 summary top1/top2 条目，
@@ -64,9 +76,14 @@ def _read_rows(input_path: str):
                 continue
             try:
                 cond = float(row["conductivity_Scm"])
-                year = int(row["year"])
             except (KeyError, ValueError, TypeError):
                 continue
+            # year 可选：真实数据集（OBELiX）无年份列
+            year_raw = row.get("year", "")
+            try:
+                year = int(year_raw)
+            except (ValueError, TypeError):
+                year = None
             rows.append(
                 {
                     "material_id": row["material_id"],
@@ -76,6 +93,10 @@ def _read_rows(input_path: str):
                     "year": year,
                     "activation_energy_eV": row.get("activation_energy_eV", ""),
                     "source_doi": row.get("source_doi", ""),
+                    "space_group": row.get("space_group", ""),
+                    "quality_flag": row.get("quality_flag", ""),
+                    "dup_measurement": row.get("dup_measurement", ""),
+                    "in_scope": row.get("in_scope", ""),
                 }
             )
     return rows
@@ -90,15 +111,28 @@ def _minmax(vals):
     return [(v - lo) / rng for v in vals]
 
 
-def _compute(rows):
+def _scoring_mode(rows) -> str:
+    """含 year 列 → 加权打分（legacy）；否则纯实测值排序（真实数据集）。"""
+    return "weighted" if all(r["year"] is not None for r in rows) else "conductivity_only"
+
+
+def _compute(rows, mode: str = "weighted"):
     log10 = [math.log10(r["conductivity_Scm"]) for r in rows]
     norm = _minmax(log10)
     scored = []
     for i, r in enumerate(rows):
         cond_norm = norm[i]
-        stab = STABILITY.get(r["family"], 0.5)
-        recency = (r["year"] - BASE_YEAR) / SPAN
-        score = WEIGHTS["cond"] * cond_norm + WEIGHTS["stab"] * stab + WEIGHTS["rec"] * recency
+        if mode == "weighted":
+            stab = STABILITY.get(r["family"], 0.5)
+            recency = (r["year"] - BASE_YEAR) / SPAN
+            score = (WEIGHTS["cond"] * cond_norm
+                     + WEIGHTS["stab"] * stab
+                     + WEIGHTS["rec"] * recency)
+        else:
+            # 真实数据集无年份列：不使用任何自拟权重，直接以实测值归一化分排序
+            stab = None
+            recency = None
+            score = cond_norm
         scored.append(
             {
                 "material_id": r["material_id"],
@@ -112,6 +146,10 @@ def _compute(rows):
                 "recency": recency,
                 "score": score,
                 "source_doi": r["source_doi"],
+                "space_group": r.get("space_group", ""),
+                "quality_flag": r.get("quality_flag", ""),
+                "dup_measurement": r.get("dup_measurement", ""),
+                "in_scope": r.get("in_scope", ""),
             }
         )
     # tie-break: score desc, then formula lex, then material_id for total order
@@ -121,15 +159,32 @@ def _compute(rows):
     return scored
 
 
-def _results_csv(scored):
+def _results_csv(scored, mode: str = "weighted"):
+    """输出结果表。weighted 列集与历史版本逐字节一致（保持既有复现基线不动）。"""
+    if mode == "weighted":
+        cols = ["rank", "material_id", "formula", "family", "year", "cond_Scm",
+                "log10_cond", "cond_norm", "stability", "recency", "score"]
+        buf = io.StringIO()
+        buf.write(",".join(cols) + "\n")
+        for s in scored:
+            buf.write(
+                f"{s['rank']},{s['material_id']},{s['formula']},{s['family']},{s['year']},"
+                f"{s['cond_Scm']:.6e},{s['log10_cond']:.6e},{s['cond_norm']:.6f},"
+                f"{s['stability']:.6f},{s['recency']:.6f},{s['score']:.6f}\n"
+            )
+        return buf.getvalue()
+
+    cols = ["rank", "material_id", "formula", "family", "cond_Scm", "log10_cond",
+            "cond_norm", "score", "space_group", "quality_flag", "dup_measurement",
+            "in_scope"]
     buf = io.StringIO()
-    cols = ["rank", "material_id", "formula", "family", "year", "cond_Scm", "log10_cond", "cond_norm", "stability", "recency", "score"]
     buf.write(",".join(cols) + "\n")
     for s in scored:
         buf.write(
-            f"{s['rank']},{s['material_id']},{s['formula']},{s['family']},{s['year']},"
+            f"{s['rank']},{s['material_id']},{s['formula']},{s['family']},"
             f"{s['cond_Scm']:.6e},{s['log10_cond']:.6e},{s['cond_norm']:.6f},"
-            f"{s['stability']:.6f},{s['recency']:.6f},{s['score']:.6f}\n"
+            f"{s['score']:.6f},{s['space_group']},{s['quality_flag']},"
+            f"{s['dup_measurement']},{s['in_scope']}\n"
         )
     return buf.getvalue()
 
@@ -141,18 +196,47 @@ def _family_mean(scored):
     return {fam: sum(v) / len(v) for fam, v in sorted(groups.items())}
 
 
-def _summary(scored, input_sha, script_sha, seed, mutate):
+def _family_stats(scored):
+    """按化学族的描述统计（数据本身支持的结论；不做跨族加权）。"""
+    groups: dict[str, list[float]] = {}
+    for s in scored:
+        groups.setdefault(s["family"], []).append(s["log10_cond"])
+    out = {}
+    for fam in sorted(groups):
+        v = sorted(groups[fam])
+        n = len(v)
+        med = v[n // 2] if n % 2 else (v[n // 2 - 1] + v[n // 2]) / 2
+        out[fam] = {
+            "n": n,
+            "mean_log10": round(sum(v) / n, 6),
+            "median_log10": round(med, 6),
+            "max_log10": round(v[-1], 6),
+        }
+    return out
+
+
+def _summary(scored, input_sha, script_sha, seed, mutate, mode="weighted"):
     top3 = scored[:3]
     top3_view = [
-        {"rank": t["rank"], "material_id": t["material_id"], "formula": t["formula"], "score": round(t["score"], 9)}
+        {"rank": t["rank"], "material_id": t["material_id"], "formula": t["formula"],
+         "score": round(t["score"], 9)}
         for t in top3
     ]
     if mutate and len(top3_view) >= 2:
         top3_view[0], top3_view[1] = top3_view[1], top3_view[0]
     summary = {
         "n_rows": len(scored),
+        "scoring_mode": mode,
         "top3": top3_view,
         "family_mean_log10_cond": _family_mean(scored),
+        "n_families": len({s["family"] for s in scored}),
+        "family_stats": _family_stats(scored),
+        "n_in_scope": sum(1 for s in scored if s.get("in_scope") == "relevant"),
+        "top3_in_scope": [
+            {"rank": t["rank"], "material_id": t["material_id"],
+             "formula": t["formula"], "score": round(t["score"], 9)}
+            for t in [s for s in scored if s.get("in_scope") == "relevant"][:3]
+        ],
         "seed": seed,
         "env": [
             platform.python_version(),
@@ -233,10 +317,11 @@ def main(argv):
     input_sha = _sha256_file(input_path)
     script_sha = _sha256_text(open(os.path.abspath(__file__), "r", encoding="utf-8").read())
 
-    scored = _compute(rows)
-    csv_text = _results_csv(scored)
+    mode = _scoring_mode(rows)
+    scored = _compute(rows, mode)
+    csv_text = _results_csv(scored, mode)
     mutate = os.environ.get("paper-agent_MUTATE") == "1"
-    summary = _summary(scored, input_sha, script_sha, seed, mutate)
+    summary = _summary(scored, input_sha, script_sha, seed, mutate, mode)
     svg = _svg(scored)
 
     results_dir = os.path.join(outdir, "results")
@@ -252,7 +337,10 @@ def main(argv):
     with open(os.path.join(figures_dir, "fig1_conductivity.svg"), "w", encoding="utf-8", newline="") as f:
         f.write(svg)
 
-    print(json.dumps({"ok": True, "n_rows": len(rows), "results_sha256": _sha256_text(csv_text), "top3": [t["material_id"] for t in summary["top3"]]}, ensure_ascii=False))
+    print(json.dumps({"ok": True, "n_rows": len(rows), "scoring_mode": mode,
+                      "results_sha256": _sha256_text(csv_text),
+                      "top3": [t["material_id"] for t in summary["top3"]]},
+                     ensure_ascii=False))
     return 0
 
 
