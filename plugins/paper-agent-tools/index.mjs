@@ -23,6 +23,28 @@ import path from "node:path";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const KIND = Symbol.for("TypeBox.Kind");
 
+/** 读环境变量，同时兼容连字符与下划线两种写法。
+ *  （连字符名在部分 shell 下无法 export，见 core/paper_agent/llm.py 的同类说明） */
+function envAny(names) {
+  for (const n of names) {
+    const v = process.env[n];
+    if (v && String(v).trim()) return String(v).trim();
+  }
+  return "";
+}
+
+/** 项目根：环境变量优先；未设置则由插件位置推导（plugins/paper-agent-tools → 上溯两级）。
+ *  这样即便没有注入环境变量，插件也能正确定位 core/ 与 data/。 */
+function projectRoot() {
+  return envAny(["PAPER_AGENT_ROOT", "paper-agent_ROOT"])
+    || path.resolve(__dirname, "..", "..");
+}
+
+/** Python 解释器：环境变量优先，否则用 PATH 上的 python。 */
+function pythonExe() {
+  return envAny(["PAPER_AGENT_PYTHON", "paper-agent_PYTHON"]) || "python";
+}
+
 // ---------- TypeBox schema helpers（对齐 AGH 标准写法）----------
 function objectSchema(properties, required = []) {
   return {
@@ -78,11 +100,12 @@ function cliArgs(args, chaos) {
 }
 
 function runCli(argv, timeoutMs = 120_000) {
-  const py = process.env["paper-agent_PYTHON"] || "python";
-  const root = process.env["paper-agent_ROOT"] || __dirname;
+  const py = pythonExe();
+  const root = projectRoot();
   const env = {
     ...process.env,
     "paper-agent_ROOT": root,
+    PAPER_AGENT_ROOT: root,
     PYTHONPATH: path.join(root, "core"),
   };
   return new Promise((resolve) => {
