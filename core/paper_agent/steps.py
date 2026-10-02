@@ -169,16 +169,22 @@ class Pipeline:
     def _open_snapshot_or_none(self):
         """打开项目级冻结快照；不存在或显式禁用则返回 None（回退内置语料路径）。
 
-        环境变量 ``paper-agent_SNAPSHOT`` 用于确定性控制（测试与演示需要）：
+        环境变量控制（同时支持连字符与下划线两种写法——连字符名在部分
+        shell 下无法 export，故提供等价的下划线别名）：
           - 未设置   → 自动取最新快照
           - ``none`` → 强制禁用快照，走内置语料路径（legacy 演示 / 回归用）
           - 其它值   → 指定快照 id（回放某个特定快照）
         """
-        mode = os.environ.get("paper-agent_SNAPSHOT", "").strip()
-        if mode.lower() == "none":
+        raw = ""
+        for name in ("PAPER_AGENT_SNAPSHOT", "paper-agent_SNAPSHOT"):
+            v = os.environ.get(name)
+            if v is not None and str(v).strip():
+                raw = str(v).strip()
+                break
+        if raw.lower() == "none":
             return None
         try:
-            return snapshot_mod.open_snapshot(self.root, mode)
+            return snapshot_mod.open_snapshot(self.root, raw)
         except snapshot_mod.SnapshotError:
             return None
 

@@ -10,6 +10,9 @@ export PYTHONPATH="$PWD/core"
 export PAPER_AGENT_ROOT="$PWD"
 # 强制 Python stdin/stdout/stderr 为 UTF-8，避免管道读 JSON 时按系统码页(cp936)解码中文路径失败
 export PYTHONIOENCODING="utf-8"
+# 本脚本演示 **legacy 路径**（内置演示语料 + 7 行演示数据）——显式禁用快照保证确定性。
+# 真实数据主线（快照消费）见 demo/demo_mainline.sh。
+export PAPER_AGENT_SNAPSHOT="none"
 PY="$(printenv paper-agent_PYTHON || echo python)"
 TMPJSON="$(mktemp)"
 trap 'rm -f "$TMPJSON"' EXIT
