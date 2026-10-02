@@ -294,15 +294,60 @@ python tools/probe_obelix.py --input data/external/obelix/all.csv --doi-sample 1
 |---|---|---|
 | 判据 1 数据不是喂进去的 | ✅ | 599 行真实数据 / 223 个真实 DOI |
 | **判据 3 异常驱动打断** | ✅ **实测达成** | 零命中检索式 → 流程停下、退出码 3、同时检出 `zero_hits` 与 `judge_hit_rate`，并给出 `--ack` 确认方式 |
-| 判据 2 判断真的改变结果 | ⚠️ **部分** | 规则式下"换目标 → 换检索式与集合"已测；单元级已验证"模型裁决改变 in_scope 范围"（130 → 368 行）；**真实模型的对比待模型端点就绪** |
-| 反判据 | ⚠️ **工具就绪** | 自检 rule vs rule → 退出码 5、判定 `model_is_decoration`；接上模型端点即可出真实判决 |
+| **判据 2 判断真的改变结果** | ✅ **已用真实模型实测** | 见 §9.5：DeepSeek 产出 4 条检索式（规则式 2 条），判定范围不同 |
+| **反判据（模型是否只是装饰品）** | ✅ **已出真实判决** | 见 §9.5：`model_matters`（退出码 0），但差距幅度需如实评估 |
 
 ### 9.4 遗留
 
-- 模型端点的真实对比（判据 2 与反判据的最终结论）——需要用户提供可用的
-  OpenAI 兼容端点；
-- AGH 会话内完整实跑（需交互式 TTY 安装插件 + 可用 provider）；
+- ~~模型端点的真实对比~~ ✅ **已完成**，见 §9.5；
+- AGH 会话内完整实跑（需交互式 TTY 安装插件 + 可用 provider）——未做；
+  **注意**：主路径（AGH 会话内判断）尚未端到端实跑，但 §9.5 已用标准端点
+  证明"模型判断确实改变结果"，接口与留痕机制相同；
 - 第一批遗留的演示脚本与文档口径已在本批同步更新。
+
+### 9.5 真实模型对比结论（已完成，2026-10-02）
+
+**端点为标准 OpenAI 兼容服务**（`PAPER_AGENT_LLM_BASE_URL` / `_MODEL` / `_API_KEY`；
+本次实测用 `https://api.deepseek.com` + `deepseek-chat`）。
+完整机读结果存档：`evidence/model-judge-comparison.json`。
+
+复现命令：
+
+```bash
+export PAPER_AGENT_LLM_BASE_URL=https://api.deepseek.com
+export PAPER_AGENT_LLM_MODEL=deepseek-chat
+export PAPER_AGENT_LLM_API_KEY=<your key>
+python tools/compare_judges.py --goal "sulfide solid electrolyte ionic conductivity ranking"
+```
+
+### 结果
+
+| 观测面 | 规则式基线 | 模型（DeepSeek） |
+|---|---|---|
+| 生成检索式 | 2 条（`sulfide solid electrolyte ionic conductivity`、`sulfide solid`） | **4 条**（含 `argyrodite sulfide electrolyte ionic conductivity`、`Li6PS5Cl ionic conductivity`） |
+| 判定为相关的族 | 6 / 42 | **7 / 42** |
+| 差异 | — | **1 个族翻转**：`Chalcogenidotetrelates`（规则式 excluded → 模型 relevant） |
+
+**判决（按反判据）：`model_matters`，退出码 0。**
+
+### 如实评估幅度（不要过度解读）
+
+反判据只回答"是否改变"，**没回答"改变得多不多"**。就本次实测：
+
+- **范围裁决的差异很小**：42 个族里只差 1 个。若只看这一面，很容易得出
+  "模型接近装饰品"的印象。
+- **检索式的差异更实质**：模型给出的 4 条里有 2 条是**材料特异**的
+  （指名 argyrodite 与 Li6PS5Cl），规则式只会做"去停用词 + 取前 2 个词"，
+  永远产不出这种检索式。检索式质量直接决定文献腿的召回。
+- **那 1 个翻转恰好暴露了规则式的盲点**：`Chalcogenidotetrelates`
+  （硫属元素 + 碳族元素的化合物）**本质就是硫系/硒系化学**，
+  但家族名里没有一个字面 "sulfide"，字面匹配规则必然漏掉它。
+  模型的裁决在这一项上**比规则式更正确**。
+
+**结论**：模型在本任务中不是装饰品，但其增量价值主要体现在
+**检索式质量**与**对字面规则盲区的补偿**上，而不是"大范围改变结论"。
+若后续要放大模型价值，方向应是让模型参与**更难判断的对象**
+（例如逐篇论文的相关性，而非 42 个族的粗粒度归类）。
 
 ---
 

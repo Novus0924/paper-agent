@@ -1,0 +1,49 @@
+{
+  "a": {
+    "impl": "rule",
+    "n_relevant": 6,
+    "n_subjects": 42,
+    "queries": [
+      "sulfide solid electrolyte ionic conductivity",
+      "sulfide solid"
+    ]
+  },
+  "b": {
+    "impl": "model",
+    "n_relevant": 7,
+    "n_subjects": 42,
+    "queries": [
+      "sulfide solid electrolyte ionic conductivity ranking",
+      "sulfide solid electrolyte ionic conductivity",
+      "argyrodite sulfide electrolyte ionic conductivity",
+      "Li6PS5Cl ionic conductivity"
+    ]
+  },
+  "flips": [
+    {
+      "a": "excluded",
+      "b": "relevant",
+      "family": "Chalcogenidotetrelates"
+    }
+  ],
+  "goal": "sulfide solid electrolyte ionic conductivity ranking",
+  "labels": {
+    "a": "rule",
+    "b": "model"
+  },
+  "model_changes_outcome": true,
+  "n_families": 42,
+  "n_flips": 1,
+  "ok": true,
+  "queries_identical": false,
+  "queries_only_a": [
+    "sulfide solid"
+  ],
+  "queries_only_b": [
+    "Li6PS5Cl ionic conductivity",
+    "argyrodite sulfide electrolyte ionic conductivity",
+    "sulfide solid electrolyte ionic conductivity ranking"
+  ],
+  "scope_identical": false,
+  "verdict": "model_matters"
+}

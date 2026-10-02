@@ -34,24 +34,23 @@
 | 实现 | 状态 | 说明 |
 |---|---|---|
 | `RuleJudge`（规则式） | ✅ 可用 | 规则与同义词表全部写在 `core/paper_agent/judge.py` 源码中，可读、可复核、可反驳。**仓库内快照由它产出**（`judged_by=rule`） |
-| `ModelJudge`（模型） | ⚠️ 接口就绪，**未接真实模型跑通** | 注入式 `llm_client`；严格校验（JSON 合法性 / verdict 取值 / 覆盖全部待判对象），失败重试一次后报错（不静默降级）；原始响应与模型身份全程留痕。已有 27 项离线测试覆盖 |
+| `ModelJudge`（模型） | ✅ **已在标准 OpenAI 兼容端点上跑通** | 注入式 `llm_client`；严格校验（JSON 合法性 / verdict 取值 / 覆盖全部待判对象），失败重试一次后报错（不静默降级）；原始响应与模型身份全程留痕。**实测端点：`https://api.deepseek.com` + `deepseek-chat`**；结果存档 `evidence/model-judge-comparison.json` |
 
-**关于 AGH 提供模型的实测结论**（重要，避免误以为已打通）：
+**实测对比结论（判据 2 与反判据）**：模型产出 4 条检索式（规则式 2 条），
+判定范围 7/42 与 6/42，1 个族翻转 → 反判据判决 **`model_matters`**（退出码 0）。
+**幅度如实记录**：范围差异小，模型的增量价值主要在**检索式质量**与
+**对字面匹配盲区的补偿**上（详见 `docs/redesign-decisions.md` §9.5）。
+未夸大为"大幅改变结论"。
 
-- `agh -p "<prompt>"` 在非交互环境下**会挂起**（实测：daemon 未启动时 260s 超时；
-  daemon 启动后重测 150s 超时且无输出）——打印模式是完整 agent 会话，
-  不是单次问答接口；
-- `agh serve model-api` 提供的是**给人用的 Web 控制台**（`/` 返回 HTML；
-  `/v1/models` → 404、`POST /v1/chat/completions` → 405）。
+**仍需注意的两点**：
 
-因此**设计内的主路径是 AGH 会话内判断**：会话里的大模型读候选
-（`sciret_search` / `sciret_freeze_prepare`）→ 自行推理 →
-调用 `sciret_freeze_commit` 落盘裁决。**这条路上 Python 不调用模型**，
-故不受上述限制影响。会话之外的自动化路径使用**标准 OpenAI 兼容端点**
-（环境变量 `PAPER_AGENT_LLM_BASE_URL` / `_MODEL` / `_API_KEY`）。
-
-**在真实模型跑通之前，本项目不声称具备"模型驱动的判断"能力**；
-但判断的**留痕、分级、闸门、反判据**等机制均已用真实数据验证（含离线测试）。
+1. **AGH 会话内主路径尚未端到端实跑**。该路径依赖交互式终端完成插件安装
+   （`package add` 需人工确认，AGH 安全设计无 bypass）。目前证明的是
+   "同样的判断契约在标准端点上确实改变结果"，而非"AGH 会话内链路已跑通"。
+2. **AGH 不能从 Python 当补全 API 用**（实测）：`agh -p` 非交互下会挂起
+   （daemon 启动后重测仍 150s 无输出）；`agh serve model-api` 起的是给人用的
+   Web 控制台（`/v1/models` → 404、`POST /v1/chat/completions` → 405）。
+   故本次**未提供 AGH 专用客户端**，避免交付一个会挂起的构件。
 
 ## 3.1 反判据（防止"模型是装饰品"）
 
