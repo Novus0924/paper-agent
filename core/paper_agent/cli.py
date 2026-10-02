@@ -99,6 +99,33 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--run", required=True)
     p.add_argument("--ev", default="", help="EV-XXXX; omit to list all evidence")
 
+    # ---- 第二批：联网检索与冻结快照（AGH 插件与工具脚本共用）----
+    p = mk("search")
+    p.add_argument("--goal", default="", help="按规则式拆词生成检索式")
+    p.add_argument("--query", action="append", default=[],
+                   help="显式检索式（可重复）")
+    p.add_argument("--sources", default="crossref,openalex")
+    p.add_argument("--rows", type=int, default=10)
+
+    p = mk("freeze")
+    p.add_argument("--goal", default="")
+    p.add_argument("--input", default="", help="OBELiX CSV（默认仓库内快照）")
+    p.add_argument("--literature", choices=("bootstrap", "network"),
+                   default="bootstrap")
+    p.add_argument("--query", action="append", default=[])
+    p.add_argument("--sources", default="crossref,openalex")
+    p.add_argument("--rows", type=int, default=20)
+    p.add_argument("--prepare", action="store_true",
+                   help="只输出待判对象与规则式参考裁决（不写快照）")
+    p.add_argument("--commit", default="", metavar="PENDING_ID",
+                   help="用裁决提交（配合 --verdicts）")
+    p.add_argument("--verdicts", default="",
+                   help='裁决 JSON：{"queries":[...],"families":{族:verdict}}')
+    p.add_argument("--judged-by", choices=("rule", "model"), default="model")
+    p.add_argument("--model-name", default="")
+    p.add_argument("--ack", action="append", default=[])
+    p.add_argument("--root", default="", help="快照写入根目录（默认项目根）")
+
     return ap
 
 
@@ -203,6 +230,84 @@ def cmd_cite(args) -> int:
                   "evidence": listing})
 
 
+# ---------- 第二批：检索与冻结 ----------
+
+def cmd_search(args) -> int:
+    """联网文献腿：Crossref / OpenAlex 元数据检索（不抓全文）。"""
+    from . import litsearch
+    from .judge import RuleJudge
+    queries = list(args.query) or RuleJudge().generate_queries(args.goal)
+    if not queries:
+        return _emit_fail({"ok": False, "cmd": "search",
+                           "error": "--goal or --query required"}, 2)
+    srcs = tuple(s.strip() for s in args.sources.split(",") if s.strip())
+    bad = [s for s in srcs if s not in litsearch.SOURCES]
+    if bad:
+        return _emit_fail({"ok": False, "cmd": "search",
+                           "error": f"unknown sources: {bad}",
+                           "allowed": list(litsearch.SOURCES)}, 2)
+    res = litsearch.search(queries, sources=srcs, rows=args.rows,
+                           mailto=litsearch.mailto_from_env())
+    return _emit({"ok": True, "cmd": "search", "queries": res["queries"],
+                  "sources": res["sources"], "n_raw": res["n_raw"],
+                  "n_unique": res["n_unique"], "errors": res["errors"],
+                  "hits": res["records"]})
+
+
+def cmd_freeze(args) -> int:
+    """冻结输入快照：--prepare（待判对象）/ --commit（提交裁决）/ 缺省（规则式一步到位）。"""
+    from . import freezing
+    root = os.path.abspath(args.root) if args.root else _root()
+    srcs = tuple(s.strip() for s in args.sources.split(",") if s.strip())
+
+    if args.commit:
+        if not args.verdicts:
+            return _emit_fail({"ok": False, "cmd": "freeze",
+                               "error": "--commit requires --verdicts"}, 2)
+        with open(args.verdicts, "r", encoding="utf-8") as f:
+            spec = json.load(f)
+        raw = (json.dumps(spec, ensure_ascii=False)
+               if args.judged_by == "model" else "")
+        out = freezing.commit(root, args.commit, spec,
+                             judged_by=args.judged_by,
+                             model_name=args.model_name, raw_response=raw,
+                             ack=args.ack)
+        out["cmd"] = "freeze"
+        code = 3 if out.get("stopped") else (0 if out.get("ok") else 1)
+        return _emit_fail(out, code) if code else _emit(out)
+
+    if args.prepare:
+        if not args.goal:
+            return _emit_fail({"ok": False, "cmd": "freeze",
+                               "error": "--prepare requires --goal"}, 2)
+        prep = freezing.prepare(root, args.goal, args.input, args.literature,
+                                args.query, args.rows, srcs)
+        # 不下发完整规则式判断列表（体积大且下游只需 scope/queries）
+        return _emit({
+            "ok": True, "cmd": "freeze", "mode": "prepare",
+            "pending_id": prep["pending_id"],
+            "goal": prep["goal"],
+            "literature_mode": prep["literature_mode"],
+            "n_families": prep["n_families"],
+            "families": prep["families"],
+            "rule_queries": prep["rule_queries"],
+            "rule_scope": prep["rule_scope"],
+            "n_literature_hits": prep["n_literature_hits"],
+            "literature_errors": prep["literature_errors"],
+            "data_summary": prep["data_summary"],
+        })
+
+    if not args.goal:
+        return _emit_fail({"ok": False, "cmd": "freeze",
+                           "error": "--goal required (or use --prepare / --commit)"}, 2)
+    out = freezing.freeze_rule_based(root, args.goal, args.input,
+                                     args.literature, args.query, args.rows,
+                                     srcs, args.ack)
+    out["cmd"] = "freeze"
+    code = 3 if out.get("stopped") else (0 if out.get("ok") else 1)
+    return _emit_fail(out, code) if code else _emit(out)
+
+
 _HANDLERS = {
     "plan": cmd_plan,
     "status": cmd_status,
@@ -212,6 +317,8 @@ _HANDLERS = {
     "verify": cmd_verify,
     "report": cmd_report,
     "cite": cmd_cite,
+    "search": cmd_search,
+    "freeze": cmd_freeze,
 }
 
 

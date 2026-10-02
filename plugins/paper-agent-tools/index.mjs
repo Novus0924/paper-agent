@@ -7,12 +7,17 @@
  *  - 严格遵循 AGH hot-tool-plugin 范式；如与官方示例冲突，以官方
  *    examples/hot-tool-plugin 与 develop/backend.md 为准（§8 第4条）
  *
- * 7 工具：sciret_plan / sciret_run_step / sciret_status / sciret_verify
- *         / sciret_report / sciret_cite / sciret_resume
+ * 10 工具：
+ *   流水线：sciret_plan / sciret_run_step / sciret_status / sciret_verify
+ *          / sciret_report / sciret_cite / sciret_resume
+ *   第二批（真实检索 + 判断）：sciret_search / sciret_freeze_prepare
+ *          / sciret_freeze_commit
  */
 
 import { spawn } from "node:child_process";
+import { writeFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import os from "node:os";
 import path from "node:path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -119,6 +124,33 @@ function makeRunner(argsOf, timeoutMs) {
   };
 }
 
+/** 把逗号分隔的字符串解析成数组（用于 ack 码）。 */
+function csv(s) {
+  return String(s || "").split(",").map((x) => x.trim()).filter(Boolean);
+}
+
+/** 解析检索式：优先 JSON 数组，退化为 "|" 分隔的字符串。 */
+function parseQueries(s) {
+  if (!s) return [];
+  try {
+    const v = JSON.parse(s);
+    return Array.isArray(v) ? v.map(String) : [];
+  } catch {
+    return String(s).split("|").map((x) => x.trim()).filter(Boolean);
+  }
+}
+
+/** 把裁决 JSON 写到临时文件，返回路径（CLI 的 --verdicts 需要文件）。 */
+function writeVerdicts(verdicts) {
+  const text = typeof verdicts === "string" ? verdicts : JSON.stringify(verdicts);
+  JSON.parse(text); // 提前校验，避免把坏 JSON 传给子进程
+  const dir = path.join(os.tmpdir(), "paper-agent-verdicts");
+  mkdirSync(dir, { recursive: true });
+  const p = path.join(dir, `verdicts-${process.pid}-${Date.now()}.json`);
+  writeFileSync(p, text, "utf8");
+  return p;
+}
+
 // ---------- 7 工具定义 ----------
 const TOOLS = [
   {
@@ -202,6 +234,76 @@ const TOOLS = [
     ),
     meta: writeMeta("idempotent", 180_000),
     execute: makeRunner((c) => ["resume", "--run", c.run_id], 180_000),
+  },
+
+  // ---- 第二批：真实检索与冻结快照（判断由会话内模型给出）----
+
+  {
+    name: "sciret_search",
+    description:
+      "Network literature search over Crossref/OpenAlex METADATA only (never fetches full text). Returns candidate papers (DOI/title/authors/year/venue) for a research goal, so you can judge relevance.",
+    parameters: objectSchema(
+      {
+        goal: str("research goal"),
+        queries: optStr('optional JSON array of explicit queries, e.g. ["sulfide ionic conductivity"]; omit to derive from goal'),
+        sources: optStr("comma-separated: crossref,openalex (default both)"),
+        rows: optStr("results per query (default 10)"),
+      },
+      ["goal"],
+    ),
+    meta: READONLY_META,
+    execute: makeRunner((c) => {
+      const a = ["search", "--goal", c.goal];
+      for (const q of parseQueries(c.queries)) a.push("--query", q);
+      if (c.sources) a.push("--sources", c.sources);
+      if (c.rows) a.push("--rows", String(c.rows));
+      return a;
+    }, 240_000),
+  },
+
+  {
+    name: "sciret_freeze_prepare",
+    description:
+      "Prepare a frozen input snapshot: fetch both legs (literature + dataset) and return the objects awaiting YOUR judgment, namely the material families and a rule-based reference verdict for each. Does NOT write a snapshot yet — call sciret_freeze_commit after you decide.",
+    parameters: objectSchema(
+      {
+        goal: str("research goal"),
+        literature: optStr("bootstrap (offline, default) | network (live Crossref/OpenAlex search)"),
+        rows: optStr("results per query when literature=network"),
+      },
+      ["goal"],
+    ),
+    meta: writeMeta("never", 300_000),
+    execute: makeRunner((c) => {
+      const a = ["freeze", "--goal", c.goal, "--prepare"];
+      if (c.literature) a.push("--literature", c.literature);
+      if (c.rows) a.push("--rows", String(c.rows));
+      return a;
+    }, 300_000),
+  },
+
+  {
+    name: "sciret_freeze_commit",
+    description:
+      "Commit YOUR relevance judgments to freeze the snapshot. verdicts must cover EVERY family returned by sciret_freeze_prepare, each marked relevant or excluded with a reason. Judgments are recorded as auditable 'judgment'-tier evidence and never become conclusions. Anomalies (zero hits / no leg overlap / extreme hit-rate / self-contradiction) will halt the flow and must be explicitly acknowledged.",
+    parameters: objectSchema(
+      {
+        pending_id: str("pending id returned by sciret_freeze_prepare"),
+        verdicts: str('JSON object: {"queries":["..."],"families":{"<family>":{"verdict":"relevant|excluded","reason":"..."}}} — a flat map {"<family>":"relevant|excluded"} is also accepted'),
+        model_name: optStr("your model identity, recorded in the audit trail"),
+        ack: optStr("comma-separated anomaly codes you explicitly acknowledge (only after human review)"),
+      },
+      ["pending_id", "verdicts"],
+    ),
+    meta: writeMeta("never", 300_000),
+    execute: makeRunner((c) => {
+      const a = ["freeze", "--commit", c.pending_id,
+                 "--verdicts", writeVerdicts(c.verdicts),
+                 "--judged-by", "model"];
+      if (c.model_name) a.push("--model-name", c.model_name);
+      for (const code of csv(c.ack)) a.push("--ack", code);
+      return a;
+    }, 300_000),
   },
 ];
 
