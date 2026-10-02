@@ -205,7 +205,87 @@ $PY tools/freeze_snapshot.py --goal "sulfide solid electrolyte ionic conductivit
 
 ---
 
-# 第四部分 · 审计交付包
+# 第四部分 · 第二批（联网检索 / 判断 / 异常打断）
+
+## 14. 联网文献腿（需网络；只取元数据，不抓全文）
+
+```bash
+$PY -m paper_agent.cli search --goal "argyrodite Li6PS5Cl ionic conductivity" --rows 5
+# 期望：ok=true，hits 含真实 DOI/标题/作者/年份，errors 为空
+```
+
+离线回归（不联网）：`$PY -m unittest tests.test_litsearch -v` → 20 用例。
+
+## 15. 三段式冻结：prepare → （推理）→ commit
+
+```bash
+# 1) 取待判对象（离线可用）
+$PY -m paper_agent.cli freeze --goal "sulfide solid electrolyte ionic conductivity ranking" --prepare
+# 期望：pending_id / families（42 个化学族）/ rule_scope / rule_queries
+
+# 2) 产出裁决 JSON（模型或人工）：{"queries":[...],"families":{族:verdict}}
+#    三种形状都接受：扁平映射、列表带理由、嵌套 {族:{verdict,reason}}
+
+# 3) 提交裁决
+$PY -m paper_agent.cli freeze --commit <PENDING_ID> --verdicts <file> \
+    --judged-by model --model-name <name>
+# 期望：ok=true、stats.judged_by=model、stats.model=<name>，并写出新快照
+```
+
+**单元级验证"判断确实改变结果"**（判据 2）：
+
+```bash
+$PY -m unittest tests.test_freezing -v 2>&1 | grep -A2 model_judgment_changes_scope
+# 期望通过：规则式 in_scope 130 行 ≠ 模型裁决 in_scope 368 行
+```
+
+## 16. 异常驱动打断（判据 3）
+
+```bash
+# 用搜不到东西的检索式触发零命中
+$PY tools/freeze_snapshot.py --goal "zzzqqq" --literature network \
+    --query "zxqvbnmklpoiuytrewq" --rows 3 --root /tmp/x
+echo "退出码=$?"   # 期望 3（停下）
+# 输出应含：异常码列表 + 每项的 --ack 确认方式 + "流程已停下"
+# 且**不会写出任何快照**
+```
+
+人工确认后放行：
+
+```bash
+$PY tools/freeze_snapshot.py --goal "..." --ack zero_hits --ack judge_hit_rate
+```
+
+**注意**：**低对接率不是异常**（实测文献腿 373 篇 ∩ 数据腿 222 篇 = 8 篇，属正常）。
+回归用例：`tests.test_anomaly.TestNoOverlap.test_low_join_rate_is_NOT_anomaly`。
+
+## 17. 反判据：模型判断是否只是装饰
+
+```bash
+# 自检：应当判定为装饰品 → 退出码 5
+$PY tools/compare_judges.py --goal "sulfide solid electrolyte ionic conductivity" --judge-b rule
+echo "退出码=$?"   # 期望 5
+
+# 离线对比（预设模型响应）
+$PY tools/compare_judges.py --goal "..." --responses /tmp/model_responses.json
+# 期望：退出码 0、列出裁决差异
+
+# 真实模型（需 OpenAI 兼容端点）
+export PAPER_AGENT_LLM_BASE_URL=... PAPER_AGENT_LLM_MODEL=... PAPER_AGENT_LLM_API_KEY=...
+$PY tools/compare_judges.py --goal "..."
+# 退出码 0 = model_matters；5 = model_is_decorration（可接 CI 当失败）
+```
+
+## 18. 三维度离线回归
+
+```bash
+$PY -m unittest discover -s tests -p "test_*.py"
+# 期望：Ran 205 tests ... OK
+```
+
+---
+
+# 第五部分 · 审计交付包
 
 ```bash
 SNAP=<snapshot_id>; RUN_ID=<run_id>

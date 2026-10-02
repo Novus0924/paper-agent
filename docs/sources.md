@@ -1,14 +1,16 @@
 # 数据来源声明
 
-本项目**不联网抓取**（主线为本地快照回放；增强线的联网检索尚未接入，规划见
-`docs/redesign-decisions.md`）。全部数据为公开、可核对、带出处的真实素材。
+本项目**主线不联网**（读仓库内的冻结快照）；**增强线联网时只调元数据接口，
+不抓论文全文**（版权红线）。全部数据为公开、可核对、带出处的真实素材。
 
 ## 数据源清单
 
 | 来源 | 位置 | 说明 | 许可 / 署名 |
 |---|---|---|---|
-| **OBELiX 数据集**（主数据源） | `data/external/obelix/all.csv`（599 行快照） | 599 条已合成锂固态电解质材料，含**室温实验实测离子电导率**（S/cm）、化学组成、空间群、晶格参数；**每条带原始实验论文 DOI**（321 条另附 CIF） | **CC-BY-4.0**；Therrien, F. et al. (2025). *OBELiX: A Curated Dataset of Crystal Structures and Experimentally Measured Ionic Conductivities for Lithium Solid-State Electrolytes.* arXiv:2502.14234 |
-| 冻结输入快照 | `snapshots/snap-*/` | 由 `tools/freeze_snapshot.py` 从 OBELiX 生成的数据腿 + 文献腿 + 判断批次；含逐文件 SHA-256 与聚合内容哈希 | 由本项目生成 |
+| **OBELiX 数据集**（数值来源） | `data/external/obelix/all.csv`（599 行快照） | 599 条已合成锂固态电解质材料，含**室温实验实测离子电导率**（S/cm）、化学组成、空间群、晶格参数；**每条带原始实验论文 DOI**（321 条另附 CIF） | **CC-BY-4.0**；Therrien, F. et al. (2025). *OBELiX: A Curated Dataset of Crystal Structures and Experimentally Measured Ionic Conductivities for Lithium Solid-State Electrolytes.* arXiv:2502.14234 |
+| **Crossref**（文献腿，联网） | API `api.crossref.org/works` | 论文元数据（DOI / 标题 / 作者 / 年份 / 期刊）；**只取元数据，不取全文** | 公开接口；调用时带 `mailto` 进入 polite pool |
+| **OpenAlex**（文献腿，联网） | API `api.openalex.org/works` | 同上，与 Crossref 互补（实测两者结果零重叠） | 公开接口，CC0 |
+| 冻结输入快照 | `snapshots/snap-*/` | 数据腿 + 文献腿 + 判断批次；含逐文件 SHA-256 与聚合内容哈希 | 由本项目生成 |
 | 演示语料（legacy 降级路径） | `data/literature.json`（5 篇） | 早期演示用文献卡片；**不再参与主线**，仅保留为离线降级路径与回归测试 | 真实 DOI，可回查 |
 | 演示数据（legacy 降级路径） | `data/conductivity_raw.csv`（7 行） | 早期演示用带缺陷数据；**不再参与主线** | 见文件内 `as-reported` 标注 |
 | 实验计算 | `experiments/arrhenius_rank.py` | 对清洗后数据的本地真实计算，零第三方依赖，无随机源 | 本项目原创代码 |

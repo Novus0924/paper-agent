@@ -26,22 +26,26 @@
 | 三级信任模型（事实 / 判断 / 结论） | ✅ 已完成 |
 | 真实数据清洗（上界值留证 / 缺失归类 / 重复标注） | ✅ 已完成 |
 | 离线主线端到端（无需联网 / key / 第三方库） | ✅ 已完成 |
-| **模型驱动的检索与相关性判断** | ⬜ 第二批（当前为可见规则式 bootstrap） |
-| **联网文献腿（标题/作者等元数据）** | ⬜ 第二批 |
+| **联网文献腿**（Crossref / OpenAlex 元数据检索） | ✅ 已完成 |
+| **双腿 DOI 对接 + 异常驱动打断** | ✅ 已完成（规则据实测已修正，见设计文档 §9.2） |
+| **可插拔判断器 + 反判据对比工具** | ✅ 已完成（规则式基线可用；模型侧待端点） |
+| **AGH 插件 3 个新工具**（检索 / 待判 / 提交裁决） | ✅ 已完成（10 工具） |
+| **真实模型的判断与反判据结论** | ⬜ 待模型端点（环境变量配置即可接入） |
 
-> 诚实声明：当前仓库内的"判断"由**可见规则**产生（`producer=bootstrap_rule_v1`，
-> 规则全部写在 `tools/freeze_snapshot.py` 源码里），
-> 目的是先把"判断留痕 → 报告闸门 → 被排除项可反驳"这套机制用真实数据验证一遍。
-> 模型接入后替换的是**同一个函数位置**，数据契约不变。详见 `docs/ai_disclosure.md`。
+> 诚实声明（当前批次）：判断器有**规则式**与**模型**两个实现，数据契约相同。
+> 仓库内快照由**规则式**产出（`judged_by=rule`）；模型路径的接口、
+> 校验、留痕与对比工具均已就绪并有测试覆盖，但**尚未接真实模型跑通**，
+> 因此本次**不声称**已完成"模型驱动的判断"。详见 `docs/ai_disclosure.md` §3。
 
 ## 双轨设计
 
-| | **主线（稳定轨）** | **增强线（惊艳轨）** |
+| | **主线（稳定轨）** | **增强线（智能轨）** |
 |---|---|---|
-| 依赖 | 无（不需要 AGH / key / 网络 / 第三方库） | AGH + 模型 key + 网络 |
-| 输入 | 冻结快照（`snapshots/`，已入库） | 现场检索 |
-| 展示 | **可信性**：一键跑通、逐字节复现、证据可回查 | **智能性**：真实检索与判断（第二批） |
-| 演示 | `demo/demo_mainline.sh` | 待第二批 |
+| 依赖 | 无（不需要 AGH / key / 网络 / 第三方库） | 联网检索：仅需网络；模型判断：AGH 会话或 OpenAI 兼容端点 |
+| 输入 | 冻结快照（`snapshots/`，已入库） | 现场检索 + 现场判断 |
+| 展示 | **可信性**：一键跑通、逐字节复现、证据可回查 | **智能性**：真检索、真判断、异常真会打断 |
+| 演示 | `demo/demo_mainline.sh` | `cli search` / `freeze --prepare` / `freeze --commit` |
+| 可复现 | ✅ 逐字节 | ⚠️ 判断不可复现 → 用**快照冻结**兜住（D6） |
 
 两条轨**共用同一套 Python 核心与同一套证据账本**，区别只在"输入是快照还是现搜"。
 
@@ -60,16 +64,23 @@ paper-agent/
 │   ├── state.py                  #   有限状态机 + run 生命周期
 │   ├── provenance.py             #   三级证据账本（fact / judgment / conclusion）
 │   ├── snapshot.py               #   冻结输入快照（强校验 + 判断批次自包含）
-│   ├── sources.py                #   外部数据源适配（列名归一 / 值分类）
+│   ├── sources.py                #   数据源适配（OBELiX 列名归一 / 值分类）
+│   ├── litsearch.py              #   联网文献腿（Crossref / OpenAlex 元数据）
+│   ├── judge.py                  #   可插拔判断器 + 反判据对比
+│   ├── anomaly.py                #   双腿对接 + 四条异常规则 + 确认闸门
+│   ├── freezing.py               #   三段式冻结：prepare → 推理 → commit
+│   ├── llm.py                    #   模型客户端适配（含 AGH 路径实测结论）
 │   ├── chaos.py                  #   故障注入
 │   ├── steps.py                  #   五步调度（快照主路径 + legacy 回退路径）
 │   ├── verify.py                 #   P4 复现验证器（递归容差比对）
 │   ├── report.py                 #   P5 报告生成（判据 4 硬前置）
-│   └── cli.py                    #   命令行入口（stdout 单 JSON）
+│   └── cli.py                    #   命令行入口（含 search / freeze）
 ├── experiments/arrhenius_rank.py # 零依赖确定性实验（双 schema 自适应）
 ├── tools/
-│   ├── freeze_snapshot.py        # 把一轮检索+判断冻结成输入快照
-│   └── probe_obelix.py           # 数据源技术探针（只读、可离线复跑）
+│   ├── freeze_snapshot.py        # 冻结快照（prepare / commit / 规则式一步到位）
+│   ├── search_literature.py      # 联网文献检索 CLI
+│   ├── compare_judges.py         # ★ 反判据：模型 vs 规则，退出码即判据
+│   └── probe_obelix.py           # 数据源探针（只读、可离线复跑）
 ├── data/
 │   ├── external/obelix/all.csv   # OBELiX 数据快照（599 行，CC-BY-4.0）
 │   ├── literature.json           # legacy 演示语料（降级路径，不参与主线）
@@ -80,8 +91,8 @@ paper-agent/
 │   ├── demo_mainline.sh          # ★ 真实数据主线（离线回放 + 判据 4 实测）
 │   ├── demo_e2e.sh               # legacy 路径端到端 + 确定性核验
 │   └── demo_failure.sh           # legacy 路径四大故障恢复用例
-├── tests/                        # unittest 套件（6 文件，88 用例）
-├── plugins/paper-agent-tools/    # AGH 扩展：7 工具（JS 薄壳）
+├── tests/                        # unittest 套件（9 文件，205 用例）
+├── plugins/paper-agent-tools/    # AGH 扩展：10 工具（JS 薄壳）
 └── audit-pack-template/          # 审计交付包模板
 ```
 
@@ -123,6 +134,42 @@ python -m paper_agent.cli cite --run <RUN_ID>                 # 列出全部
 python tools/freeze_snapshot.py --goal "sulfide solid electrolyte ionic conductivity ranking"
 ```
 
+### 增强线：真实检索 + 判断 + 冻结（三段式）
+
+```bash
+# 1) 联网检索候选论文（只取元数据，不抓全文）
+python -m paper_agent.cli search --goal "argyrodite ionic conductivity" --rows 10
+
+# 2) 取待判对象（材料化学族 + 规则式参考裁决），落盘一份 pending
+python -m paper_agent.cli freeze --goal "sulfide solid electrolyte ranking" --prepare
+#    → 返回 pending_id 与 families；会话内的模型据此推理
+
+# 3) 提交裁决，冻结快照（裁决须覆盖全部族）
+cat > /tmp/verdicts.json <<'JSON'
+{"queries": ["sulfide solid electrolyte ionic conductivity"],
+ "families": {"LGPS": {"verdict": "relevant", "reason": "硫化物体系"},
+              "NASICON": {"verdict": "excluded", "reason": "氧化物体系"}}}
+JSON
+python -m paper_agent.cli freeze --commit <PENDING_ID> --verdicts /tmp/verdicts.json \
+    --judged-by model --model-name <你的模型名>
+
+# 若流程因异常停下（退出码 3），人工复核后用 --ack <code> 显式确认再重跑
+```
+
+### 反判据：模型判断到底有没有用
+
+```bash
+# 自检（应当判定为装饰品）：退出码 5
+python tools/compare_judges.py --goal "..." --judge-b rule
+
+# 接上任意 OpenAI 兼容端点后，与规则式基线对比
+export PAPER_AGENT_LLM_BASE_URL=https://<host>/v1
+export PAPER_AGENT_LLM_MODEL=<model>
+export PAPER_AGENT_LLM_API_KEY=<key>
+python tools/compare_judges.py --goal "..."
+# 退出码 0 = model_matters；5 = model_is_decoration（可接 CI 当失败）
+```
+
 ## 环境变量
 
 | 变量 | 作用 |
@@ -146,15 +193,18 @@ python tools/freeze_snapshot.py --goal "sulfide solid electrolyte ionic conducti
 见 [`HOW-TO-VERIFY.md`](HOW-TO-VERIFY.md)。核心判据：
 
 - [x] **判据 1** 数据不再是喂进去的：599 行真实数据、223 个真实 DOI（人工 7 行数据不参与主线）
+- [x] **判据 3** 异常驱动打断：零命中检索式 → 流程停下、退出码 3、给出 `--ack` 确认方式
 - [x] **判据 4** 判断是硬前置：删除快照判断记录 → 流水线失败、报告无法生成
 - [x] **判据 5** 干净机器一条命令跑通主线：无第三方库、无网络、无 key
 - [x] 确定性：两次独立运行 `results.csv` SHA-256 逐字节一致（562 行排序结果）
 - [x] 三级账本：`link_conclusion` 拒绝非 fact 级证据（代码级强制）
 - [x] legacy 路径无回归：`demo_e2e` OK、`demo_failure` 8/0
-- [x] 单测 **88/88** 全绿
-- [ ] **判据 2** 判断真的改变结果（两个不同问题产出不同检索式与集合）——第二批随模型接入实测
-- [ ] **判据 3** 异常驱动打断（零命中 / DOI 对不上 / 命中率反常）——第二批
-- [ ] 反判据：换回规则式判断，若结论几乎不变则说明模型是装饰品——第二批
+- [x] 单测 **205/205** 全绿
+- [⚠️] **判据 2** 判断真的改变结果：规则式下已测（换目标 → 换检索式与集合）；
+  单元级已证"模型裁决改变 in_scope 范围"（130 → 368 行）；
+  **真实模型的端到端对比待模型端点**
+- [⚠️] 反判据：`compare_judges.py` 就绪并已自检生效（rule vs rule → 退出码 5）；
+  接上模型端点即可出真实判决
 
 ## 合规红线
 
