@@ -14,6 +14,18 @@
 - events.jsonl append-only；事件类型：run_planned / run_started /
   transition / retry / degrade / skip / run_finished
 - DONE 步骤产物损坏 → 不允许回退修改原 run；应新建 run 实例
+
+多工作流（v0.3 新增）
+---------------------
+同一套状态机 / 账本 / 编排协议，服务两条**独立的科研工作流**：
+
+- ``materials``（默认，向后兼容）：P1..P5
+    文献检索 → 数据清洗 → 真实实验 → 复现验证 → 报告（可复现实验底座）
+- ``research``（v0.3 PRD 核心链路）：R1..R6
+    多源检索 → 论文精读 → 创新点拆解 → 事实验证 → 综述写作 → 自评审
+
+工作流只决定「步骤 ID 列表」，状态机转移规则完全一致，
+因此 run-step / step-driven / resume / 证据账本 / 故障恢复全部复用。
 """
 from __future__ import annotations
 
@@ -58,21 +70,40 @@ _RUN_TRANSITIONS = {
     RunStatus.FAILED: set(),
 }
 
-# 固定五步流水线
-STEP_IDS = [
+# ---- 工作流一：材料实验可复现流水线（默认，向后兼容）----
+MATERIALS_STEPS = [
     "P1_lit_search",
     "P2_clean_data",
     "P3_run_experiment",
     "P4_verify",
     "P5_report",
 ]
-STEP_NAMES = {
-    "P1_lit_search": "P1_lit_search",
-    "P2_clean_data": "P2_clean_data",
-    "P3_run_experiment": "P3_run_experiment",
-    "P4_verify": "P4_verify",
-    "P5_report": "P5_report",
+
+# ---- 工作流二：科研全流程（v0.3 PRD §2 核心用户旅程）----
+RESEARCH_STEPS = [
+    "R1_search",     # 多源学术检索
+    "R2_read",       # 论文精读（结构化笔记）
+    "R3_analyze",    # 创新点拆解 / 技术脉络 / Research Gap
+    "R4_verify",     # 事实验证（引用/数据一致性/矛盾）
+    "R5_write",      # 综述写作（带引用 + BibTeX）
+    "R6_review",     # 模拟自评审
+]
+
+WORKFLOWS: dict[str, list[str]] = {
+    "materials": MATERIALS_STEPS,
+    "research": RESEARCH_STEPS,
 }
+DEFAULT_WORKFLOW = "materials"
+
+# 向后兼容：历史上 STEP_IDS 指材料流水线五步
+STEP_IDS = MATERIALS_STEPS
+STEP_NAMES = {sid: sid for sid in MATERIALS_STEPS + RESEARCH_STEPS}
+
+
+def steps_for(workflow: str | None) -> list[str]:
+    """按工作流名取步骤列表；未知工作流回落到默认（materials）。"""
+    wf = (workflow or DEFAULT_WORKFLOW).lower()
+    return list(WORKFLOWS.get(wf, MATERIALS_STEPS))
 
 
 def _utc_now_str() -> str:
@@ -84,25 +115,49 @@ def _run_id() -> str:
     return f"run-{stamp}-{secrets.token_hex(3)}"
 
 
+# P1 文献检索来源。默认 local（离线、逐字节可复现）；联网检索需显式开启：
+#   --lit-source arxiv  实时检索 arXiv（结果快照冻结，保确定性）
+#   --lit-source auto   先试 arXiv，失败自动降级本地语料
+# 单测通过环境变量 paper-agent_LIT_SOURCE=local 强制离线（见 tests/__init__.py）。
+LIT_SOURCES = ("local", "arxiv", "auto")
+
+
+def default_lit_source() -> str:
+    """解析文献检索来源的默认值（环境变量 > 内置默认）。"""
+    env = os.environ.get("paper-agent_LIT_SOURCE", "").strip().lower()
+    return env if env in LIT_SOURCES else "auto"
+
+
 class PipelineState:
     """一个 run 实例的完整状态机。
 
     所有状态变更都必须经过 transition() / mark_step_*() 等接口，
     禁止直接改 state.json。接口在合法时持久化 state.json，
     并 append 一条事件到 events.jsonl。
+
+    ``workflow`` 决定步骤集合（materials / research）；``steps`` 可显式覆盖。
     """
 
-    def __init__(self, run_id: str, root: str, goal: str = ""):
+    def __init__(self, run_id: str, root: str, goal: str = "",
+                 lit_source: str | None = None,
+                 workflow: str = DEFAULT_WORKFLOW,
+                 steps: list[str] | None = None):
         self.run_id = run_id
         self.root = root
         self.goal = goal
+        self.lit_source = (lit_source or default_lit_source()).lower()
+        if self.lit_source not in LIT_SOURCES:
+            self.lit_source = "auto"
+        wf = (workflow or DEFAULT_WORKFLOW).lower()
+        self.workflow = wf if wf in WORKFLOWS else DEFAULT_WORKFLOW
+        self.step_ids = list(steps) if steps else steps_for(self.workflow)
         self.run_dir = os.path.join(root, "runs", run_id)
         self.state_path = os.path.join(self.run_dir, "state.json")
         self.events_path = os.path.join(self.run_dir, "events.jsonl")
 
         self.run_status = RunStatus.PLANNED
-        self.step_status = {sid: StepStatus.PENDING for sid in STEP_IDS}
-        self.attempts = {sid: 0 for sid in STEP_IDS}
+        self.step_status = {sid: StepStatus.PENDING for sid in self.step_ids}
+        self.attempts = {sid: 0 for sid in self.step_ids}
         self.degraded = False
         self.created_at = _utc_now_str()
         self.updated_at = self.created_at
@@ -114,11 +169,15 @@ class PipelineState:
         """创建 run 实例目录，初始化状态并写 run_planned 事件。幂等。"""
         os.makedirs(self.run_dir, exist_ok=True)
         for sub in ("toolcalls", "literature", "clean", "experiment",
-                    "verification", "results"):
+                    "verification", "results", "reading", "analysis",
+                    "factcheck", "writing", "review", "evaluation", "batch"):
             os.makedirs(os.path.join(self.run_dir, sub), exist_ok=True)
         if not self._loaded:
             self._append_event("run_planned", {
                 "goal": self.goal,
+                "workflow": self.workflow,
+                "steps": list(self.step_ids),
+                "lit_source": self.lit_source,
                 "created_at": self.created_at,
             })
             self._persist_state()
@@ -131,10 +190,22 @@ class PipelineState:
         with open(self.state_path, "r", encoding="utf-8") as f:
             snap = json.load(f)
         self.run_status = RunStatus(snap["run_status"])
-        for sid in STEP_IDS:
+        self.workflow = snap.get("workflow", DEFAULT_WORKFLOW)
+        if self.workflow not in WORKFLOWS:
+            self.workflow = DEFAULT_WORKFLOW
+        # 优先用快照里显式记录的 steps，保证历史 run 的前向兼容；
+        # 必须**重建** step_status/attempts，清掉构造器按默认工作流预置的步骤，
+        # 否则 research run 会混入 materials 的 P1..P5（PENDING）而无法收敛。
+        self.step_ids = list(snap.get("steps_order") or steps_for(self.workflow))
+        self.step_status = {}
+        self.attempts = {}
+        for sid in self.step_ids:
             self.step_status[sid] = StepStatus(snap["steps"][sid])
             self.attempts[sid] = snap.get("attempts", {}).get(sid, 0)
         self.degraded = snap.get("degraded", False)
+        self.lit_source = snap.get("lit_source", self.lit_source)
+        if self.lit_source not in LIT_SOURCES:
+            self.lit_source = "auto"
         self.created_at = snap.get("created_at", self.created_at)
         self.updated_at = snap.get("updated_at", self.updated_at)
         if snap.get("goal"):
@@ -158,10 +229,13 @@ class PipelineState:
         snap = {
             "run_id": self.run_id,
             "run_status": self.run_status.value,
-            "steps": {sid: st.value for sid, st in self.step_status.items()},
+            "workflow": self.workflow,
+            "steps_order": list(self.step_ids),
+            "steps": {sid: self.step_status[sid].value for sid in self.step_ids},
             "attempts": dict(self.attempts),
             "degraded": self.degraded,
             "goal": self.goal,
+            "lit_source": self.lit_source,
             "created_at": self.created_at,
             "updated_at": _utc_now_str(),
         }
@@ -198,9 +272,12 @@ class PipelineState:
 
     # ---------- step 级转移 ----------
 
+    def _check_step(self, sid: str) -> None:
+        if sid not in self.step_ids:
+            raise StateError(f"unknown step {sid} for workflow {self.workflow}")
+
     def mark_step_running(self, sid: str, retry: bool = False) -> None:
-        if sid not in STEP_IDS:
-            raise StateError(f"unknown step {sid}")
+        self._check_step(sid)
         cur = self.step_status[sid]
         if cur not in _STEP_TRANSITIONS:
             raise StateError(f"step {sid} in unmodeled state {cur}")
@@ -218,8 +295,7 @@ class PipelineState:
         self._persist_state()
 
     def mark_step_done(self, sid: str, extra: dict | None = None) -> None:
-        if sid not in STEP_IDS:
-            raise StateError(f"unknown step {sid}")
+        self._check_step(sid)
         cur = self.step_status[sid]
         if cur is not StepStatus.RUNNING:
             raise StateError(f"illegal step transition {sid}: {cur.value} -> DONE")
@@ -237,8 +313,7 @@ class PipelineState:
         每次重试调用本接口递增 attempts 并留痕。chaos 判断"仅首次"仍由
         上层传入 attempt 参数决定，本接口只负责记账，不改变状态。
         """
-        if sid not in STEP_IDS:
-            raise StateError(f"unknown step {sid}")
+        self._check_step(sid)
         if self.step_status[sid] is not StepStatus.RUNNING:
             raise StateError(f"retry_attempt on {sid} not RUNNING ({self.step_status[sid].value})")
         self.attempts[sid] += 1
@@ -250,8 +325,7 @@ class PipelineState:
         self._persist_state()
 
     def mark_step_failed(self, sid: str, reason: str = "") -> None:
-        if sid not in STEP_IDS:
-            raise StateError(f"unknown step {sid}")
+        self._check_step(sid)
         cur = self.step_status[sid]
         if cur is not StepStatus.RUNNING:
             raise StateError(f"illegal step transition {sid}: {cur.value} -> FAILED")
@@ -263,8 +337,7 @@ class PipelineState:
         self._persist_state()
 
     def mark_step_skipped(self, sid: str, reason: str = "") -> None:
-        if sid not in STEP_IDS:
-            raise StateError(f"unknown step {sid}")
+        self._check_step(sid)
         cur = self.step_status[sid]
         if cur is not StepStatus.PENDING:
             raise StateError(f"illegal step transition {sid}: {cur.value} -> SKIPPED")
@@ -282,7 +355,7 @@ class PipelineState:
     # ---------- 查询 ----------
 
     def pending_or_failed(self) -> list[str]:
-        return [sid for sid in STEP_IDS
+        return [sid for sid in self.step_ids
                 if self.step_status[sid] in (StepStatus.PENDING, StepStatus.FAILED)]
 
     def all_terminal(self) -> bool:
@@ -293,6 +366,7 @@ class PipelineState:
         return {
             "run_id": self.run_id,
             "run_status": self.run_status.value,
+            "workflow": self.workflow,
             "steps": {sid: st.value for sid, st in self.step_status.items()},
             "attempts": dict(self.attempts),
             "degraded": self.degraded,
@@ -303,8 +377,12 @@ def new_run_id() -> str:
     return _run_id()
 
 
-def create_state(run_id: str, root: str, goal: str = "") -> PipelineState:
-    st = PipelineState(run_id, root, goal)
+def create_state(run_id: str, root: str, goal: str = "",
+                 lit_source: str | None = None,
+                 workflow: str = DEFAULT_WORKFLOW,
+                 steps: list[str] | None = None) -> PipelineState:
+    st = PipelineState(run_id, root, goal, lit_source=lit_source,
+                       workflow=workflow, steps=steps)
     st.plan()
     return st
 

@@ -1,10 +1,18 @@
-"""证据账本 + 结论‑证据绑定 + 引文格式化（文档 §4.4）。
+"""证据账本 + 结论‑证据绑定 + 引文格式化（文档 §4.4 + redesign-decisions.md D5）。
 
-- provenance.jsonl 每行一条证据，append-only；ev_id 自增 EV-0001...
-- link_conclusion(cid, text, evidence_ids) 前置校验所有 evidence_id 已存在，
-  否则快速失败（结论‑证据强绑定）
-- cite(ev_id) 返回人类可读引用：文献类输出 DOI/作者/年份；文件类输出 sha256 前16位
-- 任何报告中出现的结论必须至少绑定一条证据 ID
+合并版（Plan A 整合）
+--------------------
+以 mike 双工作流（materials + research）的全部证据种类为基底，吸收 novus 的
+三级信任模型（fact / judgment）：
+
+- **fact 级**（含 research 的 note/analysis/factcheck/draft/review/evaluation）
+  可进结论；
+- **judgment 级**（query_generation/relevance/anomaly）不得进结论，且被排除项
+  全额留痕，使模型筛选可复核、可反驳；
+- ``__init__`` 支持 ``root`` 形参（mike ``research.py`` 依赖，用于定位
+  ``<root>/data/literature.json``）；
+- 旧记录无 ``tier`` 字段时默认视为 fact（向后兼容）；
+- ``link_conclusion`` 强制仅 fact 级证据可支撑结论（三级信任模型红线）。
 """
 from __future__ import annotations
 
@@ -18,6 +26,27 @@ class EvidenceError(RuntimeError):
     pass
 
 
+TIER_FACT = "fact"
+TIER_JUDGMENT = "judgment"
+
+#: fact 级证据类型（可进结论）：materials 6 型 + research 6 型
+FACT_KINDS = (
+    "literature", "data", "experiment", "figure", "verification", "report",
+    "note", "analysis", "factcheck", "draft", "review", "evaluation",
+)
+
+#: judgment 级判断类型（不得进结论）
+JUDGMENT_KINDS = ("query_generation", "relevance", "anomaly")
+
+#: 合法证据/判断类型全集（append_evidence 接受全部）
+EVIDENCE_KINDS = FACT_KINDS + JUDGMENT_KINDS
+
+
+def _tier_of_kind(kind: str) -> str:
+    """按种类判定 tier：judgment 三类走 judgment，其余默认 fact。"""
+    return TIER_JUDGMENT if kind in JUDGMENT_KINDS else TIER_FACT
+
+
 def _sha256_file(path: str) -> str:
     if not os.path.exists(path):
         raise EvidenceError(f"evidence file missing: {path}")
@@ -29,9 +58,10 @@ def _sha256_file(path: str) -> str:
 
 
 class ProvenanceLedger:
-    def __init__(self, run_dir: str, run_id: str = ""):
+    def __init__(self, run_dir: str, run_id: str = "", root: str = ""):
         self.run_dir = run_dir
         self.run_id = run_id
+        self.root = root            # 项目根（用于定位 data/literature.json）；空则回退全局
         self.path = os.path.join(run_dir, "provenance.jsonl")
         self.conclusions_path = os.path.join(run_dir, "conclusions.jsonl")
         self._ev_index: dict[str, dict] = {}
@@ -61,13 +91,55 @@ class ProvenanceLedger:
         meta: dict | None = None,
         file_path: str | None = None,
     ) -> str:
-        """登记一条证据，返回 ev_id。kind: literature|data|experiment|figure|verification|report"""
-        sha = _sha256_file(file_path) if file_path else ""
-        if kind not in ("literature", "data", "experiment", "figure", "verification", "report"):
+        """登记一条证据（fact 或 judgment tier 由种类决定），返回 ev_id。
+
+        kind 见 ``EVIDENCE_KINDS``。judgment 三类（query_generation/relevance/
+        anomaly）会落为 judgment tier，但仍可被本方法登记（等价于 append_judgment
+        的宽松入口）。
+        """
+        if kind not in EVIDENCE_KINDS:
             raise EvidenceError(f"unknown evidence kind: {kind}")
+        return self._append(_tier_of_kind(kind), kind, ref,
+                            producer_step=producer_step, meta=meta,
+                            file_path=file_path)
+
+    def append_judgment(
+        self,
+        judgment_kind: str,
+        producer_step: str,
+        subject: str,
+        verdict: str,
+        rationale: str = "",
+        meta: dict | None = None,
+    ) -> str:
+        """登记一条 **judgment 级**判断，返回 ev_id。
+
+        判断只影响流程走向，**不得**被 link_conclusion 引用。
+
+        judgment_kind: query_generation|relevance|anomaly
+        subject:       判断对象（检索式文本 / 论文 DOI 或标题 / 异常名）
+        verdict:       裁决（如 generated|relevant|excluded|raised）
+        rationale:     判断理由（便于复核）
+        """
+        if judgment_kind not in JUDGMENT_KINDS:
+            raise EvidenceError(
+                f"unknown judgment kind: {judgment_kind} "
+                f"(expect one of {JUDGMENT_KINDS})")
+        merged = dict(meta or {})
+        merged.update({"subject": subject, "verdict": verdict,
+                       "rationale": rationale})
+        return self._append(TIER_JUDGMENT, judgment_kind, subject,
+                            producer_step=producer_step, meta=merged,
+                            file_path=None)
+
+    def _append(self, tier: str, kind: str, ref: str, producer_step: str,
+                meta: dict | None, file_path: str | None) -> str:
+        """统一落盘：分配 ev_id、计算哈希、append-only 写入。"""
+        sha = _sha256_file(file_path) if file_path else ""
         ev_id = f"EV-{self.next_ev_num:04d}"
         rec = {
             "ev_id": ev_id,
+            "tier": tier,
             "kind": kind,
             "ref": ref,
             "sha256": sha,
@@ -78,6 +150,11 @@ class ProvenanceLedger:
             f.write(json.dumps(rec, ensure_ascii=False, sort_keys=True) + "\n")
         self._ev_index[ev_id] = rec
         return ev_id
+
+    @staticmethod
+    def tier_of(rec: dict) -> str:
+        """读取记录的 tier；旧记录无该字段时视为 fact（向后兼容）。"""
+        return rec.get("tier", TIER_FACT)
 
     def get(self, ev_id: str) -> dict | None:
         return self._ev_index.get(ev_id)
@@ -91,11 +168,20 @@ class ProvenanceLedger:
         text: str,
         evidence_ids: list[str],
     ) -> None:
+        """绑定结论与证据。三级信任模型红线：judgment 不得支撑结论。
+
+        校验：① 非空 ② 全部存在 ③ **全部为 fact 级**。
+        """
         if not evidence_ids:
             raise EvidenceError(f"conclusion {conclusion_id} has no evidence binding")
         for ev in evidence_ids:
             if ev not in self._ev_index:
                 raise EvidenceError(f"conclusion {conclusion_id} references unknown evidence {ev}")
+            tier = self.tier_of(self._ev_index[ev])
+            if tier != TIER_FACT:
+                raise EvidenceError(
+                    f"conclusion {conclusion_id} binds {ev} of tier '{tier}': "
+                    f"only '{TIER_FACT}' evidence may back a conclusion")
         rec = {
             "cid": conclusion_id,
             "text": text,
@@ -104,11 +190,80 @@ class ProvenanceLedger:
         with open(self.conclusions_path, "a", encoding="utf-8", newline="") as f:
             f.write(json.dumps(rec, ensure_ascii=False, sort_keys=True) + "\n")
 
+    # ---------- 分级视图 ----------
+
+    def _sorted_ids(self) -> list[str]:
+        return sorted(self._ev_index,
+                      key=lambda x: int(re.sub(r"\D", "", x)))
+
+    def facts(self) -> list[dict]:
+        """全部 fact 级记录（唯一可进结论者）。"""
+        return [self._ev_index[k] for k in self._sorted_ids()
+                if self.tier_of(self._ev_index[k]) == TIER_FACT]
+
+    def judgments(self) -> list[dict]:
+        """全部 judgment 级记录。"""
+        return [self._ev_index[k] for k in self._sorted_ids()
+                if self.tier_of(self._ev_index[k]) == TIER_JUDGMENT]
+
+    def excluded_judgments(self) -> list[dict]:
+        """被模型排除的条目（verdict == excluded）——筛选必须可复核、可反驳。"""
+        return [r for r in self.judgments()
+                if (r.get("meta") or {}).get("verdict") == "excluded"]
+
+    def require_judgment_batch(self) -> None:
+        """校验账本中存在判断记录；缺失即快速失败。
+
+        对应判据 4：删除模型判断记录后，报告必须生成失败——使
+        "判断留痕"成为报告生成的硬前置。
+        """
+        if not self.judgments():
+            raise EvidenceError(
+                "no judgment records in ledger: report cannot be generated "
+                "(model filtering must be traceable)")
+
+    def check_binding_invariants(self) -> list[str]:
+        """审计不变量检查：返回问题列表，空列表表示全部通过。
+
+        ① conclusions.jsonl 每条 evidence_ids 必须全部存在
+        ② 且必须全部为 fact 级
+        """
+        problems: list[str] = []
+        path = self.conclusions_path
+        if not os.path.exists(path):
+            return problems
+        with open(path, "r", encoding="utf-8") as f:
+            for lineno, line in enumerate(f, start=1):
+                line = line.strip()
+                if not line:
+                    continue
+                rec = json.loads(line)
+                cid = rec.get("cid", f"<line {lineno}>")
+                ids = rec.get("evidence_ids") or []
+                if not ids:
+                    problems.append(f"{cid}: no evidence binding")
+                    continue
+                for ev in ids:
+                    if ev not in self._ev_index:
+                        problems.append(f"{cid}: unknown evidence {ev}")
+                        continue
+                    tier = self.tier_of(self._ev_index[ev])
+                    if tier != TIER_FACT:
+                        problems.append(f"{cid}: non-fact evidence {ev} (tier={tier})")
+        return problems
+
     def _literature_lookup(self, doi: str) -> dict | None:
-        """从 data/literature.json 取文献元数据（作者/年份/标题）。"""
+        """从文献语料取元数据（作者/年份/标题）。
+
+        优先用本 run 所属项目根下的 ``<root>/data/literature.json``；
+        未指定 root 时回退到全局 ``DATA_DIR``。
+        """
         try:
             from paper_agent import DATA_DIR
-            lit = os.path.join(DATA_DIR, "literature.json")
+            base = os.path.join(self.root, "data") if self.root else DATA_DIR
+            lit = os.path.join(base, "literature.json")
+            if not os.path.exists(lit):
+                lit = os.path.join(DATA_DIR, "literature.json")
             with open(lit, "r", encoding="utf-8") as f:
                 corpus = json.load(f)
             for doc in corpus.get("documents", []):
@@ -119,10 +274,18 @@ class ProvenanceLedger:
         return None
 
     def cite(self, ev_id: str) -> str:
-        """人类可读引用。文献类：DOI+作者+年份；文件类：sha256 前16位。"""
+        """人类可读引用。文献类：DOI+作者+年份；文件类：sha256 前16位；
+        判断类：裁决主体 + 结论 + 理由。"""
         rec = self._ev_index.get(ev_id)
         if rec is None:
             raise EvidenceError(f"cannot cite unknown evidence {ev_id}")
+        if self.tier_of(rec) == TIER_JUDGMENT:
+            meta = rec.get("meta") or {}
+            reason = (meta.get("rationale") or "").strip() or "(未给理由)"
+            return (f"[{ev_id}] judgment({rec['kind']}) "
+                    f"subject={meta.get('subject') or rec['ref']} "
+                    f"verdict={meta.get('verdict')} reason={reason} "
+                    f"by={rec['producer_step']}")
         if rec["kind"] == "literature":
             doc = self._literature_lookup(rec["ref"])
             if doc:
@@ -135,4 +298,4 @@ class ProvenanceLedger:
         return f"[{ev_id}] {rec['kind']} artifact ref={rec['ref']} sha256={sha16}"
 
     def all_evidence(self) -> list[dict]:
-        return [self._ev_index[k] for k in sorted(self._ev_index, key=lambda x: int(re.sub(r"\D", "", x)))]
+        return [self._ev_index[k] for k in self._sorted_ids()]
