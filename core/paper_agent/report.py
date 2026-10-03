@@ -10,7 +10,7 @@ import json
 import os
 
 from .state import PipelineState, RunStatus, StepStatus
-from .provenance import ProvenanceLedger
+from .provenance import ProvenanceLedger, EvidenceError
 
 
 def _read_json(path: str):
@@ -73,6 +73,21 @@ def generate_report(
     root: str, run_id: str, state: PipelineState, prov: ProvenanceLedger,
 ) -> str:
     run_dir = os.path.join(root, "runs", run_id)
+
+    # ---- 防御 M3：报告生成前强制校验绑定不变量（运行时门禁）----
+    # ① 账本哈希链完整（有篡改即拒绝出报告）；② conclusions.jsonl 既有绑定
+    # 全部存在且为 fact 级。此前 check_binding_invariants 仅在测试中出现，
+    # 运行路径从不调用——"代码级强制"名不副实；现接入真实报告路径。
+    chain_problems = prov.verify_chain()
+    if chain_problems:
+        raise EvidenceError(
+            "provenance ledger tampered, report refused: "
+            + "; ".join(chain_problems))
+    binding_problems = prov.check_binding_invariants()
+    if binding_problems:
+        raise EvidenceError(
+            "binding invariants violated, report refused: "
+            + "; ".join(binding_problems))
 
     # ---- 读取真实产物 ----
     lit = _read_json(os.path.join(run_dir, "literature", "literature_hits.json"))
@@ -231,6 +246,23 @@ def generate_research_report(root: str, run_id: str, state: PipelineState,
                              prov: ProvenanceLedger) -> str:
     """生成科研全流程报告（research 工作流），每条结论绑定真实证据 ID。"""
     run_dir = os.path.join(root, "runs", run_id)
+
+    # ---- 防御 M3：同 generate_report，运行时门禁 ----
+    chain_problems = prov.verify_chain()
+    if chain_problems:
+        raise EvidenceError(
+            "provenance ledger tampered, report refused: "
+            + "; ".join(chain_problems))
+    binding_problems = prov.check_binding_invariants()
+    if binding_problems:
+        raise EvidenceError(
+            "binding invariants violated, report refused: "
+            + "; ".join(binding_problems))
+    # 判据4 硬前置（judgment 缺失即报告失败）：当前整合版未把 judge 接入
+    # research 主线（novus freeze 子系统独立、OBELiX 数据未随包），无条件启用
+    # 会误伤合法 run；故以环境变量显式开启，judge 接线后置 1 即生效。
+    if os.environ.get("PAPER_AGENT_ENFORCE_JUDGMENT", "").strip() == "1":
+        prov.require_judgment_batch()
 
     hits = _rd(os.path.join(run_dir, "literature", "research_hits.json"))
     read = _rd(os.path.join(run_dir, "reading", "reading_report.json"))

@@ -22,11 +22,12 @@ from datetime import datetime, timezone
 from .state import (
     PipelineState, StepStatus, RunStatus, create_state, load_state, new_run_id,
 )
-from .provenance import ProvenanceLedger
+from .provenance import ProvenanceLedger, EvidenceError
 from . import chaos
 from . import litsearch
 from .chaos import TransientError
 from . import verify as verify_mod
+from .security_scan import detect_prompt_injection
 
 MAX_ATTEMPTS = 3
 BACKOFF = [1, 2]  # seconds
@@ -197,13 +198,25 @@ class Pipeline:
         # 登记 literature 证据（ref 优先 DOI，其次 arXiv 链接）
         ev_ids = []
         for d in hits:
+            inj = d.get("injection_flag") or []
             ev = self.prov.append_evidence(
                 kind="literature", ref=litsearch.ref_of(d),
                 producer_step="P1_lit_search",
                 meta={"doc_id": d.get("doc_id", ""), "title": d.get("title", ""),
-                      "year": d.get("year"), "source": d.get("source", "")},
+                      "year": d.get("year"), "source": d.get("source", ""),
+                      "injection_flag": inj},
             )
             ev_ids.append(ev)
+            # M1 检测能力：外部内容命中注入启发式 → judgment 级留痕（可复核、可反驳）
+            if inj:
+                self.prov.append_judgment(
+                    "anomaly", "P1_lit_search",
+                    subject=litsearch.ref_of(d),
+                    verdict="injection_flagged",
+                    rationale="prompt-injection heuristics matched: "
+                              + ",".join(inj),
+                    meta={"doc_id": d.get("doc_id", ""), "labels": inj},
+                )
         # 无论 0 命中与否，始终登记检索输出文件为 data 证据，
         # 作为 C1 结论的证据锚点（证据先行：0 命中也留证）。
         hits_file_ev = self.prov.append_evidence(
@@ -447,13 +460,14 @@ class Pipeline:
 
     def run_p4(self) -> dict:
         sid = "P4_verify"
-        # 幂等守卫：已 DONE 直接复用，不重复执行
+        # 幂等守卫：已 DONE 直接复用，不重复执行。
+        # 防御 M2：复用前必须先过完整性闸门——攻击者判定条件是"预置伪造
+        # verification.json(PASS) + state.json(P4=DONE) 即可短路返回 PASS"。
+        # 现将缓存可信性绑定到证据账本（哈希链保护），不一致即拒绝并显式报错。
         if self.state.step_status[sid] is StepStatus.DONE:
             vpath = os.path.join(self.root, "runs", self.run_id,
                                  "verification", "verification.json")
-            with open(vpath, "r", encoding="utf-8") as f:
-                doc = json.load(f)
-            return doc
+            return self._trusted_cached_verification(vpath)
 
         self.state.mark_step_running(sid)
         exp_dir = os.path.join(self.root, "runs", self.run_id, "experiment")
@@ -508,6 +522,39 @@ class Pipeline:
         self.state.mark_step_failed(sid, f"verification {status}: {checks}")
         return {"status": "FAIL", "checks": checks, "evidence": [ev_v],
                 "failed": True}
+
+    def _trusted_cached_verification(self, vpath: str) -> dict:
+        """M2 防伪造闸门：P4 已 DONE 时复用缓存前的完整性校验。
+
+        校验两件事：
+        ① 账本哈希链完整（篡改 provenance.jsonl 未重算链即被检出）；
+        ② verification.json 当前内容哈希必须与账本登记的 sha256 一致——
+           预置伪造文件（哪怕 expected_sha 与真实实验产物对齐）无法同时
+           伪造账本登记值而不破坏链。
+        任一不满足即抛 EvidenceError（检测即阻断），绝不静默放行伪 PASS。
+        """
+        chain_problems = self.prov.verify_chain()
+        if chain_problems:
+            raise EvidenceError(
+                f"provenance ledger tampered, cached verification untrusted: "
+                f"{'; '.join(chain_problems)}")
+        if not os.path.exists(vpath):
+            raise EvidenceError(
+                "verification.json missing but P4 marked DONE: "
+                "cached verification untrusted")
+        cur_sha = _sha256_file(vpath)
+        ver_recs = [e for e in self.prov.all_evidence()
+                    if e.get("kind") == "verification"]
+        if not ver_recs:
+            raise EvidenceError(
+                "no verification evidence in ledger but P4 marked DONE: "
+                "cached verification untrusted")
+        if not any(e.get("sha256") == cur_sha for e in ver_recs):
+            raise EvidenceError(
+                "verification.json sha256 mismatch with ledger record: "
+                "cached verification tampered, refusing to trust")
+        with open(vpath, "r", encoding="utf-8") as f:
+            return json.load(f)
 
     # ---------- P5 报告 ----------
 
