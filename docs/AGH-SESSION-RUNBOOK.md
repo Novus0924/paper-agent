@@ -67,6 +67,39 @@ $AGH doctor provider --probe         # 【实测】预期 ✓ verified
 
 ---
 
+## 第 0.5 步 · 安装前自查（3 条，30 秒，强烈建议跑）
+
+插件装坏的最常见原因是 **manifest 与实际文件不一致**，AGH 只在 `package add`
+时才暴露，而那时你已经卡在交互确认界面里了。花 30 秒先自查：
+
+```bash
+cd /d/workBubbyStore/hks/paper-agent
+
+# ① manifest 的 files 字段声明的文件是否都真实存在
+node -e "const fs=require('fs'),p='./plugins/paper-agent-tools/';
+const m=JSON.parse(fs.readFileSync(p+'package.json','utf8'));
+for(const f of m.files) console.log((fs.existsSync(p+f)?'  OK  ':'  MISSING  ')+f);
+console.log('  目录实际: '+fs.readdirSync(p).join(', '));"
+
+# ② 插件能否正常注册（语法 + manifest 形状）
+node -e "import('./plugins/paper-agent-tools/index.mjs').then(m=>{const t=[];
+m.paperAgentTools.apply({extension:()=>({registerTool:x=>t.push(x.name)})});
+console.log('  注册 '+t.length+' 个工具');});"
+
+# ③ inspect 能否通过（只读，不安装）
+node D:/agnes-harness-main/packages/cli/dist/local/agnes.mjs \
+  package inspect "file:./plugins/paper-agent-tools"
+```
+
+**期望**：① 三个文件都 `OK`；② `注册 10 个工具`；③ 打印 Preview + integrity，
+**只剩 provenance 未独立验证那一条警告**（本地包必然如此，不是问题）。
+
+> 真实教训：2026-10-03 安装前自查发现 `files` 声明了 `README.md` 但文件不存在
+> （原作者那份在错误路径 `plugins/paper-tools/`，且描述的是从未实现的工具），
+> 同时 `description` 还写着过时的 "7 tools"。**先自查再安装，别等卡在确认框里才发现。**
+
+---
+
 ## 第 1 步 · inspect（只读，先看清单）
 
 ```bash
@@ -78,20 +111,25 @@ $AGH package inspect "file:./plugins/paper-agent-tools"
 
 ```
 Preview paper-agent-tools@0.1.0
-integrity sha256-42c2a7dd5137790dec55da29b5b8f0ef9b8985a49a527fc2629a41208f201c2b
+integrity sha256-3b308d3b41a0d3011043c67dd3030dc9782befd302b37be4df067daa90e89586
 contributions none
 warnings Package provenance has not been independently verified.
 Installation will remain disabled and untrusted.
 ```
 
+> ⚠️ **integrity 每次改插件都会变**。上面这个值是 2026-10-03 补齐 `README.md`
+> 之后实测的；你自己的输出才是准的（`index.mjs`、`package.json`、插件目录里
+> 任何文件一改都会变）。
+
 要点：
 
+- **仓库里只有一个插件目录**：`plugins/paper-agent-tools/`。
+  历史上曾有一个 `plugins/paper-tools/`（只含一份描述未实现工具的 README 存根，
+  零代码、全仓库无人引用），**已删除**。若你看到它，说明 checkout 的是旧提交。
 - **必须用相对 `./` 形式**；绝对路径 `file:D:\...` 会被 AGH 的 schema 拒绝
   （`ProtocolViolation: Expected union value`）。
-- 上面的 `integrity` 是**我这次实测的值**；你一旦改动 `index.mjs` 或 `package.json`，
-  它会变——**以你自己的输出为准**。
 - 这里**没有 `capabilityHash`**：AGH 只在 packages 声明了 contributions 时才计算并
-  显示它，本插件 `contributions none` 故省略。所以下一步 walk the `add` 输出。
+  显示它，本插件 `contributions none` 故省略。所以下一步从 `add` 的输出里抄。
 
 ---
 
@@ -119,7 +157,7 @@ $AGH package add "file:./plugins/paper-agent-tools"
 $AGH package trust paper-agent-tools <INTEGRITY> <CAPABILITY_HASH>
 ```
 
-- `<INTEGRITY>`：形如 `sha256-42c2a7dd...`（长 71 字符）
+- `<INTEGRITY>`：形如 `sha256-` + 64 位十六进制（共 71 字符）
 - `<CAPABILITY_HASH>`：**64 位十六进制**
 
 【实测】用法确认（不传参时的提示）：

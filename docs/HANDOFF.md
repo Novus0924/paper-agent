@@ -212,12 +212,20 @@ echo "退出码=$?"   # 期望 5
   - `producer` = `bootstrap_rule_v1`（规则式判断），`judgment_batch.count` = 43
 - 数据基线（改数据适配层时用）：599 行 / 562 numeric / 37 上界值 `<x` / 33 空 family / DOI 覆盖 100%（223 唯一）
 - 5 项复现校验：`results_csv_sha256 / n_rows / top3_material_id_set / top3_scores_positional / family_mean_log10_cond`
-- 插件 integrity（**每次改 `index.mjs` / `package.json` 都会变，以实测为准**）：
+- 插件 integrity（**每次改 `index.mjs` / `package.json` / 插件目录任何文件都会变，
+  以实测为准**）：
   ```bash
   cd D:/workBubbyStore/hks/paper-agent
   node D:/agnes-harness-main/packages/cli/dist/local/agnes.mjs package inspect "file:./plugins/paper-agent-tools"
   ```
-  最近一次实测（2026-10-03）：`sha256-4435094409b9af57b2935d36fd770574cbfd3ff0a89df905b59b86cad40c389f`
+  最近一次实测（2026-10-03，补齐插件 `README.md` 之后）：
+  `sha256-3b308d3b41a0d3011043c67dd3030dc9782befd302b37be4df067daa90e89586`
+- **仓库里只有一个插件目录** `plugins/paper-agent-tools/`（10 工具）。
+  原先还有一个 `plugins/paper-tools/`，只含一份描述**未实现**工具的 README 存根，
+  零代码、全仓库无人引用 → **已删除**。
+- **安装前请先跑 `docs/AGH-SESSION-RUNBOOK.md` 的「第 0.5 步 · 安装前自查」**
+  （3 条，30 秒）：manifest 的 `files` 与实际文件是否一致、插件能否注册 10 工具、
+  inspect 是否只剩 provenance 警告。**别等卡在交互确认框里才发现 manifest 有问题。**
 - 反判据结论存档 `evidence/model-judge-comparison.json`（DeepSeek 实测 `model_matters`）
 
 ---
