@@ -8,8 +8,8 @@
 ## 0. 30 秒速览
 
 - **项目**：`paper-agent` —— 基于 **AGH（Agnes Harness）** 的可审计、可复现、可故障恢复的科研 Agent 流水线（JS 薄壳工具 + Python 核心业务 + 确定性实验），用于 2026 江苏省 AI+科学与工程创新实践黑客松。
-- **工程完成度**：阶段 1–6 **全部完成并通过自验证**（单测 **39/39**、端到端 demo、四大故障用例 + 真实进程崩溃/断点续跑用例 E2/E3 + P5 幂等复用 F、审计不变量全 PASS）。
-- **AGH 联调已真实跑通**：插件经交互 TTY 确认安装 + trust + enable，`desired=enabled actual=running trusted=true`；两次真实 `-p` 会话共 21 次 tool/call + 21 次 tool/result，**7 个 sciret_* 工具全部出现**（含 `sciret_resume` 的 kill_after_p2 崩溃恢复演示）。导出在 `evidence/session.jsonl`（首轮）与 `evidence/session-full.jsonl`（崩溃恢复轮，同一 workspace 会话追加）。
+- **工程完成度**：阶段 1–6 **全部完成并通过自验证**（单测 **152/152**、端到端 demo、四大故障用例 + 真实进程崩溃/断点续跑用例 E2/E3 + P5 幂等复用 F + P5 幂等信任门禁 F2、审计不变量全 PASS）。
+- **AGH 联调已真实跑通**：插件经交互 TTY 确认安装 + trust + enable，`desired=enabled actual=running trusted=true`；两次真实 `-p` 会话共 21 次 tool/call + 21 次 tool/result，**7 个 sciret_* 工具全部出现**（含 `sciret_resume` 的 kill_after_p2 崩溃恢复演示）。历史导出文件 `evidence/session.jsonl` / `session-full.jsonl` **未随当前仓库快照交付**（`evidence/` 现仅含 README），可按 README「AGH 联调」节命令重新导出再生成。
 - **红线**：密钥只存 `.env`（gitignore）；所有交付物收敛在 `paper-agent/` 项目目录内；实验数据标注 `as-reported`，严禁伪造。
 
 ---
@@ -80,7 +80,7 @@ paper-agent/
 
 ```bash
 cd C:/Users/ASUS/Desktop/黑客松/paper-agent
-# ① 单元测试（39/39 应全绿）
+# ① 单元测试（152/152 应全绿）
 set PYTHONPATH=C:\Users\ASUS\Desktop\黑客松\paper-agent\core
 python -m unittest discover -s tests -p "test_*.py"
 
@@ -94,7 +94,7 @@ python -m unittest discover -s tests -p "test_*.py"
 node plugins/paper-agent-tools/index.mjs   # 无语法错即通过（真实注册在 AGH 运行时）
 ```
 
-**预期结果**：单测 39/39 OK；demo_e2e 末行 `DEMO_E2E_OK`；demo_failure 末行 `DEMO_FAILURE_OK`（8 passed, 0 failed）。
+**预期结果**：单测 152/152 OK；demo_e2e 末行 `DEMO_E2E_OK`；demo_failure 末行 `DEMO_FAILURE_OK`（8 passed, 0 failed）；`demo/demo_trust.sh <RUN_ID>` 末行 `TRUST_DEMO_OK`（退出码 0，账本篡改与伪造验证双拦截）。
 
 ---
 

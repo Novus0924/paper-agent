@@ -66,7 +66,7 @@ paper-agent/
 ├── demo/
 │   ├── demo_e2e.sh             # 端到端正常流程 + 确定性核验
 │   └── demo_failure.sh         # 四大故障恢复验收用例自动化
-├── tests/                        # unittest/pytest 套件（9 文件，151 用例，默认离线）
+├── tests/                        # unittest/pytest 套件（9 文件，152 用例，默认离线）
 └── audit-pack-template/          # 审计交付包模板
 ```
 
@@ -94,12 +94,14 @@ python -m paper_agent.cli cite --run <RUN_ID> --ev EV-0001
 ```bash
 bash demo/demo_e2e.sh       # 正常路径 + 实验确定性 SHA-256 核验
 bash demo/demo_failure.sh   # 四大故障用例（A 重试 / B 降级 / C resume / D 复现 FAIL）
+bash demo/demo_trust.sh <RUN_ID>  # 信任机制现场演示：账本篡改与伪造验证双双被拦截
 ```
 
 ## 数据来源声明
 
-- `data/literature.json` 内置 5 篇公开真实 DOI 文献（LGPS / Kato 综述 / LLZO /
-  LiPON / Li6PS5X argyrodite），DOI 可在线解析。
+- `data/literature.json` 内置 5 篇公开真实 DOI 文献（Kamaya LGPS / Kato 硫化物全
+  固态电池研究论文 / Murugan LLZO / Bates LiPON / Deiseroth Li6PS5X argyrodite），
+  标题、作者与 DOI 均可在线解析核对。
 - **所有数值均标注 `as‑reported`**，用于黑客松工程演示；**正式科研使用务必核对原始
   论文原文**。严禁伪造实验数据（黑客松直接取消参赛资格行为）。
 
@@ -124,9 +126,15 @@ $AGH -p --cwd "$PWD" "用 sciret_* 完成…流水线"             # 打印模�
 $AGH export <SESSION_ID> --format agnes -o evidence/session-full.jsonl
 ```
 
-联调闸门：会话导出至少 ≥6 条 `tool/call` / `tool/result` 结构化交互记录。
-实测已达 **21 + 21 条，且 7 个 `sciret_*` 工具全部出现**（含 `sciret_resume` 的
-`kill_after_p2` 真实进程崩溃 + 断点续跑演示）；证据见 `evidence/` 与 `audit-pack/`。
+联调闸门：会话导出至少 ≥6 条 `tool/call` / `tool/result` 结构化交互记录；
+历史联调实测 **21 + 21 条，7 个 `sciret_*` 工具全部出现**（含 `sciret_resume` 的
+`kill_after_p2` 真实进程崩溃 + 断点续跑演示）。
+
+**证据文件状态（如实声明）**：`evidence/` 目录当前仅含 README，上述会话导出
+`session.jsonl` / `session-full.jsonl` 未随本仓库快照交付；按上方命令在真实 daemon
+会话后重新导出即可再生成（或按 `demo/demo_agh_session.sh` 全流程重放），导出后经
+`audit-pack-template/build_audit_pack.sh` 归集。评审时若 `evidence/` 缺该文件，
+以 `demo/` 三脚本与本 README 其余命令的现场重放为准。
 
 ## 验收核对清单
 
@@ -139,8 +147,14 @@ $AGH export <SESSION_ID> --format agnes -o evidence/session-full.jsonl
 - [x] 用例 E2/E3 `kill_after_p2`：子进程真实被 `os._exit(137)` 杀死（run-all 与 run-step 双路径），账本完整，resume 续跑到 DONE
 - [x] P5 报告终态幂等复用（重复调用不抛 StateError）
 - [x] report.md 每条结论携带 `[EV-XXXX]` 证据标记；`sciret_cite` 可回查 DOI / SHA-256
-- [x] 单元测试全部通过（151/151，含 14 项安全防御专项测试）
-- [x] AGH 联调：真实会话 21+21 条 tool/call / tool/result，7/7 工具覆盖，证据已导出
+- [x] 单元测试全部通过（152/152，含 14 项安全防御专项测试与 1 项 P5 幂等门禁回归测试）
+- [x] 信任机制现场演示脚本 `demo/demo_trust.sh`：账本篡改 → 报告拒绝；伪造 verification →
+  P4 闸门拒绝（`TRUST_DEMO_OK`，退出码 0）
+- [x] AGH 工具面覆盖双工作流：`sciret_plan` 支持 `--workflow research`，
+  `sciret_run_step` 支持 R1_search..R6_review 六步单步驱动
+- [x] 评审要点逐条证据映射：`docs/评审要点与证据对照映射.md`（含已知缺口诚实声明）
+- [x] AGH 联调方法与闸门就绪（`demo/demo_agh_session.sh` + 插件 7 工具）；会话导出
+  证据未随本仓库快照交付，再生成方式见上方「证据文件状态」声明
 
 ## 合规红线
 

@@ -9,6 +9,9 @@
  *
  * 7 工具：sciret_plan / sciret_run_step / sciret_status / sciret_verify
  *         / sciret_report / sciret_cite / sciret_resume
+ *
+ * sciret_plan 支持 --workflow materials|research：research 工作流为六步
+ * R1_search..R6_review，可继续经 sciret_run_step 单步驱动（同一状态机/账本）。
  */
 
 import { spawn } from "node:child_process";
@@ -152,21 +155,29 @@ function makeRunner(argsOf, timeoutMs) {
 const TOOLS = [
   {
     name: "sciret_plan",
-    description: "Plan a new research pipeline run: create isolated run instance with 5-step state machine and append-only ledgers.",
+    description: "Plan a new pipeline run: create isolated run instance with a step state machine and append-only ledgers. workflow=materials runs P1..P5 (default); workflow=research runs the six-step R1_search..R6_review pipeline.",
     parameters: objectSchema(
-      { goal: str("research goal / query text"), chaos: optStr(CHAOS_DESC) },
+      {
+        goal: str("research goal / query text"),
+        workflow: optStr("materials | research (omit for materials)"),
+        chaos: optStr(CHAOS_DESC),
+      },
       ["goal"],
     ),
     meta: writeMeta("never", 10_000),
-    execute: makeRunner((c) => ["plan", "--goal", c.goal]),
+    execute: makeRunner((c) => {
+      const a = ["plan", "--goal", c.goal];
+      if (c.workflow) a.push("--workflow", c.workflow);
+      return a;
+    }),
   },
   {
     name: "sciret_run_step",
-    description: "Run a single pipeline step P1..P5 for a given run (idempotent reuse for terminal steps).",
+    description: "Run a single pipeline step for a given run (idempotent reuse for terminal steps). materials steps: P1_lit_search|P2_clean_data|P3_run_experiment|P4_verify|P5_report; research steps: R1_search|R2_read|R3_analyze|R4_verify|R5_write|R6_review.",
     parameters: objectSchema(
       {
         run_id: str("run instance id, e.g. run-YYYYMMDD-HHMMSS-xxxxxx"),
-        step: str("P1_lit_search|P2_clean_data|P3_run_experiment|P4_verify|P5_report"),
+        step: str("P1_lit_search|P2_clean_data|P3_run_experiment|P4_verify|P5_report|R1_search|R2_read|R3_analyze|R4_verify|R5_write|R6_review"),
         chaos: optStr(CHAOS_DESC),
       },
       ["run_id", "step"],
