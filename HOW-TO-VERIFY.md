@@ -6,7 +6,7 @@
 
 > 约定：`ROOT` = 项目根目录；`RUN_ID` = 某次 run 实例 id（形如
 > `run-YYYYMMDD-HHMMSS-xxxxxx`）；`SNAP` = 快照 id（形如 `snap-...`）。
->
+> 
 > **两条路径**：默认走**快照主线**（真实数据）；
 > 加 `export PAPER_AGENT_SNAPSHOT=none` 可强制走 **legacy 路径**（内置演示语料）。
 
@@ -302,6 +302,7 @@ tar -czf audit-pack.tar.gz audit-pack
 ```
 
 **机器可校验要点**：
+
 - `provenance.jsonl` 每条含 `ev_id / tier / kind / ref / sha256 / producer_step`
 - `conclusions.jsonl` 每条 `evidence_ids` 必须全部存在**且全部为 fact 级**
 - 快照目录逐文件哈希必须与 `manifest.json` 一致
