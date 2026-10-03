@@ -6,16 +6,11 @@
 """
 from __future__ import annotations
 
-import json
 import os
 
 from .state import PipelineState, RunStatus, StepStatus
 from .provenance import ProvenanceLedger, EvidenceError
-
-
-def _read_json(path: str):
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+from .util import read_json, read_json_or
 
 
 def _ev_ids_by_kind(prov: ProvenanceLedger, kind: str,
@@ -90,10 +85,10 @@ def generate_report(
             + "; ".join(binding_problems))
 
     # ---- 读取真实产物 ----
-    lit = _read_json(os.path.join(run_dir, "literature", "literature_hits.json"))
-    clean_rep = _read_json(os.path.join(run_dir, "clean", "cleaning_report.json"))
-    summary = _read_json(os.path.join(run_dir, "experiment", "results", "summary.json"))
-    verif = _read_json(os.path.join(run_dir, "verification", "verification.json"))
+    lit = read_json(os.path.join(run_dir, "literature", "literature_hits.json"))
+    clean_rep = read_json(os.path.join(run_dir, "clean", "cleaning_report.json"))
+    summary = read_json(os.path.join(run_dir, "experiment", "results", "summary.json"))
+    verif = read_json(os.path.join(run_dir, "verification", "verification.json"))
 
     top3 = summary.get("top3", [])
     top3_txt = ", ".join(
@@ -235,13 +230,6 @@ def generate_report(
 # 不再在此写死 _RESEARCH_STEPS，避免与 state 机器定义漂移。
 
 
-def _rd(path: str, default=None):
-    if not os.path.exists(path):
-        return default if default is not None else {}
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
 def generate_research_report(root: str, run_id: str, state: PipelineState,
                              prov: ProvenanceLedger) -> str:
     """生成科研全流程报告（research 工作流），每条结论绑定真实证据 ID。"""
@@ -264,12 +252,12 @@ def generate_research_report(root: str, run_id: str, state: PipelineState,
     if os.environ.get("PAPER_AGENT_ENFORCE_JUDGMENT", "").strip() == "1":
         prov.require_judgment_batch()
 
-    hits = _rd(os.path.join(run_dir, "literature", "research_hits.json"))
-    read = _rd(os.path.join(run_dir, "reading", "reading_report.json"))
-    innov = _rd(os.path.join(run_dir, "analysis", "innovations.json"))
-    gaps = _rd(os.path.join(run_dir, "analysis", "gaps.json"))
-    fc = _rd(os.path.join(run_dir, "factcheck", "factcheck.json"))
-    revj = _rd(os.path.join(run_dir, "review", "review.json"))
+    hits = read_json_or(os.path.join(run_dir, "literature", "research_hits.json"))
+    read = read_json_or(os.path.join(run_dir, "reading", "reading_report.json"))
+    innov = read_json_or(os.path.join(run_dir, "analysis", "innovations.json"))
+    gaps = read_json_or(os.path.join(run_dir, "analysis", "gaps.json"))
+    fc = read_json_or(os.path.join(run_dir, "factcheck", "factcheck.json"))
+    revj = read_json_or(os.path.join(run_dir, "review", "review.json"))
 
     n_hits = hits.get("n_hits", 0)
     unavail = hits.get("unavailable_sources", []) or []

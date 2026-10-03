@@ -36,6 +36,7 @@ from .provenance import ProvenanceLedger
 from . import chaos
 from .chaos import TransientError, PermanentError
 from . import litsearch, pdfparse, analyze, factcheck, writing, review as review_mod
+from .util import read_json, write_json, write_text
 
 DEFAULT_READ_LIMIT = 3
 MAX_ATTEMPTS = 3
@@ -54,24 +55,6 @@ def _read_limit() -> int:
 
 def _now_hhmmss() -> str:
     return time.strftime("%H%M%S", time.gmtime())
-
-
-def _write_json(path: str, obj) -> None:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8", newline="") as f:
-        json.dump(obj, f, ensure_ascii=False, indent=2, sort_keys=True)
-        f.write("\n")
-
-
-def _read_json(path: str):
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def _write_text(path: str, text: str) -> None:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8", newline="") as f:
-        f.write(text)
 
 
 # =====================================================================
@@ -218,7 +201,7 @@ class ResearchPipeline:
         while os.path.exists(path):
             path = os.path.join(tc_dir, f"{base}_{i}.json")
             i += 1
-        _write_json(path, {
+        write_json(path, {
             "step": step, "tool": fn,
             "invoked_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "input": input_obj, "output": output_obj,
@@ -261,7 +244,7 @@ class ResearchPipeline:
         query_used = ""
 
         if os.path.exists(snapshot_path):
-            snap = _read_json(snapshot_path)
+            snap = read_json(snapshot_path)
             docs = snap.get("documents", [])
             sources_status = snap.get("sources_status", {})
             unavailable = snap.get("unavailable_sources", [])
@@ -303,7 +286,7 @@ class ResearchPipeline:
                 note = f"fallback_local:{type(e).__name__}"
 
         if source != "local" and note == "online":
-            _write_json(snapshot_path, {
+            write_json(snapshot_path, {
                 "goal": goal, "query": query_used, "source": "multi",
                 "endpoints": {"arxiv": litsearch.ARXIV_API,
                               "semantic_scholar": litsearch.SEMANTIC_SCHOLAR_API,
@@ -315,7 +298,7 @@ class ResearchPipeline:
             })
 
         out_path = os.path.join(lit_dir, "research_hits.json")
-        _write_json(out_path, {
+        write_json(out_path, {
             "goal": goal, "source": source, "query": query_used, "note": note,
             "sources_status": sources_status,
             "unavailable_sources": unavailable,
@@ -384,7 +367,7 @@ class ResearchPipeline:
         self._check_deps(sid)
         self.state.mark_step_running(sid)
         hits_path = self._out("literature", "research_hits.json")
-        hits = _read_json(hits_path)["hits"] if os.path.exists(hits_path) else []
+        hits = read_json(hits_path)["hits"] if os.path.exists(hits_path) else []
         limit = _read_limit()
         selected = hits[:limit]
         pdf_dir = self._out("reading", "pdfs")
@@ -427,7 +410,7 @@ class ResearchPipeline:
                 npath = os.path.join(
                     notes_dir,
                     f"{re.sub(r'[^A-Za-z0-9]+', '_', doc.get('doc_id') or str(idx))}.json")
-                _write_json(npath, note)
+                write_json(npath, note)
                 note["_path"] = npath
                 if note.get("status") == "scanned" or note.get("confidence") == "low":
                     scanned += 1
@@ -446,7 +429,7 @@ class ResearchPipeline:
             "max_reads": limit,
         }
         rep_path = self._out("reading", "reading_report.json")
-        _write_json(rep_path, report)
+        write_json(rep_path, report)
 
         ev_ids = []
         for n in notes:
@@ -496,14 +479,14 @@ class ResearchPipeline:
         innov_path = self._out("analysis", "innovations.json")
         gap_path = self._out("analysis", "gaps.json")
         tl_path = self._out("analysis", "timeline.json")
-        _write_json(innov_path, {"targets": innovations,
+        write_json(innov_path, {"targets": innovations,
                                  "n_total": sum(i["n_innovations"] for i in innovations)})
-        _write_json(gap_path, gaps)
-        _write_json(tl_path, timeline)
-        _write_text(self._out("analysis", "innovations.md"),
+        write_json(gap_path, gaps)
+        write_json(tl_path, timeline)
+        write_text(self._out("analysis", "innovations.md"),
                     "\n\n".join(analyze.render_innovation_md(i) for i in innovations))
-        _write_text(self._out("analysis", "gaps.md"), analyze.render_gap_md(gaps))
-        _write_text(self._out("analysis", "timeline.md"), analyze.render_timeline_md(timeline))
+        write_text(self._out("analysis", "gaps.md"), analyze.render_gap_md(gaps))
+        write_text(self._out("analysis", "timeline.md"), analyze.render_timeline_md(timeline))
 
         ev_i = self.prov.append_evidence(
             kind="analysis", ref=os.path.join("analysis", "innovations.json"),
@@ -550,9 +533,9 @@ class ResearchPipeline:
              "sections": n.get("sections", {})} for n in notes])
 
         fc_path = self._out("factcheck", "factcheck.json")
-        _write_json(fc_path, {"citations": cite, "data_consistency": consist,
+        write_json(fc_path, {"citations": cite, "data_consistency": consist,
                               "contradictions": contra})
-        _write_text(self._out("factcheck", "factcheck.md"),
+        write_text(self._out("factcheck", "factcheck.md"),
                     factcheck.render_factcheck_md(cite, consist, contra))
         ev = self.prov.append_evidence(
             kind="factcheck", ref=os.path.join("factcheck", "factcheck.json"),
@@ -589,10 +572,10 @@ class ResearchPipeline:
         bib_path = self._out("writing", "references.bib")
         ris_path = self._out("writing", "references.ris")
         cite_path = self._out("writing", "citations.json")
-        _write_text(rv_path, rv["markdown"])
-        _write_text(bib_path, bib["bibtex"])
-        _write_text(ris_path, ris)
-        _write_json(cite_path, {"APA": apa, "IEEE": ieee,
+        write_text(rv_path, rv["markdown"])
+        write_text(bib_path, bib["bibtex"])
+        write_text(ris_path, ris)
+        write_json(cite_path, {"APA": apa, "IEEE": ieee,
                                 "n_entries": bib["n_entries"],
                                 "missing_field_warnings": bib["warnings"]})
 
@@ -627,7 +610,7 @@ class ResearchPipeline:
         docs = self._hits()
         analyses = self._load_analysis().get("targets", [])
         gaps = self._load_gaps()
-        fc = _read_json(self._out("factcheck", "factcheck.json"))
+        fc = read_json(self._out("factcheck", "factcheck.json"))
         with open(self._out("writing", "review.md"), "r", encoding="utf-8") as fh:
             review_md = fh.read()
 
@@ -635,9 +618,9 @@ class ResearchPipeline:
                                       max_iters=3)
         final = loop["final"]
         out_path = self._out("review", "review_report.md")
-        _write_text(out_path, review_mod.render_review_md(final))
+        write_text(out_path, review_mod.render_review_md(final))
         json_path = self._out("review", "review.json")
-        _write_json(json_path, {"final": final, "history": loop["history"],
+        write_json(json_path, {"final": final, "history": loop["history"],
                                 "converged": loop["converged"],
                                 "iterations": loop["iterations"]})
 
@@ -669,29 +652,29 @@ class ResearchPipeline:
 
     def _hits(self) -> list[dict]:
         p = self._out("literature", "research_hits.json")
-        return _read_json(p)["hits"] if os.path.exists(p) else []
+        return read_json(p)["hits"] if os.path.exists(p) else []
 
     def _load_r2_result(self) -> dict:
         """从磁盘重建 R2 结果（跨进程 resume 时内存态不可用）。"""
         rep_path = self._out("reading", "reading_report.json")
-        report = _read_json(rep_path) if os.path.exists(rep_path) else {}
+        report = read_json(rep_path) if os.path.exists(rep_path) else {}
         notes_dir = self._out("reading", "notes")
         notes = []
         if os.path.isdir(notes_dir):
             for fn in sorted(os.listdir(notes_dir)):
                 if fn.endswith(".json"):
-                    n = _read_json(os.path.join(notes_dir, fn))
+                    n = read_json(os.path.join(notes_dir, fn))
                     n["_path"] = os.path.join(notes_dir, fn)
                     notes.append(n)
         return {"notes": notes, "failures": report.get("failures", []), "report": report}
 
     def _load_analysis(self) -> dict:
         p = self._out("analysis", "innovations.json")
-        return _read_json(p) if os.path.exists(p) else {"targets": []}
+        return read_json(p) if os.path.exists(p) else {"targets": []}
 
     def _load_gaps(self) -> dict:
         p = self._out("analysis", "gaps.json")
-        return _read_json(p) if os.path.exists(p) else {"gaps": [], "n_gaps": 0}
+        return read_json(p) if os.path.exists(p) else {"gaps": [], "n_gaps": 0}
 
     # ---------- 编排协议（与材料流水线一致）----------
 

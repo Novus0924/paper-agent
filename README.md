@@ -35,17 +35,30 @@ paper-agent/
 ├── plugins/paper-agent-tools/   # AGH 扩展：7 科研工具（JS 薄壳）
 │   ├── package.json
 │   └── index.mjs
-├── core/paper_agent/            # Python 核心业务（零第三方依赖）
+├── core/paper_agent/            # Python 核心业务（25 模块，零第三方依赖）
 │   ├── __init__.py              #   根路径探测 PAPER_AGENT_ROOT
-│   ├── state.py                 #   有限状态机 + run 生命周期 + 状态持久化
-│   ├── provenance.py            #   证据账本 + 结论‑证据绑定 + 引文渲染
-│   ├── chaos.py                 #   故障注入（重试/降级/校验失败场景）
-│   ├── steps.py                 #   五步 P1-P5 调度 + 重试‑降级 + 工具调用留痕
+│   ├── util.py                  #   共享 IO/哈希工具（全项目唯一实现）
+│   ├── security_scan.py         #   安全防御：run_id 白名单校验 + 提示注入检测
+│   ├── state.py                 #   有限状态机 + run 生命周期 + 状态持久化（双工作流）
+│   ├── provenance.py            #   三级证据账本（fact/judgment）+ 哈希链防篡改 + 结论绑定
+│   ├── chaos.py                 #   故障注入（重试/降级/校验失败/进程崩溃场景）
+│   ├── steps.py                 #   materials 五步 P1-P5 调度 + 重试‑降级 + 工具留痕
+│   ├── research.py              #   research 六步 R1-R6 科研流水线（检索→精读→拆解→验证→写作→评审）
+│   ├── litsearch.py             #   多源学术检索（arXiv/S2/OpenAlex/CrossRef）+ 注入标记
+│   ├── pdfparse.py              #   零依赖 PDF 解析（文本层/OCR 降级，失败原因留痕）
+│   ├── analyze.py               #   创新点拆解 / 技术脉络 / Research Gap
+│   ├── factcheck.py             #   事实验证（引用/数据一致性/矛盾检测）
+│   ├── writing.py / review.py   #   综述写作 + 模拟自评审
+│   ├── evaluate.py              #   F-7 量化评估（P/R/NDCG + 基线对比 + 混淆矩阵）
+│   ├── judge.py                 #   可插拔判断器（RuleJudge / ModelJudge + 反判据对比）
+│   ├── freezing.py / snapshot.py / sources.py / anomaly.py / llm.py
+│   │                            #   冻结快照三段式 / 快照留证 / 检索源 / 领域异常 / LLM 传输
+│   ├── materials_snapshot.py    #   novus 冻结快照版 materials 流水线（可切换保留）
 │   ├── verify.py                #   P4 复现验证器（递归容差比对）
-│   ├── report.py                #   P5 报告生成（从真实产物提取数据）
-│   └── cli.py                   #   命令行统一入口，JSON 标准化输出
+│   ├── report.py                #   P5 报告生成（账本完整性运行时门禁 + 双工作流章节）
+│   └── cli.py                   #   命令行统一入口（19 子命令），JSON 标准化输出
 ├── experiments/
-│   └── arrhenius_rank.py        # 零依赖确定性实验脚本（电导率打分排序）
+│   └── arrhenius_rank.py        # 零依赖确定性实验脚本（电导率打分排序；自包含不经 util）
 ├── data/
 │   ├── literature.json          # 内置真实 DOI 文献语料库（5 篇）
 │   └── conductivity_raw.csv     # 带缺陷原始实验数据集（utf-8 BOM）
@@ -53,7 +66,7 @@ paper-agent/
 ├── demo/
 │   ├── demo_e2e.sh             # 端到端正常流程 + 确定性核验
 │   └── demo_failure.sh         # 四大故障恢复验收用例自动化
-├── tests/                        # unittest 套件（4 文件，39 用例）
+├── tests/                        # unittest/pytest 套件（9 文件，151 用例，默认离线）
 └── audit-pack-template/          # 审计交付包模板
 ```
 
@@ -126,7 +139,7 @@ $AGH export <SESSION_ID> --format agnes -o evidence/session-full.jsonl
 - [x] 用例 E2/E3 `kill_after_p2`：子进程真实被 `os._exit(137)` 杀死（run-all 与 run-step 双路径），账本完整，resume 续跑到 DONE
 - [x] P5 报告终态幂等复用（重复调用不抛 StateError）
 - [x] report.md 每条结论携带 `[EV-XXXX]` 证据标记；`sciret_cite` 可回查 DOI / SHA-256
-- [x] 单元测试全部通过（39/39）
+- [x] 单元测试全部通过（151/151，含 14 项安全防御专项测试）
 - [x] AGH 联调：真实会话 21+21 条 tool/call / tool/result，7/7 工具覆盖，证据已导出
 
 ## 合规红线

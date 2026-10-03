@@ -21,6 +21,8 @@ import json
 import os
 import re
 
+from .util import sha256_file
+
 
 class EvidenceError(RuntimeError):
     pass
@@ -48,13 +50,10 @@ def _tier_of_kind(kind: str) -> str:
 
 
 def _sha256_file(path: str) -> str:
+    """证据文件哈希：缺失抛域错误 EvidenceError（区别于裸 FileNotFoundError）。"""
     if not os.path.exists(path):
         raise EvidenceError(f"evidence file missing: {path}")
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(65536), b""):
-            h.update(chunk)
-    return h.hexdigest()
+    return sha256_file(path)
 
 
 # ---- 账本哈希链（M3：防篡改检测）----
@@ -80,6 +79,7 @@ class ProvenanceLedger:
         self.conclusions_path = os.path.join(run_dir, "conclusions.jsonl")
         self._ev_index: dict[str, dict] = {}
         self._chain_hash = _CHAIN_ZERO
+        self._next_num = 1
         self._load_existing()
 
     def _load_existing(self) -> None:
@@ -95,11 +95,18 @@ class ProvenanceLedger:
                 # 推进哈希链到已持久化记录的链尾（旧记录无 chain_hash 则不推进）
                 if rec.get("chain_hash"):
                     self._chain_hash = rec["chain_hash"]
+        self._next_num = self._recompute_next_num()
+
+    def _recompute_next_num(self) -> int:
+        """从已加载索引重算下一个 ev 序号（仅 load 时 O(n) 一次）。"""
+        nums = [int(re.sub(r"\D", "", k)) for k in self._ev_index
+                if k.startswith("EV-")]
+        return (max(nums) + 1) if nums else 1
 
     @property
     def next_ev_num(self) -> int:
-        nums = [int(re.sub(r"\D", "", k)) for k in self._ev_index if k.startswith("EV-")]
-        return (max(nums) + 1) if nums else 1
+        """下一个证据序号（缓存值；append 时 O(1) 递增，避免每次全表重算）。"""
+        return self._next_num
 
     def append_evidence(
         self,
@@ -154,7 +161,8 @@ class ProvenanceLedger:
                 meta: dict | None, file_path: str | None) -> str:
         """统一落盘：分配 ev_id、计算文件哈希与链哈希、append-only 写入。"""
         sha = _sha256_file(file_path) if file_path else ""
-        ev_id = f"EV-{self.next_ev_num:04d}"
+        ev_id = f"EV-{self._next_num:04d}"
+        self._next_num += 1
         rec = {
             "ev_id": ev_id,
             "tier": tier,

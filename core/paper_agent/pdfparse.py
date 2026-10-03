@@ -249,10 +249,21 @@ def ocr_available() -> bool:
     return shutil.which("tesseract") is not None and shutil.which("pdftoppm") is not None
 
 
-def try_ocr(pdf_path: str, out_dir: str | None = None) -> str | None:
-    """尝试 OCR：``pdftoppm`` 转图 + ``tesseract`` 识别。不可用/失败返回 None。"""
+def try_ocr_with_reason(pdf_path: str,
+                        out_dir: str | None = None) -> tuple[str | None, str]:
+    """尝试 OCR 并返回 ``(文本|None, 原因说明)``。
+
+    可观测性整改：原实现把"工具缺失 / 执行失败 / 无文本产出"三类失败一律
+    吞成 ``None``，上层只能写出误导性的统一 warning（"未检测到 tesseract"），
+    审计时无法区分根因。现在原因随结果一并返回：
+
+    - ``ocr_tools_unavailable``  pdftoppm / tesseract 未安装
+    - ``ocr_failed:<ExcName>``   工具存在但执行异常（超时/转换失败等）
+    - ``ocr_no_text_output``     工具执行成功但未识别出文本
+    - ``ok``                     成功
+    """
     if not ocr_available():
-        return None
+        return None, "ocr_tools_unavailable"
     out_dir = out_dir or os.path.dirname(os.path.abspath(pdf_path))
     try:
         os.makedirs(out_dir, exist_ok=True)
@@ -267,9 +278,20 @@ def try_ocr(pdf_path: str, out_dir: str | None = None) -> str | None:
                                    capture_output=True, text=True, timeout=120)
                 if r.returncode == 0 and r.stdout.strip():
                     chunks.append(r.stdout.strip())
-        return "\n\n".join(chunks) if chunks else None
-    except Exception:
-        return None
+        if not chunks:
+            return None, "ocr_no_text_output"
+        return "\n\n".join(chunks), "ok"
+    except Exception as e:  # noqa: BLE001 —— OCR 属可选增强路径，失败必须降级而非中断
+        return None, f"ocr_failed:{type(e).__name__}"
+
+
+def try_ocr(pdf_path: str, out_dir: str | None = None) -> str | None:
+    """尝试 OCR：``pdftoppm`` 转图 + ``tesseract`` 识别。不可用/失败返回 None。
+
+    需要失败根因做审计留痕时，请改用 ``try_ocr_with_reason``。
+    """
+    text, _ = try_ocr_with_reason(pdf_path, out_dir)
+    return text
 
 
 # =====================================================================
@@ -426,7 +448,10 @@ def parse_pdf_bytes(pdf_bytes: bytes, doc_id: str = "<memory>",
     ocr_used = False
 
     if not ext["has_text_layer"]:
-        ocr_text = try_ocr(ocr_source_path, out_dir) if ocr_source_path else None
+        if ocr_source_path:
+            ocr_text, ocr_reason = try_ocr_with_reason(ocr_source_path, out_dir)
+        else:
+            ocr_text, ocr_reason = None, "no_ocr_source"
         if ocr_text:
             text = ocr_text
             note["extractor"] = "ocr:tesseract"
@@ -435,9 +460,11 @@ def parse_pdf_bytes(pdf_bytes: bytes, doc_id: str = "<memory>",
         else:
             note["status"] = "scanned"
             note["confidence"] = "low"
+            # 原因精确归因（可观测性整改）：不再把"工具缺失/执行失败/无产出/
+            # 未提供 OCR 源"混写为"未检测到 tesseract"。
             note["warnings"].append(
-                "该 PDF 为扫描件（无可提取文本层），OCR 路径不可用（未检测到 tesseract）；"
-                "未提取到正文文本，解析置信度低")
+                f"该 PDF 为扫描件（无可提取文本层），OCR 未能取得文本"
+                f"（原因={ocr_reason}）；未提取到正文文本，解析置信度低")
             note["language"] = detect_language(text)
             note["text"] = text
             note["sections"] = split_sections(text)

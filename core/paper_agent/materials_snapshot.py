@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import csv
-import hashlib
 import json
 import os
 import re
@@ -28,6 +27,7 @@ from .chaos import TransientError
 from . import verify as verify_mod
 from . import sources
 from . import snapshot as snapshot_mod
+from .util import sha256_file, write_csv, write_json
 
 MAX_ATTEMPTS = 3
 BACKOFF = [1, 2]  # seconds
@@ -40,30 +40,6 @@ _STOP = {"the", "a", "an", "and", "or", "of", "in", "on", "for", "to",
 
 def _now_hhmmss() -> str:
     return time.strftime("%H%M%S", time.gmtime())
-
-
-def _sha256_file(path: str) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(65536), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-
-def _write_json(path: str, obj) -> None:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8", newline="") as f:
-        json.dump(obj, f, ensure_ascii=False, indent=2, sort_keys=True)
-        f.write("\n")
-
-
-def _write_csv(path: str, fieldnames: list[str], rows: list[dict]) -> None:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8-sig", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=fieldnames)
-        w.writeheader()
-        for r in rows:
-            w.writerow(r)
 
 
 def _tokenize(text: str) -> list[str]:
@@ -95,7 +71,7 @@ class Pipeline:
         while os.path.exists(path):
             path = os.path.join(tc_dir, f"{base}_{i}.json")
             i += 1
-        _write_json(path, {
+        write_json(path, {
             "step": step,
             "tool": fn,
             "invoked_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -130,7 +106,7 @@ class Pipeline:
 
         out_path = os.path.join(self.root, "runs", self.run_id, "literature",
                                 "literature_hits.json")
-        _write_json(out_path, {
+        write_json(out_path, {
             "goal": goal,
             "n_hits": len(hits),
             "degraded": full_corpus,
@@ -234,7 +210,7 @@ class Pipeline:
         hits = literature.get("hits", [])
         out_path = os.path.join(self.root, "runs", self.run_id, "literature",
                                 "literature_hits.json")
-        _write_json(out_path, {
+        write_json(out_path, {
             "goal": self.state.goal,
             "snapshot_id": snap.snapshot_id,
             "snapshot_content_sha256": manifest.get("content_sha256"),
@@ -378,7 +354,7 @@ class Pipeline:
         clean_path = os.path.join(self.root, "runs", self.run_id, "clean",
                                   "conductivity_clean.csv")
         clean_rows = [{k: r.get(k, "") for k in clean_fields} for r in out_rows]
-        _write_csv(clean_path, clean_fields, clean_rows)
+        write_csv(clean_path, clean_fields, clean_rows)
 
         report = {
             "input_rows": in_n,
@@ -388,7 +364,7 @@ class Pipeline:
         }
         rep_path = os.path.join(self.root, "runs", self.run_id, "clean",
                                 "cleaning_report.json")
-        _write_json(rep_path, report)
+        write_json(rep_path, report)
 
         ev_data = self.prov.append_evidence(
             kind="data", ref=clean_path, producer_step="P2_clean_data",
@@ -516,7 +492,7 @@ class Pipeline:
 
         clean_path = os.path.join(self.root, "runs", self.run_id, "clean",
                                   "materials_clean.csv")
-        _write_csv(clean_path, self.CLEAN_COLUMNS, clean)
+        write_csv(clean_path, self.CLEAN_COLUMNS, clean)
 
         counts: dict[str, int] = {}
         for a in actions:
@@ -540,11 +516,11 @@ class Pipeline:
         }
         rep_path = os.path.join(self.root, "runs", self.run_id, "clean",
                                 "cleaning_report.json")
-        _write_json(rep_path, report)
+        write_json(rep_path, report)
 
         exc_path = os.path.join(self.root, "runs", self.run_id, "clean",
                                 "excluded_rows.json")
-        _write_json(exc_path, {
+        write_json(exc_path, {
             "note": "行被排除出排序计算，但保留留证（不静默丢弃）",
             "n_excluded": len(excluded),
             "rows": excluded,
@@ -630,25 +606,25 @@ class Pipeline:
             ref=os.path.join("experiment", "results", "results.csv"),
             producer_step="P3_run_experiment",
             file_path=required[0],
-            meta={"sha256": _sha256_file(required[0])},
+            meta={"sha256": sha256_file(required[0])},
         )
         ev_fig = self.prov.append_evidence(
             kind="figure",
             ref=os.path.join("experiment", "figures", "fig1_conductivity.svg"),
             producer_step="P3_run_experiment",
             file_path=required[2],
-            meta={"sha256": _sha256_file(required[2])},
+            meta={"sha256": sha256_file(required[2])},
         )
         with open(required[1], "r", encoding="utf-8") as f:
             summary = json.load(f)
         self._toolcall("P3_run_experiment", "sciret_run_step",
                        {"input": clean_csv, "outdir": exp_dir, "seed": 0},
                        {"rc": rc, "top3": [t["material_id"] for t in summary.get("top3", [])],
-                        "results_sha256": _sha256_file(required[0])})
+                        "results_sha256": sha256_file(required[0])})
         self.state.mark_step_done(sid, {"rc": rc,
-                                        "results_sha256": _sha256_file(required[0])})
+                                        "results_sha256": sha256_file(required[0])})
         return {"failed": False, "exp_dir": exp_dir,
-                "results_sha256": _sha256_file(required[0]),
+                "results_sha256": sha256_file(required[0]),
                 "summary": summary,
                 "evidence": [ev_exp, ev_fig]}
 
@@ -673,7 +649,7 @@ class Pipeline:
         # 原 P3 实验的 summary（作为 expected）
         orig_summary_path = os.path.join(exp_dir, "results", "summary.json")
         orig_results_path = os.path.join(exp_dir, "results", "results.csv")
-        expected_sha = _sha256_file(orig_results_path)
+        expected_sha = sha256_file(orig_results_path)
         with open(orig_summary_path, "r", encoding="utf-8") as f:
             expected_summary = json.load(f)
 
@@ -689,7 +665,7 @@ class Pipeline:
         else:
             with open(rerun_summary_path, "r", encoding="utf-8") as f:
                 actual_summary = json.load(f)
-            actual_sha = _sha256_file(rerun_results_path)
+            actual_sha = sha256_file(rerun_results_path)
             status, checks = verify_mod.build_checks(
                 expected_sha, actual_sha, expected_summary, actual_summary)
             _ = actual_sha
@@ -697,7 +673,7 @@ class Pipeline:
         vpath = verify_mod.write_verification(
             os.path.join(self.root, "runs", self.run_id),
             status, checks,
-            _sha256_file(rerun_results_path) if os.path.exists(rerun_results_path) else "")
+            sha256_file(rerun_results_path) if os.path.exists(rerun_results_path) else "")
 
         ev_v = self.prov.append_evidence(
             kind="verification", ref=vpath, producer_step="P4_verify",

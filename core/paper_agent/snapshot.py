@@ -28,6 +28,8 @@ import re
 import secrets
 import time
 
+from .util import sha256_file
+
 SNAPSHOT_DIRNAME = "snapshots"
 
 MATERIALS_FILE = "materials.csv"
@@ -61,14 +63,6 @@ def snapshot_dir(root: str, snapshot_id: str) -> str:
 
 def _sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
-
-
-def _sha256_file(path: str) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(65536), b""):
-            h.update(chunk)
-    return h.hexdigest()
 
 
 def _write_bytes(path: str, data: bytes) -> None:
@@ -213,7 +207,7 @@ class Snapshot:
             if not os.path.exists(p):
                 problems.append(f"file missing: {name}")
                 continue
-            actual[name] = _sha256_file(p)
+            actual[name] = sha256_file(p)
             if name in declared and declared[name] != actual[name]:
                 problems.append(
                     f"hash mismatch: {name} "

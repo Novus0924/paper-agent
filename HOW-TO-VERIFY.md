@@ -147,7 +147,7 @@ PY
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py"
-# 期望：Ran 36 tests ... OK
+# 期望：Ran 151 tests ... OK（含 test_security_scan.py 的 14 项安全防御专项用例）
 ```
 
 ---
