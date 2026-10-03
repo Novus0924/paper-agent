@@ -71,3 +71,66 @@ def make_clean_csv(tmp: str) -> str:
         w.writerow(cols)
         w.writerows(rows)
     return p
+
+
+# ---------- 合成 PDF 夹具（零依赖，供精读解析单测离线使用）----------
+
+def make_pdf(content_ops: bytes, compress: bool = True) -> bytes:
+    """构造一份最小可解析 PDF，``content_ops`` 为内容流字节。
+
+    ``compress=True`` 时用 zlib（FlateDecode）压缩，覆盖解压分支。
+    """
+    import zlib
+    if compress:
+        s = zlib.compress(content_ops)
+        filt = b" /Filter /FlateDecode"
+    else:
+        s = content_ops
+        filt = b""
+    objs = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /Contents 4 0 R "
+        b"/Resources << /Font << /F1 5 0 R >> >> >>",
+        b"<< /Length %d%s >>\nstream\n" % (len(s), filt) + s + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    out = bytearray(b"%PDF-1.4\n")
+    for i, o in enumerate(objs, 1):
+        out += b"%d 0 obj\n" % i + o + b"\nendobj\n"
+    out += b"trailer << /Root 1 0 R >>\n%%EOF\n"
+    return bytes(out)
+
+
+# 一份含完整章节结构的论文内容流（用于精读/分析/写作单测）
+PAPER_CONTENT_OPS = b"""BT /F1 12 Tf 72 720 Td
+(Abstract) Tj T*
+(We propose a novel sulfide solid electrolyte with conductivity 3x higher than baseline 1e-3 S/cm.) Tj T*
+(Introduction) Tj T*
+(However, traditional solid electrolytes suffer from low ionic conductivity and poor stability.) Tj T*
+(Method) Tj T*
+(We design a new synthesis route and evaluate on a dataset of 120 samples. Our method improves conductivity.) Tj T*
+(Experiment) Tj T*
+(Results show a 3x improvement over the baseline. Table 1: conductivity of samples ranges 1e-4 to 3e-2.) Tj T*
+(Conclusion) Tj T*
+(In conclusion we find the new electrolyte increases conductivity. Limitation: only tested at 25C.) Tj T*
+(Code is available at https://github.com/example/sulfide and data at https://zenodo.org/record/123.) Tj T*
+ET"""
+
+
+def make_paper_pdf(compress: bool = True) -> bytes:
+    return make_pdf(PAPER_CONTENT_OPS, compress=compress)
+
+
+def make_scanned_pdf() -> bytes:
+    """无文本层的扫描件（仅图像绘制算子）。"""
+    return make_pdf(b"q 1 0 0 1 0 0 cm /Im0 Do Q\n", compress=False)
+
+
+def parse_fixture_pdf(tmp: str) -> dict:
+    """把 PAPER 夹具写成文件并解析为结构化笔记。"""
+    from paper_agent import pdfparse
+    p = os.path.join(tmp, "fixture_paper.pdf")
+    with open(p, "wb") as f:
+        f.write(make_paper_pdf())
+    return pdfparse.parse_paper(p)

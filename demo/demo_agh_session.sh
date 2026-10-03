@@ -49,10 +49,10 @@ read -r -p "输入 CAPABILITY_HASH（preview 的 capabilityHash）: " CAP_HASH
 [ -n "${INTEGRITY:-}" ] && AGH package trust "paper-agent-tools" "$INTEGRITY" "$CAP_HASH" \
   || echo "  (跳过 trust)"
 
-echo "==> [4/6] 启用插件（daemon 加载并注册 10 工具 + 1 Skill）"
+echo "==> [4/6] 启用插件（daemon 加载并注册 17 工具 + 1 Skill）"
 AGH package enable "paper-agent-tools"
 
-echo "==> [5/6] 发起科研会话（模型逐步驱动 10 工具）"
+echo "==> [5/6] 发起科研会话（模型逐步驱动 17 工具）"
 # 主导路径：sciret_plan → sciret_step_driven ×5 → sciret_next → sciret_finish → sciret_cite
 AGH -p --cwd "$PWD" \
   "请使用科研流水线工具完成一个'硫化物固态电解质电导率排序'任务。" \

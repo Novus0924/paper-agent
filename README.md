@@ -6,14 +6,18 @@
 **Agnes Harness（AGH，https://github.com/AgnesAI‑Labs/agnes‑harness）** 作为智能体
 执行底座，通过插件化工具链实现完整科研工作流，所有输出具备证据溯源与机器可校验能力。
 
-> 目标产物：`paper‑agent`，驱动**五步标准化科研流水线**：
-> 文献检索 → 数据清洗 → 真实实验执行 → 复现验证 → 报告汇总；
+> 目标产物：`paper‑agent`，驱动**两条标准化科研流水线**，共用同一套状态机 / 双账本 / 故障恢复：
+> - **`materials`（可复现实验底座）**：文献检索 → 数据清洗 → 真实实验执行 → 复现验证 → 报告汇总（P1–P5）
+> - **`research`（PRD v0.3 科研全流程）**：多源检索 → 论文精读 → 创新点拆解 → 事实验证 → 综述写作 → 自评审（R1–R6）
 > 全链路做到**任务状态可观测、每一条结论可溯源至文献 DOI 或带 SHA‑256 校验的产物文件、
 > 任务失败支持重试 / 降级 / 断点续跑**。
 >
 > **编排主体是 AGH 会话内的大模型**：核心层只暴露**单步**工具，模型必须逐步读取每步
 > 返回的决策上下文（`next_tool_candidates` / `remaining_steps` / `failed_steps`）再决定
 > 下一步调用；`run-all` 仅为确定性兜底路径（非主导），详见「编排模型」一节。
+>
+> **需求对照**：本次按负责人 PRD v0.3 实现「全量核心（P0–P2，不含面板）」，逐条映射见
+> [`docs/PRD-v0.3-需求实现映射.md`](docs/PRD-v0.3-需求实现映射.md)；量化验证（F-7）与三类异常恢复（F-4.8）均已实现并可复现。
 
 ---
 
@@ -25,7 +29,7 @@ Python 里**，而在 AGH 会话内的大模型手中：
 | 路径 | 工具 | 角色 | 说明 |
 | --- | --- | --- | --- |
 | **主导** | `sciret_plan` | 建 run，返回全部步骤 PENDING | 模型发起 |
-| **主导** | `sciret_step_driven` | **执行单步**并返回决策上下文 | 模型逐步调用 ×5 |
+| **主导** | `sciret_step_driven` | **执行单步**并返回决策上下文 | 模型逐步调用 ×5（materials）/ ×6（research） |
 | **主导** | `sciret_next` | 只读：当前进度与候选下一步 | 模型用于决策 |
 | **主导** | `sciret_finish` | 全部终态后收敛 RUNNING→DONE/FAILED | 模型收尾 |
 | 兜底 | `sciret_run_step` / `sciret_resume` | 单步 / 断点续跑 | 故障恢复场景 |
@@ -37,17 +41,23 @@ Python 里**，而在 AGH 会话内的大模型手中：
 真实参与证据由 AGH daemon 原生写出（`~/.agh/data/sessions.db`，含完整信封与 integrity
 哈希链），落地方式与当前进展见 `evidence/AGH-真实会话落地报告.md`。
 
+**两条工作流的工具面（插件共 17 个 `sciret_*`）**：
+
+- 编排与底座（10）：`plan` / `step_driven` / `next` / `finish` / `run_step` / `status` / `verify` / `report` / `cite` / `resume`
+- 科研能力（7）：`search_papers` / `parse_paper` / `analyze` / `factcheck` / `write_review` / `self_review` / `eval`
+- `sciret_plan(goal, workflow="materials"|"research")` 选择工作流（默认 `materials`）。
+
 ---
 
 ## 六层系统架构
 
 ```
 L6 交互层    AGH CLI / Web Workbench / 审计取证导出
-L5 Agent层   AGH 会话内大模型：读取每步决策上下文，**逐步驱动** P1..P5（核心流程编排者）
+L5 Agent层   AGH 会话内大模型：读取每步决策上下文，**逐步驱动** P1..P5 / R1..R6（核心流程编排者）
 L4 记忆层    runs/<run_id>/ 运行产物快照｜state.json 状态｜事件&证据双账本
-L3 可信框架  证据溯源先行｜实验复现验证｜审计出口（导出完整可交付包）
+L3 可信框架  证据溯源先行｜实验复现验证｜量化验证（F-7）｜审计出口（导出完整可交付包）
 L2 Harness层 AGH 原生能力 + paper-agent 核心（有限状态机、事件账本、**单步调度**）
-L1 工具执行层 paper-agent-tools JS 薄壳插件（10 工具 + 1 Skill）→ Python 核心业务 → 实验子进程
+L1 工具执行层 paper-agent-tools JS 薄壳插件（17 工具 + 1 Skill）→ Python 核心业务 → 实验子进程
 ```
 
 数据流单向：`L6 → L5 → L2 → L1`；产物向上回流经 `L3` 登记证据，再写入 `L4`。
@@ -60,7 +70,7 @@ paper-agent/
 ├── HOW-TO-VERIFY.md             # 验收核验操作手册 + 哈希比对命令
 ├── .agh/skills/                 # AGH 工作区 Skill：sciret-research-pipeline（编排规程）
 │   └── sciret-research-pipeline/SKILL.md
-├── plugins/paper-agent-tools/   # AGH 扩展：10 科研工具 + 1 Skill 注册（JS 薄壳）
+├── plugins/paper-agent-tools/   # AGH 扩展：17 科研工具 + 1 Skill 注册（JS 薄壳）
 │   ├── package.json
 │   └── index.mjs
 ├── core/paper_agent/            # Python 核心业务（零第三方依赖）
@@ -71,8 +81,15 @@ paper-agent/
 │   ├── steps.py                 #   五步 P1-P5 **单步驱动** + 决策上下文 + 兜底 run-all
 │   ├── verify.py                #   P4 复现验证器（递归容差比对）
 │   ├── report.py                #   P5 报告生成（证据归属精确到生产步骤）
-│   ├── litsearch.py             #   P1 检索后端：arXiv 公开 API / 本地语料 + 快照冻结
-│   └── cli.py                   #   命令行入口：step-driven / next / finish / run-all …
+│   ├── litsearch.py             #   P1/R1 检索：arXiv / Semantic Scholar / OpenAlex / CrossRef + 去重 + 相关性
+│   ├── pdfparse.py              #   F-2.1 零依赖 PDF 文本抽取 + 结构化精读笔记（+ OCR 降级）
+│   ├── analyze.py               #   F-3.x 创新点拆解 / 技术脉络 / Research Gap
+│   ├── factcheck.py             #   F-4.x 引用核查 / 数据一致性 / 文献矛盾检测
+│   ├── writing.py               #   F-5.x 综述生成（强制引用）/ BibTeX·RIS / 引用格式化
+│   ├── review.py                #   F-6.1 模拟审稿（5 维度）+ 迭代闭环
+│   ├── evaluate.py              #   F-7.x 量化验证（Recall/Precision/NDCG@10/幻觉率/混淆矩阵）
+│   ├── research.py              #   research 工作流编排（R1–R6）+ F-4.8 异常恢复
+│   └── cli.py                   #   命令行入口：step-driven / next / finish / run-all / eval …
 ├── experiments/
 │   └── arrhenius_rank.py        # 零依赖确定性实验脚本（电导率打分 + Arrhenius 外推）
 ├── data/
@@ -87,7 +104,8 @@ paper-agent/
 ├── demo/
 │   ├── demo_e2e.sh             # 端到端正常流程 + 确定性核验
 │   └── demo_failure.sh         # 四大故障恢复验收用例自动化
-├── tests/                        # unittest 套件（6 文件，62 用例，含数据完整性守门）
+├── tests/                        # unittest 套件（14 文件，159 用例，含数据完整性守门与 F-1~F-7 覆盖）
+├── docs/                          # HANDOFF / sources / 数据与 AI 披露 / PRD v0.3 需求实现映射
 └── audit-pack-template/          # 审计交付包模板
 ```
 
@@ -130,6 +148,14 @@ python -m paper_agent.cli report  --run <RUN_ID>
 ```bash
 bash demo/demo_e2e.sh       # 正常路径 + 实验确定性 SHA-256 核验
 bash demo/demo_failure.sh   # 四大故障用例（A 重试 / B 降级 / C resume / D 复现 FAIL）
+
+**方式三：科研全流程（research 工作流，PRD v0.3 R1–R6）**
+
+```bash
+python -m paper_agent.cli plan --goal "sulfide solid electrolyte ionic conductivity" --workflow research
+python -m paper_agent.cli run-all --workflow research --goal "<goal>" --lit-source local
+python -m paper_agent.cli eval        # 量化验证（F-7）：检索/精读/创新点/引用四套指标
+```
 ```
 
 ## 文献检索来源（P1）：不再局限于内置语料
@@ -220,13 +246,75 @@ $AGH export <SESSION_ID> --format agnes -o evidence/session-full.jsonl
 `agnes export <SESSION_ID> --format agnes` 导出。因原始导出含本机绝对路径，按红线不入 git，
 打包时从磁盘归集；打通步骤与当前卡点见 `evidence/AGH-真实会话落地报告.md`。
 
+## 科研全流程工作流（research，PRD v0.3 R1–R6）
+
+`--workflow research`（或 `sciret_plan(goal, workflow="research")`）驱动六步，产物与 materials 同样落进
+`runs/<run_id>/` 并逐条登记证据：
+
+| 步骤 | 名称 | 主要产物 |
+| --- | --- | --- |
+| `R1_search` | 多源检索（arXiv / Semantic Scholar / OpenAlex / CrossRef） | `literature/research_hits.json`（DOI 精确 + 标题/首作者模糊去重，相关性排序） |
+| `R2_read` | 论文精读（零依赖 PDF 文本抽取 + 结构化） | `reading/notes/*.json`（章节 / 关键信息 + locator / 图表 / 可复现性 + 置信度） |
+| `R3_analyze` | 创新点拆解 + 技术脉络 + Research Gap | `analysis/innovations.json` · `timeline.md` · `gaps.json` |
+| `R4_verify` | 事实验证（引用核查 / 数据一致性 / 文献矛盾） | `factcheck/factcheck.json` |
+| `R5_write` | 综述写作（抽取式，强制引用）+ BibTeX/RIS | `writing/review.md` · `references.bib` · `references.ris` |
+| `R6_review` | 自评审（5 维度打分 + 迭代闭环） | `review/review_report.md` |
+
+```bash
+# 端到端（离线确定性，默认走内置语料）
+PYTHONPATH=core python -m paper_agent.cli run-all --workflow research \
+  --goal "sulfide solid electrolyte ionic conductivity" --lit-source local
+# 单点能力（也可经 AGH 会话按 sciret_* 调用）
+PYTHONPATH=core python -m paper_agent.cli search-papers --goal "..." --sources arxiv,openalex,crossref
+PYTHONPATH=core python -m paper_agent.cli parse-paper   --source 2301.12345 --allow-network
+PYTHONPATH=core python -m paper_agent.cli analyze-paper --run <RUN_ID>
+PYTHONPATH=core python -m paper_agent.cli verify-facts  --run <RUN_ID>
+PYTHONPATH=core python -m paper_agent.cli write-review  --run <RUN_ID>
+PYTHONPATH=core python -m paper_agent.cli self-review   --run <RUN_ID>
+```
+
+> **零依赖 PDF 解析**：**不引入 GROBID/PyMuPDF**（红线：仅标准库），自行扫描 `stream…endstream`
+> + `zlib` 解 FlateDecode + 解析内容流文本算子（`Tj`/`TJ`/`'`/`"`）。对 CID/自定义编码字体会给出
+> 低置信度并显式声明；扫描件走 OCR 降级（无 `tesseract` 时标注 `ocr_unavailable`），**绝不假装解析成功**。
+
+## 量化验证（F-7）
+
+`PYTHONPATH=core python -m paper_agent.cli eval` 一次输出四套指标（每套都带 `scale_note`，
+声明为 **demo 规模小样本标注**，用于演示口径与基线对比，不代表真实世界性能）：
+
+| 模块 | 指标 | demo 实测 |
+| --- | --- | --- |
+| F-7.1 检索质量 | Recall / Precision / NDCG@10（含**纯关键词基线**对比） | 系统 Recall 1.000 / NDCG@10 0.987；基线 0.900 / 0.662 |
+| F-7.2 精读质量 | 结构 / 关键信息 / 可复现性准确率 + **人工耗时对比** | 三项 1.000；0.05s/篇 vs 人工 ~900s/篇（参考量级） |
+| F-7.3 创新点 | 识别率 / 分类准确率 / **幻觉率** + 混淆矩阵 | 0.80 / 0.80 / 0.00 |
+| F-7.4 引用可信度 | 引用准确率 / **引用幻觉率** | 1.000 / 0.00（≤5% 达标） |
+
+## 异常恢复（F-4.8 三类场景，均可复现）
+
+| 场景 | chaos 模式 | 期望行为 |
+| --- | --- | --- |
+| ① 外部 API 超时降级 | `ss_timeout` | Semantic Scholar 超时 → 标注不可用并**切源**（arXiv 等），任务不中断，结果标注切源 |
+| ② PDF 解析失败恢复 | `scan_pdf` | 无文本层 → 尝试 OCR → 不可用则标「低质量解析、低置信度」 |
+| ③ 长任务中断恢复 | `batch_fail_at=N` / `kill_after_r3` | 第 N 篇失败**跳过**继续；进程被真实杀死后 `resume` 断点续跑 |
+
+```bash
+for M in ss_timeout scan_pdf batch_fail_at=2 kill_after_r3; do
+  PYTHONPATH=core python -m paper_agent.cli run-all --workflow research \
+    --goal "sulfide solid electrolyte" --lit-source local --chaos "$M"
+done
+PYTHONPATH=core python -m paper_agent.cli resume --run <RUN_ID>   # 崩溃后断点续跑，只跑 PENDING/FAILED
+```
+
+---
+
+
 ## 验收核对清单
 
 - [x] **模型驱动主导路径**：`step-driven` 逐步推进，每步返回决策上下文；`next`/`finish` 收敛；
       **不经模型逐步调用则流水线不自行跑完**（编排主体为 AGH 会话内大模型）
 - [x] AGH Skill `sciret-research-pipeline` 已注册（工作区优先级 500，`resources list` 可发现）
-- [x] 插件共 **10 工具 + 1 Skill**：`plan/run_step/resume/verify/report/cite/status`
-      + `step_driven/next/finish`
+- [x] 插件共 **17 工具 + 1 Skill**：编排 10（`plan/step_driven/next/finish/run_step/status/verify/report/cite/resume`）
+      + 科研能力 7（`search_papers/parse_paper/analyze/factcheck/write_review/self_review/eval`）
 - [x] `run-all` 正常路径：五步全部 DONE，degraded=false，verification PASS（兜底路径）
 - [x] 实验确定性：两次执行 results.csv SHA-256 完全相同
 - [x] 用例 A `p1_fail_first`：重试 1 次，最终 DONE，degraded=false
@@ -242,9 +330,13 @@ $AGH export <SESSION_ID> --format agnes -o evidence/session-full.jsonl
 - [x] **计算挂钩文献**：稳定性由文献活化能导出；新增 Arrhenius σ(60°C) 外推
 - [x] **P1 检索后端可切换**：`local`（内置语料）/ `arxiv`（实时检索 arXiv，结果快照冻结）/
       `auto`（先试 arXiv，不可用自动回落并置 degraded）；引用串按 DOI→URL 回退
-- [x] 单元测试全部通过（**62/62，零 skip**；单测默认 `paper-agent_LIT_SOURCE=local` 强制离线）
+- [x] 单元测试全部通过（**159/159，零 skip**；单测默认 `paper-agent_LIT_SOURCE=local` 强制离线）
 - [x] AGH 联调：真实会话 21+21 条 tool/call / tool/result，7/7 工具覆盖，证据已导出；
       真实信封格式与 integrity 哈希链见 `evidence/AGH-真实会话落地报告.md`
+- [x] **PRD v0.3 科研全流程（research R1–R6）**：多源检索 → 精读 → 创新点/Gap → 事实验证 → 综述（强制引用）→ 自评审，端到端 DONE、degraded=false
+- [x] **量化验证（F-7.1~F-7.4）**：`cli eval` 输出检索/精读/创新点/引用四套指标 + 基线对比 + 混淆矩阵（demo 规模标注）
+- [x] **异常恢复三场景（F-4.8）**：`ss_timeout` 切源 / `scan_pdf` 低置信度降级 / `batch_fail_at` 失败跳过 / `kill_after_r3` 真实崩溃 + resume 续跑
+- [x] **需求逐条映射**：`docs/PRD-v0.3-需求实现映射.md`（含与 PRD 建议方案的全部偏差声明）
 
 ## 合规红线
 

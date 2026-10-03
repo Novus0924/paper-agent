@@ -696,18 +696,36 @@ class Pipeline:
 
 
 def plan_run(root: str, goal: str, chaos_mode: str = "",
-             lit_source: str | None = None) -> PipelineState:
+             lit_source: str | None = None,
+             workflow: str = "materials") -> PipelineState:
     rid = new_run_id()
-    st = create_state(rid, root, goal, lit_source=lit_source)
+    st = create_state(rid, root, goal, lit_source=lit_source, workflow=workflow)
     return st
 
 
 def run_pipeline(root: str, goal: str, chaos_mode: str = "",
-                 lit_source: str | None = None) -> dict:
-    """plan + run-all 一步完成。"""
+                 lit_source: str | None = None,
+                 workflow: str = "materials") -> dict:
+    """plan + run-all 一步完成（按 workflow 分发到对应编排器）。"""
     rid = new_run_id()
-    st = create_state(rid, root, goal, lit_source=lit_source)
-    pipe = Pipeline(root, rid, chaos_mode=chaos_mode)
+    create_state(rid, root, goal, lit_source=lit_source, workflow=workflow)
+    pipe = open_pipeline(root, rid, chaos_mode=chaos_mode)
     out = pipe.run_all()
     out["run_id"] = rid
     return out
+
+
+def open_pipeline(root: str, run_id: str, chaos_mode: str = ""):
+    """按 run 的 workflow 装配对应编排器。
+
+    - ``materials`` → :class:`Pipeline`（本模块，P1..P5）
+    - ``research``  → :class:`~paper_agent.research.ResearchPipeline`（R1..R6）
+
+    采用函数内惰性导入，避免 steps ↔ research 的循环依赖。
+    """
+    st = load_state(run_id, root)
+    wf = getattr(st, "workflow", "materials")
+    if wf == "research":
+        from .research import ResearchPipeline
+        return ResearchPipeline(root, run_id, chaos_mode=chaos_mode)
+    return Pipeline(root, run_id, chaos_mode=chaos_mode)

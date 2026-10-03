@@ -32,8 +32,9 @@ from . import PAPER_AGENT_ROOT, DATA_DIR
 from .state import (
     PipelineState, StepStatus, RunStatus,
     create_state, load_state, new_run_id, STEP_IDS,
+    DEFAULT_WORKFLOW, WORKFLOWS,
 )
-from .steps import Pipeline
+from .steps import Pipeline, open_pipeline
 from .chaos import clear_chaos_mode
 
 
@@ -79,9 +80,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = mk("plan")
     p.add_argument("--goal", required=True)
+    p.add_argument("--workflow", default="", choices=["", "materials", "research"],
+                   help="工作流：materials(默认，材料可复现实验) | research(科研全流程 P0-P2)")
     p.add_argument("--lit-source", default="", dest="lit_source",
                    choices=["", "local", "arxiv", "auto"],
-                   help="P1 文献检索来源：local(默认离线) | arxiv(实时检索) | auto(先试 arxiv 再降级)")
+                   help="P1 检索来源：local(离线) | arxiv(实时) | auto(先试 arxiv 再降级)")
 
     p = mk("status")
     p.add_argument("--run", required=True)
@@ -106,6 +109,8 @@ def build_parser() -> argparse.ArgumentParser:
     p = mk("run-all")
     p.add_argument("--run", default="", help="existing run_id; omit to plan a new one")
     p.add_argument("--goal", default="", help="required when --run omitted")
+    p.add_argument("--workflow", default="", choices=["", "materials", "research"],
+                   help="新 run 的工作流：materials(默认) | research")
     p.add_argument("--lit-source", default="", dest="lit_source",
                    choices=["", "local", "arxiv", "auto"],
                    help="新 run 的 P1 检索来源：local | arxiv | auto")
@@ -123,6 +128,43 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--run", required=True)
     p.add_argument("--ev", default="", help="EV-XXXX; omit to list all evidence")
 
+    # ---- 科研全流程单点工具（research 工作流的能力入口）----
+    p = mk("search-papers")
+    p.add_argument("--goal", required=True)
+    p.add_argument("--sources", default="",
+                   help="逗号分隔：arxiv,semantic_scholar,openalex,crossref；缺省全部")
+    p.add_argument("--max", type=int, default=10, dest="max_results")
+    p.add_argument("--local", action="store_true", help="改用内置语料（离线）")
+
+    p = mk("parse-paper")
+    p.add_argument("--source", required=True, help="本地 PDF 路径 / arXiv ID / DOI")
+    p.add_argument("--allow-network", action="store_true", dest="allow_network")
+    p.add_argument("--out-dir", default="", dest="out_dir")
+
+    p = mk("analyze-paper")
+    p.add_argument("--note", default="", help="精读笔记 json 路径")
+    p.add_argument("--run", default="", help="从某 run 的已精读笔记批量分析")
+    p.add_argument("--out-dir", default="", dest="out_dir")
+
+    p = mk("verify-facts")
+    p.add_argument("--run", default="")
+    p.add_argument("--claims-file", default="", dest="claims_file")
+
+    p = mk("write-review")
+    p.add_argument("--topic", default="")
+    p.add_argument("--run", default="")
+    p.add_argument("--docs-file", default="", dest="docs_file")
+    p.add_argument("--out-dir", default="", dest="out_dir")
+
+    p = mk("self-review")
+    p.add_argument("--run", default="")
+    p.add_argument("--draft", default="")
+    p.add_argument("--docs-file", default="", dest="docs_file")
+
+    p = mk("eval")
+    p.add_argument("--run", default="")
+    p.add_argument("--out-dir", default="", dest="out_dir")
+
     return ap
 
 
@@ -135,23 +177,27 @@ def _root() -> str:
 def cmd_plan(args) -> int:
     rid = new_run_id()
     st = create_state(rid, _root(), args.goal,
-                      lit_source=(args.lit_source or None))
+                      lit_source=(args.lit_source or None),
+                      workflow=getattr(args, "workflow", "") or DEFAULT_WORKFLOW)
     return _emit({"ok": True, "cmd": "plan", "run_id": rid,
                   "run_status": st.run_status.value,
+                  "workflow": st.workflow,
                   "lit_source": st.lit_source,
-                  "steps": {s: st.step_status[s].value for s in STEP_IDS}})
+                  "steps": {s: st.step_status[s].value for s in st.step_ids}})
 
 
 def cmd_status(args) -> int:
     st = load_state(args.run, _root())
     return _emit({"ok": True, "cmd": "status", "run_id": st.run_id,
                   "run_status": st.run_status.value,
-                  "steps": {s: st.step_status[s].value for s in STEP_IDS},
+                  "workflow": st.workflow,
+                  "steps": {s: st.step_status[s].value for s in st.step_ids},
                   "attempts": st.attempts, "degraded": st.degraded})
 
 
-def _pipeline(run_id: str, chaos_mode: str) -> Pipeline:
-    return Pipeline(_root(), run_id, chaos_mode=chaos_mode)
+def _pipeline(run_id: str, chaos_mode: str):
+    """按 run 的 workflow 装配对应编排器（materials / research）。"""
+    return open_pipeline(_root(), run_id, chaos_mode=chaos_mode)
 
 
 def cmd_run_step(args) -> int:
@@ -187,7 +233,8 @@ def cmd_next(args) -> int:
         "cmd": "next",
         "run_id": args.run,
         "run_status": st.run_status.value,
-        "steps": {s: st.step_status[s].value for s in STEP_IDS},
+        "workflow": st.workflow,
+        "steps": {s: st.step_status[s].value for s in st.step_ids},
         "attempts": st.attempts,
         "degraded": st.degraded,
         "remaining_steps": plan,
@@ -220,7 +267,8 @@ def cmd_run_all(args) -> int:
                                "error": "--goal required when --run omitted"}, 2)
         from .steps import run_pipeline
         out = run_pipeline(root, args.goal, chaos_mode=args.chaos,
-                           lit_source=(args.lit_source or None))
+                           lit_source=(args.lit_source or None),
+                           workflow=getattr(args, "workflow", "") or DEFAULT_WORKFLOW)
     out["ok"] = out["run_status"] == "DONE"
     out["cmd"] = "run-all"
     code = 0 if out["ok"] else 1
@@ -239,17 +287,25 @@ def cmd_resume(args) -> int:
 
 def cmd_verify(args) -> int:
     pipe = _pipeline(args.run, args.chaos)
-    res = pipe.run_p4()
+    if getattr(pipe.state, "workflow", "materials") == "research":
+        res = pipe.run_r4()          # research：R4 事实验证
+        res["status"] = "DONE"
+        res["ok"] = True
+    else:
+        res = pipe.run_p4()          # materials：P4 复现验证
+        res["ok"] = res.get("status") == "PASS"
     res["cmd"] = "verify"
     res["run_id"] = args.run
-    res["ok"] = res.get("status") == "PASS"
     code = 0 if res["ok"] else 1
     return _emit_fail(res, code) if code else _emit(res)
 
 
 def cmd_report(args) -> int:
     pipe = _pipeline(args.run, args.chaos)
-    res = pipe.run_p5()
+    if getattr(pipe.state, "workflow", "materials") == "research":
+        res = {"report": pipe.run_report()}
+    else:
+        res = pipe.run_p5()
     res["cmd"] = "report"
     res["run_id"] = args.run
     res["ok"] = "report" in res
@@ -286,6 +342,207 @@ _HANDLERS = {
     "report": cmd_report,
     "cite": cmd_cite,
 }
+
+
+# ---------- 科研全流程单点工具（research）----------
+
+def _read_json_file(path: str):
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _write_json_file(path: str, obj) -> str:
+    os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        json.dump(obj, f, ensure_ascii=False, indent=2, sort_keys=True)
+        f.write("\n")
+    return path
+
+
+def cmd_search_papers(args) -> int:
+    """统一多源检索（PRD F-1.1），不建 run，直接返回结果。"""
+    from . import litsearch
+    sources = [s.strip() for s in args.sources.split(",") if s.strip()] or None
+    if args.local:
+        docs = litsearch.filter_by_relevance(
+            litsearch.load_local_corpus(_root()), args.goal)
+        return _emit({"ok": True, "cmd": "search-papers", "source": "local",
+                      "query": args.goal, "n_documents": len(docs),
+                      "documents": docs})
+    res = litsearch.search_papers(args.goal, sources=sources,
+                                  max_results=args.max_results)
+    res.update({"ok": not res["degraded"], "cmd": "search-papers"})
+    return _emit(res)
+
+
+def cmd_parse_paper(args) -> int:
+    """论文精读（PRD F-2.1）。"""
+    from . import pdfparse
+    note = pdfparse.parse_paper(args.source, allow_network=args.allow_network,
+                               out_dir=(args.out_dir or None))
+    out = dict(note)
+    out.pop("text", None)   # stdout 不塞全文，保持精简
+    out["text_chars"] = len(note.get("text") or "")
+    if args.out_dir:
+        _write_json_file(os.path.join(args.out_dir, "note.json"), note)
+        md_path = os.path.join(args.out_dir, "note.md")
+        os.makedirs(args.out_dir, exist_ok=True)
+        with open(md_path, "w", encoding="utf-8", newline="") as f:
+            f.write(pdfparse.render_note(note))
+        out["note_json"] = os.path.join(args.out_dir, "note.json")
+        out["note_md"] = md_path
+    out.update({"ok": note.get("status") in ("ok", "scanned"), "cmd": "parse-paper"})
+    return _emit(out)
+
+
+def cmd_analyze_paper(args) -> int:
+    """创新点拆解 / Gap（PRD F-3.x）。"""
+    from . import analyze
+    notes = []
+    if args.run:
+        notes_dir = os.path.join(_root(), "runs", args.run, "reading", "notes")
+        if os.path.isdir(notes_dir):
+            for fn in sorted(os.listdir(notes_dir)):
+                if fn.endswith(".json"):
+                    notes.append(_read_json_file(os.path.join(notes_dir, fn)))
+    elif args.note:
+        notes.append(_read_json_file(args.note))
+    else:
+        return _emit_fail({"ok": False, "cmd": "analyze-paper",
+                          "error": "--note or --run required"}, 2)
+
+    targets = [analyze.extract_innovations(n) for n in notes]
+    gaps = analyze.research_gap(notes)
+    result = {"ok": True, "cmd": "analyze-paper",
+              "n_notes": len(notes),
+              "n_innovations": sum(t["n_innovations"] for t in targets),
+              "categories_summary": _merge_cats(targets),
+              "targets": targets, "gaps": gaps}
+    if args.out_dir:
+        _write_json_file(os.path.join(args.out_dir, "innovations.json"),
+                         {"targets": targets})
+        _write_json_file(os.path.join(args.out_dir, "gaps.json"), gaps)
+        os.makedirs(args.out_dir, exist_ok=True)
+        with open(os.path.join(args.out_dir, "innovations.md"), "w",
+                  encoding="utf-8", newline="") as f:
+            f.write("\n\n".join(analyze.render_innovation_md(t) for t in targets))
+    return _emit(result)
+
+
+def _merge_cats(targets: list[dict]) -> dict:
+    out: dict[str, int] = {}
+    for t in targets:
+        for k, v in (t.get("categories_summary") or {}).items():
+            out[k] = out.get(k, 0) + v
+    return out
+
+
+def cmd_verify_facts(args) -> int:
+    """事实验证（PRD F-4.x）。"""
+    from . import factcheck
+    if args.run:
+        pipe = _pipeline(args.run, args.chaos)
+        res = pipe.run_r4()
+        res.update({"ok": True, "cmd": "verify-facts", "run_id": args.run})
+        return _emit(res)
+    if args.claims_file:
+        claims = _read_json_file(args.claims_file)
+        res = factcheck.verify_citations(claims)
+        res.update({"ok": True, "cmd": "verify-facts"})
+        return _emit(res)
+    return _emit_fail({"ok": False, "cmd": "verify-facts",
+                       "error": "--run or --claims-file required"}, 2)
+
+
+def cmd_write_review(args) -> int:
+    """综述写作（PRD F-5.1/F-5.3）。"""
+    from . import writing
+    if args.run:
+        pipe = _pipeline(args.run, args.chaos)
+        res = pipe.run_r5()
+        res.update({"ok": True, "cmd": "write-review", "run_id": args.run})
+        res.pop("ris", None)
+        return _emit(res)
+    if not (args.topic and args.docs_file):
+        return _emit_fail({"ok": False, "cmd": "write-review",
+                          "error": "--topic and --docs-file required without --run"}, 2)
+    docs = _read_json_file(args.docs_file)
+    if isinstance(docs, dict):
+        docs = docs.get("hits") or docs.get("documents") or []
+    rv = writing.generate_review(args.topic, docs)
+    bib = writing.generate_bibtex(docs)
+    out = {"ok": True, "cmd": "write-review", "topic": args.topic,
+           "n_citations": rv["n_citations"], "unsupported": rv["unsupported"],
+           "consistency": rv["consistency"], "bibtex_entries": bib["n_entries"],
+           "review_markdown": rv["markdown"], "bibtex": bib["bibtex"]}
+    if args.out_dir:
+        _write_json_file(os.path.join(args.out_dir, "review.json"), rv)
+        os.makedirs(args.out_dir, exist_ok=True)
+        with open(os.path.join(args.out_dir, "review.md"), "w",
+                  encoding="utf-8", newline="") as f:
+            f.write(rv["markdown"])
+        with open(os.path.join(args.out_dir, "references.bib"), "w",
+                  encoding="utf-8", newline="") as f:
+            f.write(bib["bibtex"])
+    return _emit(out)
+
+
+def cmd_self_review(args) -> int:
+    """模拟自评审（PRD F-6.1）。"""
+    from . import review as review_mod
+    if args.run:
+        pipe = _pipeline(args.run, args.chaos)
+        res = pipe.run_r6()
+        res.update({"ok": True, "cmd": "self-review", "run_id": args.run})
+        return _emit(res)
+    if not (args.draft and args.docs_file):
+        return _emit_fail({"ok": False, "cmd": "self-review",
+                          "error": "--draft and --docs-file required without --run"}, 2)
+    draft = open(args.draft, "r", encoding="utf-8").read()
+    docs = _read_json_file(args.docs_file)
+    if isinstance(docs, dict):
+        docs = docs.get("hits") or docs.get("documents") or []
+    loop = review_mod.review_loop(draft, docs, max_iters=3)
+    out = dict(loop["final"])
+    out.update({"ok": True, "cmd": "self-review", "history": loop["history"],
+                "converged": loop["converged"]})
+    return _emit(out)
+
+
+def cmd_eval(args) -> int:
+    """量化验证（PRD F-7.1~7.4）。"""
+    from . import evaluate
+    reports = evaluate.run_all(_root(), include_demo=True)
+    out = {"ok": True, "cmd": "eval", "reports": reports}
+    target = args.out_dir or ""
+    if args.run:
+        target = os.path.join(_root(), "runs", args.run, "evaluation")
+    if target:
+        os.makedirs(target, exist_ok=True)
+        _write_json_file(os.path.join(target, "eval_report.json"), reports)
+        md_path = os.path.join(target, "eval_report.md")
+        with open(md_path, "w", encoding="utf-8", newline="") as f:
+            f.write(evaluate.render_eval_md(reports))
+        out["eval_json"] = os.path.join(target, "eval_report.json")
+        out["eval_md"] = md_path
+        if args.run:
+            from .provenance import ProvenanceLedger
+            prov = ProvenanceLedger(os.path.join(_root(), "runs", args.run), args.run)
+            prov.append_evidence(kind="evaluation",
+                                 ref=os.path.join("evaluation", "eval_report.json"),
+                                 producer_step="R6_review",
+                                 file_path=os.path.join(target, "eval_report.json"),
+                                 meta={"workflow": "research"})
+    return _emit(out)
+
+
+_HANDLERS["search-papers"] = cmd_search_papers
+_HANDLERS["parse-paper"] = cmd_parse_paper
+_HANDLERS["analyze-paper"] = cmd_analyze_paper
+_HANDLERS["verify-facts"] = cmd_verify_facts
+_HANDLERS["write-review"] = cmd_write_review
+_HANDLERS["self-review"] = cmd_self_review
+_HANDLERS["eval"] = cmd_eval
 
 
 def main(argv: list[str] | None = None) -> int:

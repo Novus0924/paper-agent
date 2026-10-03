@@ -9,6 +9,7 @@
 
 - **项目**：`paper-agent` —— 基于 **AGH（Agnes Harness）** 的可审计、可复现、可故障恢复的科研 Agent 流水线（JS 薄壳工具 + Python 核心业务 + 确定性实验），用于 2026 江苏省 AI+科学与工程创新实践黑客松。
 - **工程完成度**：阶段 1–8 **全部完成并通过自验证**（单测 **62/62**、端到端 demo、四大故障用例 + 真实进程崩溃/断点续跑用例 E2/E3 + P5 幂等复用 F、审计不变量全 PASS）。
+- **阶段 9–10（PRD v0.3 实现，2026-10-03）**：按负责人 `科研智能体需求文档 v0.3` 实现**科研全流程工作流 `research`（R1–R6）** + **量化验证（F-7.1~F-7.4）** + **三类异常恢复（F-4.8）**，单测扩至 **159/159**，插件扩至 **17 工具 + 1 Skill**。逐条映射见 `docs/PRD-v0.3-需求实现映射.md`，详见本文 §9。分支 `fix/agh-driven`（隔离克隆 `paper-agent-fix`），fast-forward 推送远端 `mike`。
 - **AGH 联调已真实跑通**：插件经交互 TTY 确认安装 + trust + enable，`desired=enabled actual=running trusted=true`；两次真实 `-p` 会话共 21 次 tool/call + 21 次 tool/result，**7 个 sciret_* 工具全部出现**（含 `sciret_resume` 的 kill_after_p2 崩溃恢复演示）。导出在 `evidence/session.jsonl`（首轮）与 `evidence/session-full.jsonl`（崩溃恢复轮，同一 workspace 会话追加）。
 - **编排改为模型驱动（阶段 7 重构）**：核心层新增**单步**工具 `sciret_step_driven`（一次只推进一步并返回决策上下文）、`sciret_next`、`sciret_finish`，插件共 **10 工具 + 1 Skill**（`.agh/skills/sciret-research-pipeline`）；`run-all` 降级为**确定性兜底**。真实证据由 AGH daemon 原生写出（`~/.agh/data/sessions.db`，含完整信封 + integrity 哈希链），打通步骤与当前卡点见 `evidence/AGH-真实会话落地报告.md`（注：此前的脱敏自造格式账本已删除）。
 - **数据与计算修复**：5 篇文献 DOI 经 Crossref 权威核验更正；CSV 材料–年份–DOI 自洽；稳定性改由文献活化能导出（不再硬编码常数）；新增 Arrhenius σ(60°C) 外推。
@@ -190,3 +191,83 @@ AGH 的 `package add`（= install）在源码里走 `io.confirm(preview)`，**�
 ## 8. 一句话交接
 
 > 代码、工程层与 AGH 真实会话联调 **100% 闭环**：插件 running+trusted，两次真实会话 7/7 工具全覆盖（含真实进程崩溃 + 断点续跑演示），证据与审计包在盘。剩余工作只有**赛事提交材料**（项目说明文档 / 演示视频脚本 / 独立完成声明，见任务清单）。改任何 Python 代码前先读 §4 红线、跑 §3 验证；改插件后重跑 `demo/reinstall_plugin.ps1`（会真实开一个确认窗口）。
+
+---
+
+## 9. 阶段 9–10：PRD v0.3 科研全流程实现（2026-10-03）
+
+### 9.1 这次新增了什么（一句话）
+
+在**不破坏原有 materials（P1–P5）可复现实验底座**的前提下，新增**第二条工作流 `research`（R1–R6）**，
+把 PRD 的 `检索→精读→拆解→验证→写作→评审` 全链路落地，并补齐**量化验证（F-7）**与**三类异常恢复（F-4.8）**；
+两条工作流**共用同一套**状态机、事件账本、证据账本、故障恢复与模型驱动编排。
+
+范围口径（已与负责人确认）：**全量核心（P0–P2，不含面板）** · **坚持零第三方依赖** · 在 `fix/agh-driven` 分支开发并推 `mike`。
+
+### 9.2 新增/重写文件清单
+
+| 文件 | 动作 | 职责 |
+| --- | --- | --- |
+| `core/paper_agent/state.py` | 重写（泛化） | `MATERIALS_STEPS` / `RESEARCH_STEPS` / `WORKFLOWS` / `steps_for()`；`PipelineState(workflow=, steps=)`；**`load()` 必须整体重建 step 字典**（否则会混入构造器预置的默认工作流步骤） |
+| `core/paper_agent/litsearch.py` | 扩展 | 多源：`semantic_scholar` / `openalex`（摘要反演重建）/ `crossref`；`dedup_documents`（DOI + 标题/首作者）；`score_relevance` / `rank_documents`；原 arXiv 能力保留 |
+| `core/paper_agent/pdfparse.py` | 新增 | **零依赖** PDF 文本抽取（`zlib` + 内容流算子）+ 章节/关键信息(locator)/图表/可复现性 + 三档置信度 + OCR 降级 |
+| `core/paper_agent/analyze.py` | 新增 | 创新点 5 分类 / 技术脉络 / Research Gap |
+| `core/paper_agent/factcheck.py` | 新增 | 引用真实性核查 / 数据一致性 4 项 / 文献矛盾检测 |
+| `core/paper_agent/writing.py` | 新增 | 综述生成（**强制引用**，无依据标 `[需补充引用]`）/ BibTeX·RIS / APA·IEEE·Chicago |
+| `core/paper_agent/review.py` | 新增 | 5 维度模拟审稿（信号驱动打分）+ 迭代闭环 |
+| `core/paper_agent/evaluate.py` | 新增 | F-7 四套指标（P/R/F1/NDCG@10、结构·关键信息·复现准确率、识别率·分类准确率·幻觉率·混淆矩阵、引用准确率·幻觉率） |
+| `core/paper_agent/research.py` | 新增 | `ResearchPipeline`（R1–R6 + `step_context` + `run_all` + `resume`）；demo 版式 PDF；F-4.8 挂钩 |
+| `core/paper_agent/report.py` | 扩展 | 新增 `generate_research_report()`（C1–C5 证据绑定） |
+| `core/paper_agent/provenance.py` | 扩展 | `EVIDENCE_KINDS` 扩展：`note/analysis/factcheck/draft/review/evaluation` |
+| `core/paper_agent/chaos.py` | 扩展 | `source_should_fail` / `force_scanned` / `batch_fail_index` / `kill_after_r3`（真实 `os._exit(137)`） |
+| `core/paper_agent/steps.py` | 扩展 | `open_pipeline()` 按 workflow 装配编排器 |
+| `core/paper_agent/cli.py` | 扩展 | `--workflow`；新增 `search-papers/parse-paper/analyze-paper/verify-facts/write-review/self-review/eval` |
+| `plugins/paper-agent-tools/index.mjs` | 扩展 | 17 工具（+7 科研能力），`sciret_plan` 支持 `workflow` |
+| `.agh/skills/.../SKILL.md` | 重写 | 两条工作流 + 决策协议 + F-4.8 三场景 |
+| `tests/test_{litsearch_multi,pdfparse,analyze,factcheck,writing,review,evaluate,research}.py` | 新增 | 覆盖 F-1~F-7 与 F-4.8 |
+
+### 9.3 关键工程决策（接手务必知道）
+
+1. **`state.load()` 必须重建 step 字典**：`PipelineState.__init__` 会按默认工作流预置 `step_status`；
+   载入既有 run 时若不**整体重建**（而非 update），research run 会混入 P1–P5 的 PENDING 条目 →
+   `run_all()` 永不 DONE。这是本次踩过的真实坑，已修复并有 `tests/test_research.py::TestWorkflowIsolation` 守门。
+2. **零依赖 PDF 解析的边界**：纯标准库无法覆盖 CID/自定义编码字体与复杂版式；此类文件给
+   `confidence=low` + `warnings`，**绝不假装成功**。这是相对 PRD §6.1（建议 GROBID/PyMuPDF）的
+   **有意偏差**（红线优先），已在映射文档中显式声明。
+3. **降级信号要有信噪比**：置信度分三档（high / medium / low），"文本偏短的元数据版式"记 **medium**
+   而非 low，避免 demo 正常路径被误判为 degraded；真正的问题（扫描件 / 解析失败 / 悬空引用 / 切源）才计降级。
+4. **"未识别到 Gap"是元陈述**，不是关于文献的事实主张，故**不打** `[需补充引用]`；避免把覆盖度提示
+   误判为无据主张而导致自评审永远阻塞。
+5. **F-1.2 独立文献库未做**：以 run 内文献集 + 证据留痕替代（P0 非必须），边界已在映射文档声明。
+
+### 9.4 怎么复验（PRD v0.3 部分）
+
+```bash
+export PYTHONPATH=core
+
+# 全量单测：159/159 OK（离线零 skip）
+python -m unittest discover -s tests -p "test_*.py"
+
+# research 端到端：DONE / degraded=false
+python -m paper_agent.cli run-all --workflow research \
+  --goal "sulfide solid electrolyte ionic conductivity" --lit-source local
+python -m paper_agent.cli report --run <RUN_ID>     # C1-C5 全带 [EV-XXXX]
+
+# 量化验证：检索/精读/创新点/引用四套指标
+python -m paper_agent.cli eval
+
+# F-4.8 三场景
+python -m paper_agent.cli run-all --workflow research --goal "sulfide" --lit-source local --chaos ss_timeout
+python -m paper_agent.cli run-all --workflow research --goal "sulfide" --lit-source local --chaos scan_pdf
+python -m paper_agent.cli run-all --workflow research --goal "sulfide" --lit-source local --chaos batch_fail_at=2
+python -m paper_agent.cli run-all --workflow research --goal "sulfide" --lit-source local --chaos kill_after_r3
+python -m paper_agent.cli resume --run <RUN_ID>
+```
+
+详见 `HOW-TO-VERIFY.md` §8 与 `docs/PRD-v0.3-需求实现映射.md`。
+
+### 9.5 Windows 复验小坑（本次新增）
+
+- **bash 无法 export 连字符环境变量**：`paper-agent_ROOT=... python ...` 与 `env "paper-agent_ROOT=..."` 在 Git Bash 下
+  会失败/静默丢失。复验隔离根请用 **Python 进程内** `os.environ['paper-agent_ROOT']=tmp` 后再调用 `cli.main([...])`。
+- 若在 Git Bash 里写 `/tmp/xxx`，Windows 原生 Python 会解析成 `D:\tmp\xxx`；跨工具传路径请用 `cygpath -w` 或直接写盘符路径。

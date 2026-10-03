@@ -206,3 +206,153 @@ def generate_report(
     with open(rpath, "w", encoding="utf-8", newline="") as f:
         f.write(report_md)
     return rpath
+
+
+# =====================================================================
+# 科研全流程报告（research 工作流 R1..R6）
+# =====================================================================
+
+_RESEARCH_STEPS = ("R1_search", "R2_read", "R3_analyze",
+                   "R4_verify", "R5_write", "R6_review")
+
+
+def _rd(path: str, default=None):
+    if not os.path.exists(path):
+        return default if default is not None else {}
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def generate_research_report(root: str, run_id: str, state: PipelineState,
+                             prov: ProvenanceLedger) -> str:
+    """生成科研全流程报告（research 工作流），每条结论绑定真实证据 ID。"""
+    run_dir = os.path.join(root, "runs", run_id)
+
+    hits = _rd(os.path.join(run_dir, "literature", "research_hits.json"))
+    read = _rd(os.path.join(run_dir, "reading", "reading_report.json"))
+    innov = _rd(os.path.join(run_dir, "analysis", "innovations.json"))
+    gaps = _rd(os.path.join(run_dir, "analysis", "gaps.json"))
+    fc = _rd(os.path.join(run_dir, "factcheck", "factcheck.json"))
+    revj = _rd(os.path.join(run_dir, "review", "review.json"))
+
+    n_hits = hits.get("n_hits", 0)
+    unavail = hits.get("unavailable_sources", []) or []
+    src_status = hits.get("sources_status", {}) or {}
+    n_read = read.get("n_read", 0)
+    n_failed = read.get("n_failed", 0)
+    n_innov = innov.get("n_total", 0)
+    n_gaps = gaps.get("n_gaps", 0)
+    cite = (fc.get("citations") or {})
+    cite_rate = cite.get("consistency_rate", 0.0)
+    n_contra = (fc.get("contradictions") or {}).get("n_contradictions", 0)
+    final = revj.get("final", {}) if isinstance(revj, dict) else {}
+
+    # 状态总表
+    lines = ["| 步骤 | 状态 | 尝试次数 |", "| --- | --- | --- |"]
+    for sid in _RESEARCH_STEPS:
+        lines.append(f"| {sid} | {state.step_status[sid].value} | {state.attempts.get(sid, 0)} |")
+    state_table = "\n".join(lines)
+
+    def _evs(kind: str, step: str) -> list[str]:
+        return [e["ev_id"] for e in prov.all_evidence()
+                if e["kind"] == kind and e["producer_step"] == step]
+
+    c1 = (f"多源检索（来源={hits.get('source', 'n/a')}）命中 {n_hits} 篇；"
+          f"各源状态：{src_status}；不可用源：{unavail or '无'}"
+          + ("（已自动切换源，任务未中断）" if unavail else "") + "。")
+    c2 = (f"论文精读 {n_read} 篇成功、{n_failed} 篇失败（失败已跳过并标注，不阻塞流程）；"
+          f"扫描件/低置信度 {read.get('scanned_or_low_conf', 0)} 篇。")
+    c3 = f"创新点拆解共识别 {n_innov} 个创新点，识别 Research Gap {n_gaps} 个。"
+    c4 = (f"事实验证：引用/观点一致性率 {cite_rate:.2%}，"
+          f"检出文献间潜在矛盾 {n_contra} 处。")
+    c5 = (f"综述草稿含引用标记；自评审综合分 "
+          f"{final.get('overall', 'n/a')}/10，结论 {final.get('verdict', 'n/a')}。")
+
+    ev_lit = _evs("literature", "R1_search")
+    ev_note = _evs("note", "R2_read")
+    ev_ana = _evs("analysis", "R3_analyze")
+    ev_fc = _evs("factcheck", "R4_verify")
+    ev_draft = _evs("draft", "R5_write")
+    ev_rev = _evs("review", "R6_review")
+    ev_r1_file = _evs("data", "R1_search")
+
+    prov.link_conclusion("C1", c1, ev_lit or ev_r1_file)
+    prov.link_conclusion("C2", c2, ev_note or ev_r1_file)
+    prov.link_conclusion("C3", c3, ev_ana or ev_r1_file)
+    prov.link_conclusion("C4", c4, ev_fc or ev_r1_file)
+    prov.link_conclusion("C5", c5, ev_draft or ev_rev or ev_r1_file)
+
+    ev_rows = ["| EV | 类型 | 引用 | SHA-256(前16) | 生产步骤 |",
+               "| --- | --- | --- | --- | --- |"]
+    for e in prov.all_evidence():
+        ev_rows.append(f"| {e['ev_id']} | {e['kind']} | {e['ref']} | "
+                       f"{(e.get('sha256') or '')[:16]} | {e['producer_step']} |")
+    ev_table = "\n".join(ev_rows)
+
+    degraded_block = ""
+    if state.degraded:
+        degraded_block = (
+            "> **降级声明**：本 run 发生降级（degraded=true）。可能原因包括："
+            "某检索源不可用已自动切换、论文解析失败已跳过、PDF 为扫描件/低置信度、"
+            "综述存在悬空引用等。相关结论须结合降级说明人工复核。")
+
+    all_steps = list(state.step_status.values())
+    if any(st is StepStatus.FAILED for st in all_steps):
+        final_status = RunStatus.FAILED.value
+    elif all(st in (StepStatus.DONE, StepStatus.SKIPPED) for st in all_steps):
+        final_status = RunStatus.DONE.value
+    else:
+        final_status = state.run_status.value
+
+    repro = (
+        f"cd {os.path.abspath(root)}\n"
+        f"PYTHONPATH=core python -m paper_agent.cli run-all --workflow research "
+        f"--goal \"<goal>\" --lit-source local\n"
+        f"PYTHONPATH=core python -m paper_agent.cli resume --run {run_id}\n"
+        f"PYTHONPATH=core python -m paper_agent.cli report --run {run_id}\n"
+        f"# 异常恢复场景（PRD F-4.8）：\n"
+        f"#   场景1 API超时降级  : --chaos ss_timeout\n"
+        f"#   场景2 扫描件解析降级: --chaos scan_pdf\n"
+        f"#   场景3 批量失败跳过  : --chaos batch_fail_at=2\n"
+        f"#   长任务崩溃+续跑    : --chaos kill_after_r3 然后 resume\n"
+    )
+
+    report_md = f"""# paper-agent 科研报告（research 工作流）— {run_id}
+
+- 研究问题: {state.goal or '（未设置）'}
+- 工作流: research（R1 检索 → R2 精读 → R3 创新点 → R4 验证 → R5 写作 → R6 评审）
+- 顶层状态: {final_status}
+- 检索来源配置: lit_source={getattr(state, 'lit_source', 'auto')}
+- 生成: {state.updated_at}
+
+## 工作流状态总表
+
+{state_table}
+
+{degraded_block}
+
+## 科研结论（证据绑定）
+
+- **C1 多源检索**：{c1} `[{'; '.join(ev_lit or ev_r1_file)}]`
+- **C2 论文精读**：{c2} `[{'; '.join(ev_note or ev_r1_file)}]`
+- **C3 创新点/Gap**：{c3} `[{'; '.join(ev_ana or ev_r1_file)}]`
+- **C4 事实验证**：{c4} `[{'; '.join(ev_fc or ev_r1_file)}]`
+- **C5 写作/自评审**：{c5} `[{'; '.join(ev_draft or ev_rev or ev_r1_file)}]`
+
+## 证据索引表
+
+{ev_table}
+
+## 复现命令
+
+```bash
+{repro}
+```
+
+> 数据红线：所有结论均来自真实检索元数据与本地解析产物；检索测试集为 demo 规模小样本标注，
+> 用于演示指标口径，不代表真实世界性能。严禁伪造数据。
+"""
+    rpath = os.path.join(run_dir, "report.md")
+    with open(rpath, "w", encoding="utf-8", newline="") as f:
+        f.write(report_md)
+    return rpath

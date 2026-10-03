@@ -203,7 +203,7 @@ PY
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py"
-# 期望：Ran 62 tests ... OK   （零 skip —— 单测默认 paper-agent_LIT_SOURCE=local 强制离线）
+# 期望：Ran 159 tests ... OK  （零 skip —— 单测默认 paper-agent_LIT_SOURCE=local 强制离线）
 ```
 
 其中 `tests/test_data_integrity.py` 是数据红线的守门测试（8 项离线 + 1 项可选联网）：
@@ -284,3 +284,80 @@ mkdir -p audit-pack && cp \
 cp session.jsonl audit-pack/agh-session.jsonl 2>/dev/null || true
 tar -czf audit-pack.tar.gz audit-pack
 ```
+
+
+
+---
+
+## 8. 科研全流程（research）· 量化验证 · 异常恢复（PRD v0.3）
+
+> 对应 PRD F-1~F-7 与 F-4.8；逐条实现映射见 `docs/PRD-v0.3-需求实现映射.md`。
+
+### 8a. research 工作流端到端（R1–R6）
+
+```bash
+$PY -m paper_agent.cli run-all --workflow research \
+    --goal "sulfide solid electrolyte ionic conductivity" --lit-source local
+# 期望：run_status == "DONE"，degraded == false（离线内置语料）
+RID=$(...)   # 从输出 JSON 取 run_id
+
+# 产物齐备性（应全部存在）
+ls runs/$RID/literature/research_hits.json runs/$RID/reading/reading_report.json \
+   runs/$RID/analysis/innovations.json runs/$RID/analysis/gaps.json \
+   runs/$RID/factcheck/factcheck.json runs/$RID/writing/review.md \
+   runs/$RID/writing/references.bib runs/$RID/review/review_report.md runs/$RID/report.md
+
+$PY -m paper_agent.cli report --run $RID
+# 判定：report.md 含「顶层状态: DONE」+ C1..C5 结论，每条带 [EV-XXXX] 证据标记
+```
+
+**验收项**：六步全部 DONE；report.md 的 C1–C5 均绑定 `[EV-XXXX]`；综述每句带 `[doc_id]` 引用
+（无依据句标 `[需补充引用]`）。
+
+### 8b. 单点能力（也可经 AGH 会话按 `sciret_*` 调用）
+
+```bash
+$PY -m paper_agent.cli search-papers --goal "sulfide solid electrolyte" --sources arxiv,openalex,crossref
+$PY -m paper_agent.cli parse-paper   --source 2301.12345 --allow-network   # 或本地 PDF 路径
+$PY -m paper_agent.cli analyze-paper --run $RID
+$PY -m paper_agent.cli verify-facts  --run $RID
+$PY -m paper_agent.cli write-review  --run $RID
+$PY -m paper_agent.cli self-review   --run $RID
+```
+
+### 8c. 量化验证（F-7.1~F-7.4）
+
+```bash
+$PY -m paper_agent.cli eval
+```
+
+**验收项**：输出 `reports.{search,read,innovation,citation}` 四套指标；`search` 含 **纯关键词基线**
+对比与 `failures` 列表；`innovation` 含 **混淆矩阵**；每套均带 `scale_note`（声明为 demo 规模标注）。
+
+参考值（离线 demo，会随语料/标注变化）：search Recall 1.000 / NDCG@10 0.987（基线 0.900 / 0.662）；
+read 三项准确率 1.000；innovation 识别率 0.80 / 幻觉率 0.00；citation 准确率 1.000 / 幻觉率 0.00。
+
+### 8d. 异常恢复三场景（F-4.8）
+
+```bash
+# ① 外部 API 超时降级：SS 源超时 → 标注不可用并切源，任务不中断
+$PY -m paper_agent.cli run-all --workflow research --goal "sulfide" --lit-source local --chaos ss_timeout
+
+# ② PDF 解析失败恢复：无文本层 → OCR 不可用 → 标「低质量解析/低置信度」
+$PY -m paper_agent.cli run-all --workflow research --goal "sulfide" --lit-source local --chaos scan_pdf
+
+# ③ 长任务中断恢复：第 N 篇失败跳过继续（不阻塞整体）
+$PY -m paper_agent.cli run-all --workflow research --goal "sulfide" --lit-source local --chaos batch_fail_at=2
+
+# ③' 真实崩溃 + 断点续跑：子进程被 SIGKILL(137) → resume 续跑
+$PY -m paper_agent.cli run-all --workflow research --goal "sulfide" --lit-source local --chaos kill_after_r3
+echo "exit=$?"   # 期望 137
+$PY -m paper_agent.cli resume --run <RUN_ID>
+# 期望：run_status == "DONE"，已 DONE 步骤直接复用，events/provenance 账本 append-only 完整
+```
+
+**验收项**：
+- 场景① `run_status==DONE`，`research_hits.json` 的 `unavailable_sources` 含 `semantic_scholar`，`n_documents>=1`；
+- 场景② `reading_report.scanned_or_low_conf>0`，且对应笔记 `status=="scanned"`、`confidence=="low"`；
+- 场景③ `reading_report.n_failed==1`（失败项 doc_id 可查）、`n_read>=1`，且 R3–R6 仍全部 DONE；
+- 场景③' 先退出码 137，`resume` 后六步全 DONE，`report.md` 存在。

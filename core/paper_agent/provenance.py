@@ -18,6 +18,15 @@ class EvidenceError(RuntimeError):
     pass
 
 
+# 合法证据类型（materials 流水线 + research 全流程）
+EVIDENCE_KINDS = (
+    # materials（P1..P5）
+    "literature", "data", "experiment", "figure", "verification", "report",
+    # research（R1..R6）
+    "note", "analysis", "factcheck", "draft", "review", "evaluation",
+)
+
+
 def _sha256_file(path: str) -> str:
     if not os.path.exists(path):
         raise EvidenceError(f"evidence file missing: {path}")
@@ -61,9 +70,9 @@ class ProvenanceLedger:
         meta: dict | None = None,
         file_path: str | None = None,
     ) -> str:
-        """登记一条证据，返回 ev_id。kind: literature|data|experiment|figure|verification|report"""
+        """登记一条证据，返回 ev_id。kind 见 ``EVIDENCE_KINDS``。"""
         sha = _sha256_file(file_path) if file_path else ""
-        if kind not in ("literature", "data", "experiment", "figure", "verification", "report"):
+        if kind not in EVIDENCE_KINDS:
             raise EvidenceError(f"unknown evidence kind: {kind}")
         ev_id = f"EV-{self.next_ev_num:04d}"
         rec = {
