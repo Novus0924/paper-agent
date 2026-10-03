@@ -54,6 +54,20 @@ def _score_related_work(n_docs: int, year_span: int) -> tuple[float, str]:
     return _clamp(base), f"纳入 {n_docs} 篇，年份跨度 {year_span} 年"
 
 
+def _count_statements(md: str) -> int:
+    """统计草稿中的**实质性陈述条数**（用于清晰度归一）。
+
+    不能只数 ``- `` 开头的行：纯散文草稿会得到 0，导致
+    ``bad / max(1, n_sentences)`` 分母退化为 1，清晰度分数虚高。
+    这里同时计入：列表项、以及按句子切分后的正文句（长度 ≥ 20）。
+    """
+    bullets = sum(1 for ln in md.split("\n") if ln.strip().startswith(("- ", "* ")))
+    body = "\n".join(ln for ln in md.split("\n")
+                     if ln.strip() and not ln.strip().startswith(("#", "- ", "* ", ">")))
+    sents = [s for s in re.split(r"(?<=[.!?。！？])\s+", body) if len(s.strip()) >= 20]
+    return max(1, bullets + len(sents))
+
+
 def self_review(draft_markdown: str, docs: list[dict] | None = None,
                 analyses: list[dict] | None = None,
                 factcheck: dict | None = None,
@@ -81,7 +95,7 @@ def self_review(draft_markdown: str, docs: list[dict] | None = None,
     has_ablation = "消融" in md or "ablation" in md.lower()
     years = [int(d.get("year") or 0) for d in docs if d.get("year")]
     year_span = (max(years) - min(years)) if years else 0
-    n_sentences = max(1, len([l for l in md.split("\n") if l.strip().startswith("- ")]))
+    n_sentences = _count_statements(md)
 
     scores: dict[str, float] = {}
     rationales: dict[str, str] = {}
@@ -138,7 +152,6 @@ def self_review(draft_markdown: str, docs: list[dict] | None = None,
 
     summary = (f"本文围绕草稿组织 {n_sentences} 条陈述，纳入文献 {n_docs} 篇、"
                f"创新点 {n_innovations} 个，综合评分 {overall}/10。{verdict}")
-
     return {
         "summary": summary,
         "strengths": strengths,
@@ -153,7 +166,7 @@ def self_review(draft_markdown: str, docs: list[dict] | None = None,
             "n_docs": n_docs, "n_innovations": n_innovations,
             "cite_rate": cite_rate, "unsupported": unsupported,
             "n_dangling": len(dangling), "n_numeric": n_numeric,
-            "year_span": year_span,
+            "year_span": year_span, "n_statements": n_sentences,
         },
     }
 

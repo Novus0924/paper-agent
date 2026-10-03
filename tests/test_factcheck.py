@@ -37,6 +37,26 @@ class TestCitationVerify(unittest.TestCase):
         self.assertFalse(r["number_ok"])
         self.assertIn("99", r["missing_numbers"])
 
+    def test_number_match_is_numeric_not_substring(self):
+        """回归：数值比对必须按数值语义，不能用子串包含。
+
+        旧实现 `n not in source_text`：claim 里的 `1` 会因为原文有 `100`
+        被误判为"命中"，从而漏报数值不一致。
+        """
+        r = FC.verify_citation("The yield reached 1 percent.",
+                               "We collected 100 samples in total.", "S")
+        self.assertFalse(r["number_ok"])
+        self.assertIn("1", r["missing_numbers"])
+
+    def test_equivalent_numbers_with_trailing_zero_match(self):
+        """0.9 与 0.90 是同一个数，应判命中（任一方向）。"""
+        r1 = FC.verify_citation("Accuracy improved to 0.9.",
+                                "Our accuracy improved to 0.90 in experiments.", "S")
+        self.assertTrue(r1["number_ok"])
+        r2 = FC.verify_citation("Accuracy improved to 0.90.",
+                                "Our accuracy improved to 0.9 in experiments.", "S")
+        self.assertTrue(r2["number_ok"])
+
     def test_batch_tally(self):
         out = FC.verify_citations([
             {"claim": "sulfide solid electrolyte high conductivity",

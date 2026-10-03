@@ -41,6 +41,31 @@ def _nums(text: str) -> set[str]:
     return set(_NUM.findall(text or ""))
 
 
+def _is_float(s: str) -> bool:
+    try:
+        float(s)
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
+def _num_matches(claim_num: str, source_nums: set[float],
+                 tol: float = 1e-9) -> bool:
+    """判断 claim 中的数值是否在原文数值集合中出现。
+
+    必须**按数值语义**比对，不能用子串包含：``1`` 不应因为原文有 ``100``
+    就被判为命中，``0.9`` 与 ``0.90`` 则应视为同一个数。
+    """
+    try:
+        v = float(claim_num)
+    except (TypeError, ValueError):
+        return False
+    for s in source_nums:
+        if abs(s - v) <= tol:
+            return True
+    return False
+
+
 def containment(claim: str, source: str) -> float:
     """claim 的词项有多大比例出现在 source 中（包含度，[0,1]）。"""
     toks = set(_content_tokens(claim))
@@ -66,7 +91,10 @@ def verify_citation(claim: str, source_text: str | None,
         }
     cont = containment(claim, source_text)
     claim_nums = _nums(claim)
-    missing = sorted(n for n in claim_nums if n not in source_text)
+    # 按数值语义比对（非子串）：1 不会因原文有 100 而误判命中；0.9 == 0.90。
+    src_nums = {float(n) for n in _nums(source_text)
+                if _is_float(n)}
+    missing = sorted(n for n in claim_nums if not _num_matches(n, src_nums))
     number_ok = (len(missing) == 0) if claim_nums else None
 
     if cont >= consistent and (number_ok is not False):
@@ -132,7 +160,8 @@ def check_data_consistency(note: dict,
     # 1) 摘要 vs 实验数值一致性
     if abstract and exp:
         a_nums = _nums(abstract)
-        missing = sorted(n for n in a_nums if n not in exp)
+        exp_nums = {float(n) for n in _nums(exp) if _is_float(n)}
+        missing = sorted(n for n in a_nums if not _num_matches(n, exp_nums))
         checks.append({
             "name": "abstract_vs_experiment_numbers",
             "pass": len(missing) == 0,
@@ -150,7 +179,9 @@ def check_data_consistency(note: dict,
     if tables:
         cap_txt = " ".join(t.get("caption", "") for t in tables)
         t_nums = _nums(cap_txt)
-        miss = sorted(n for n in t_nums if n not in text.replace(cap_txt, ""))
+        body = text.replace(cap_txt, "")
+        body_nums = {float(n) for n in _nums(body) if _is_float(n)}
+        miss = sorted(n for n in t_nums if not _num_matches(n, body_nums))
         checks.append({
             "name": "table_vs_text",
             "pass": len(miss) == 0,

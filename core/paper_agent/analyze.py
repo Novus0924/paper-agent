@@ -237,11 +237,27 @@ _GAP_STOP = {"the", "a", "an", "and", "or", "of", "in", "on", "for", "to", "is",
 
 
 def _cluster_key(sentence: str) -> str:
-    """用句中的实词（按字母序归一）作为聚类键，避免重复 gap。"""
+    """用句中的**显著实词**构造稳定聚类键，避免重复 gap。
+
+    关键：必须**与词序无关**。旧实现取 ``sorted(set(toks))[:5]``（字母序前 5 个），
+    会让「existing methods are slow training」与「slow training in existing methods」
+    得到不同的键，同一课题的空白永远聚不到一起，F-3.3 形同虚设。
+
+    这里改为：取按词长降序（长词更具区分度）+ 字母序稳定的 top-5 实词集合，
+    再做字母序归一，保证同义句（共享这 5 个显著词）落到同一键。
+    """
     toks = [t for t in re.findall(r"[a-z0-9]+", sentence.lower())
             if t not in _GAP_STOP and len(t) > 2]
-    toks = sorted(set(toks))[:5]
-    return "+".join(toks)
+    if not toks:
+        # 中文等无空格语言：回退用 2 字滑窗做粗聚类键
+        cjk = re.findall(r"[\u4e00-\u9fff]{2,}", sentence)
+        return "+".join(sorted(set(cjk))[:5])
+    # 词频优先（出现越多越可能是主题词），其次词长，最后字母序 → 完全确定
+    freq: dict[str, int] = {}
+    for t in toks:
+        freq[t] = freq.get(t, 0) + 1
+    ranked = sorted(freq, key=lambda t: (-freq[t], -len(t), t))[:5]
+    return "+".join(sorted(ranked))
 
 
 # =====================================================================

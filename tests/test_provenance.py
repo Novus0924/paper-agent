@@ -112,6 +112,38 @@ class TestProvenance(unittest.TestCase):
         self.assertTrue(prov2.has(ev))
         self.assertEqual(prov2.next_ev_num, 2)
 
+    def test_literature_lookup_uses_root_not_global(self):
+        """隔离 root 下必须读该 root 的 literature.json，而不是全局 DATA_DIR。
+
+        回归：此前 _literature_lookup 只读全局常量 DATA_DIR，
+        在隔离 root（多项目/测试）下会查不到文献、引文退化为裸 DOI。
+        """
+        # 在隔离 root 的 data/literature.json 写入一条**独有**的伪文献，
+        # 用一个全局语料中不存在的 DOI，确保只能从本 root 命中。
+        lit_dir = os.path.join(self.root, "data")
+        os.makedirs(lit_dir, exist_ok=True)
+        lit_path = os.path.join(lit_dir, "literature.json")
+        with open(lit_path, "w", encoding="utf-8") as f:
+            json.dump({"documents": [{
+                "doi": "10.9999/root-only",
+                "title": "Root-only Literature",
+                "authors": ["Only In Root"],
+                "year": 2099,
+                "venue": "Root Journal",
+            }]}, f)
+        prov = ProvenanceLedger(self.run_dir, "run-test", root=self.root)
+        ev = prov.append_evidence("literature", "10.9999/root-only", "R1_search")
+        text = prov.cite(ev)
+        self.assertIn("Root Journal", text)
+        self.assertIn("Only In Root", text)
+
+    def test_literature_lookup_without_root_falls_back(self):
+        """未指定 root 时回退全局 DATA_DIR，不崩溃。"""
+        prov = ProvenanceLedger(self.run_dir, "run-test")  # root=""
+        ev = prov.append_evidence("literature", "10.1038/nmat3066", "R1_search")
+        text = prov.cite(ev)  # 全局语料命中
+        self.assertIn("10.1038/nmat3066", text)
+
 
 if __name__ == "__main__":
     unittest.main()

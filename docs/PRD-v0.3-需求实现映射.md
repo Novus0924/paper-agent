@@ -17,6 +17,16 @@
 
 **架构定位（关键）**：两条工作流 `materials`（P1–P5，原有可复现实验底座）与 `research`（R1–R6，PRD 科研全流程）**共用同一套**状态机、事件账本、证据账本、故障恢复与模型驱动编排，避免出现平行代码库。
 
+**步骤 ID 对照（供逐条核对）**
+
+| 工作流 | 步骤 ID（有序） |
+| --- | --- |
+| `materials` | `P1_lit_search` → `P2_clean_data` → `P3_run_experiment` → `P4_verify` → `P5_report` |
+| `research` | `R1_search` → `R2_read` → `R3_analyze` → `R4_verify` → `R5_write` → `R6_review` |
+
+> **research 硬前置依赖**（单步驱动时缺前置会显式报 `StepDependencyError`，不做隐式代跑）：
+> 其中 `R3_analyze` 依赖 `R1+R2`，`R5_write` 依赖 `R3`，`R6_review` 依赖 `R4+R5`。
+
 ---
 
 ## 1. 功能需求逐条映射

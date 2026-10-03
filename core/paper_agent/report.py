@@ -36,9 +36,13 @@ def _ev_ids_by_kind(prov: ProvenanceLedger, kind: str,
 
 
 def _state_table(state: PipelineState) -> str:
+    """按 state 的**实际步骤列表**渲染状态总表。
+
+    不能用写死的 P1..P5：若传入的是 research run（R1..R6），
+    写死会在 `state.step_status[sid]` 处抛 KeyError。
+    """
     lines = ["| 步骤 | 状态 | 尝试次数 |", "| --- | --- | --- |"]
-    for sid in ("P1_lit_search", "P2_clean_data", "P3_run_experiment",
-                "P4_verify", "P5_report"):
+    for sid in state.step_ids:
         lines.append(f"| {sid} | {state.step_status[sid].value} | {state.attempts.get(sid, 0)} |")
     return "\n".join(lines)
 
@@ -212,8 +216,8 @@ def generate_report(
 # 科研全流程报告（research 工作流 R1..R6）
 # =====================================================================
 
-_RESEARCH_STEPS = ("R1_search", "R2_read", "R3_analyze",
-                   "R4_verify", "R5_write", "R6_review")
+# 步骤列表一律取自 PipelineState.step_ids（见 _state_table），
+# 不再在此写死 _RESEARCH_STEPS，避免与 state 机器定义漂移。
 
 
 def _rd(path: str, default=None):
@@ -247,9 +251,9 @@ def generate_research_report(root: str, run_id: str, state: PipelineState,
     n_contra = (fc.get("contradictions") or {}).get("n_contradictions", 0)
     final = revj.get("final", {}) if isinstance(revj, dict) else {}
 
-    # 状态总表
+    # 状态总表（使用 state 的实际步骤列表，避免与实现漂移）
     lines = ["| 步骤 | 状态 | 尝试次数 |", "| --- | --- | --- |"]
-    for sid in _RESEARCH_STEPS:
+    for sid in state.step_ids:
         lines.append(f"| {sid} | {state.step_status[sid].value} | {state.attempts.get(sid, 0)} |")
     state_table = "\n".join(lines)
 

@@ -316,7 +316,7 @@ def cmd_report(args) -> int:
 def cmd_cite(args) -> int:
     from .provenance import ProvenanceLedger
     run_dir = os.path.join(_root(), "runs", args.run)
-    prov = ProvenanceLedger(run_dir, args.run)
+    prov = ProvenanceLedger(run_dir, args.run, root=_root())
     if args.ev:
         text = prov.cite(args.ev)
         return _emit({"ok": True, "cmd": "cite", "ev": args.ev, "citation": text})
@@ -527,7 +527,7 @@ def cmd_eval(args) -> int:
         out["eval_md"] = md_path
         if args.run:
             from .provenance import ProvenanceLedger
-            prov = ProvenanceLedger(os.path.join(_root(), "runs", args.run), args.run)
+            prov = ProvenanceLedger(os.path.join(_root(), "runs", args.run), args.run, root=_root())
             prov.append_evidence(kind="evaluation",
                                  ref=os.path.join("evaluation", "eval_report.json"),
                                  producer_step="R6_review",

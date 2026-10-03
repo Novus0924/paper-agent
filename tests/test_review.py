@@ -28,6 +28,20 @@ class TestSelfReview(unittest.TestCase):
     def test_dimensions_all_scored(self):
         r = RV.self_review(_DRAFT_OK, _DOCS)
         self.assertEqual(set(r["scores"]), set(RV.DIMENSIONS))
+
+    def test_statement_count_covers_prose_not_only_bullets(self):
+        """回归：清晰度归一不能只数 `- ` 行；散文草稿也要被计入。
+
+        旧实现 `n_sentences = 只数 '-' 行`，对纯散文草稿得到 0，
+        使 `bad / max(1, n_sentences)` 分母退化为 1、清晰度分数虚高。
+        """
+        prose = ("This draft is written as flowing prose without any bullet list. "
+                 "A second sentence continues the argument in more detail.")
+        r = RV.self_review(prose, _DOCS)
+        self.assertGreaterEqual(r["signals"]["n_statements"], 2)
+        # 单条未支撑陈述不应因"总句子数=1"而被判满分
+        r2 = RV.self_review(prose + "\n" + "- bad claim [需补充引用]\n", _DOCS)
+        self.assertLess(r2["scores"]["写作清晰度"], 10.0)
         for v in r["scores"].values():
             self.assertGreaterEqual(v, 1)
             self.assertLessEqual(v, 10)

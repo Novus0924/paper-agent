@@ -84,6 +84,34 @@ class TestGapAndTimeline(unittest.TestCase):
         self.assertEqual(g["gaps"][0]["id"], "GAP-1")
         self.assertTrue(g["gaps"][0]["evidence"])
 
+    def test_gap_cluster_key_is_order_independent(self):
+        """回归：聚类键必须与词序无关，否则同一课题的空白聚不到一起。
+
+        旧实现取 `sorted(set(toks))[:5]`（字母序前 5），
+        会让同义句落到不同键，F-3.3 的跨文献聚类形同虚设。
+        """
+        a = analyze._cluster_key(
+            "existing methods are slow when training on large datasets")
+        b = analyze._cluster_key(
+            "training on large datasets is slow for existing methods")
+        self.assertEqual(a, b)
+        # 不同主题必须得到不同键
+        c = analyze._cluster_key(
+            "the model lacks theoretical convergence guarantees")
+        self.assertNotEqual(a, c)
+
+    def test_gap_aggregates_same_topic_across_docs(self):
+        """同义表述应聚成一个 gap 且频次正确累加。"""
+        notes = [
+            {"doc_id": "A", "text": "",
+             "sections": {"Limitations": "However existing methods are slow when training on large datasets."}},
+            {"doc_id": "B", "text": "",
+             "sections": {"Limitations": "However training on large datasets is slow for existing methods."}},
+        ]
+        g = analyze.research_gap(notes)
+        self.assertEqual(g["n_gaps"], 1)
+        self.assertEqual(g["gaps"][0]["frequency"], 2)
+
     def test_timeline_sorted(self):
         tl = analyze.technology_timeline([
             {"doc_id": "B", "year": 2020}, {"doc_id": "A", "year": 2010}])

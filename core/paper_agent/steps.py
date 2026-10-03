@@ -77,7 +77,7 @@ class Pipeline:
         self.root = root
         self.run_id = run_id
         self.state = load_state(run_id, root)
-        self.prov = ProvenanceLedger(os.path.join(root, "runs", run_id), run_id)
+        self.prov = ProvenanceLedger(os.path.join(root, "runs", run_id), run_id, root=root)
         if chaos_mode:
             chaos.set_chaos_mode(chaos_mode)
 

@@ -38,9 +38,10 @@ def _sha256_file(path: str) -> str:
 
 
 class ProvenanceLedger:
-    def __init__(self, run_dir: str, run_id: str = ""):
+    def __init__(self, run_dir: str, run_id: str = "", root: str = ""):
         self.run_dir = run_dir
         self.run_id = run_id
+        self.root = root            # 项目根（用于定位 data/literature.json）；空则回退全局
         self.path = os.path.join(run_dir, "provenance.jsonl")
         self.conclusions_path = os.path.join(run_dir, "conclusions.jsonl")
         self._ev_index: dict[str, dict] = {}
@@ -71,9 +72,9 @@ class ProvenanceLedger:
         file_path: str | None = None,
     ) -> str:
         """登记一条证据，返回 ev_id。kind 见 ``EVIDENCE_KINDS``。"""
-        sha = _sha256_file(file_path) if file_path else ""
         if kind not in EVIDENCE_KINDS:
             raise EvidenceError(f"unknown evidence kind: {kind}")
+        sha = _sha256_file(file_path) if file_path else ""
         ev_id = f"EV-{self.next_ev_num:04d}"
         rec = {
             "ev_id": ev_id,
@@ -114,10 +115,18 @@ class ProvenanceLedger:
             f.write(json.dumps(rec, ensure_ascii=False, sort_keys=True) + "\n")
 
     def _literature_lookup(self, doi: str) -> dict | None:
-        """从 data/literature.json 取文献元数据（作者/年份/标题）。"""
+        """从文献语料取元数据（作者/年份/标题）。
+
+        优先用本 run 所属项目根下的 ``<root>/data/literature.json``；
+        未指定 root 时回退到全局 ``DATA_DIR``。此前只读全局常量，
+        在隔离 root（测试/多项目）下会查不到文献、引文退化为裸 DOI。
+        """
         try:
             from paper_agent import DATA_DIR
-            lit = os.path.join(DATA_DIR, "literature.json")
+            base = os.path.join(self.root, "data") if self.root else DATA_DIR
+            lit = os.path.join(base, "literature.json")
+            if not os.path.exists(lit):
+                lit = os.path.join(DATA_DIR, "literature.json")
             with open(lit, "r", encoding="utf-8") as f:
                 corpus = json.load(f)
             for doc in corpus.get("documents", []):
