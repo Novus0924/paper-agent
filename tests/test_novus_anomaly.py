@@ -31,7 +31,7 @@ class TestSupportingInformation(unittest.TestCase):
             self.assertTrue(A.is_supporting_information(d), d)
 
     def test_main_articles_not_flagged(self):
-        for d in ("10.1038/nmat3006", "10.1021/cm001207u",
+        for d in ("10.1038/nmat3066", "10.1021/cm001207u",
                   "10.1016/j.ssi.2015.10.015"):
             self.assertFalse(A.is_supporting_information(d), d)
 

@@ -1,8 +1,8 @@
 ﻿material_id,formula,family,unit_raw,conductivity_raw,activation_energy_eV,year,source_doi,notes
-M001,LGPS,sulfide,S/cm,1.2e-2,0.40,2011,10.1038/nmat3006,as-reported
-M002,Li9.54Si1.74P1.44S11.7Cl0.3,sulfide,S/cm,2.5e-2,0.45,2011,10.1038/nmat3006,as-reported
+M001,LGPS,sulfide,S/cm,1.2e-2,0.40,2011,10.1038/nmat3066,as-reported
+M002,Li9.54Si1.74P1.44S11.7Cl0.3,sulfide,S/cm,2.5e-2,0.45,2016,10.1038/nenergy.2016.30,as-reported
 M003,LLZO,garnet,S/cm,3.0e-4,0.95,2007,10.1002/anie.200701144,as-reported
 M004,LiPON,thin_film,S/cm,2.0e-6,0.25,1992,10.1016/0167-2738(92)90421-F,as-reported
 M005,Li6PS5Cl,argyrodite,mS/cm,4.4e-1,0.55,2008,10.1002/anie.200800627,as-reported unit mS/cm
-M001,LGPS,sulfide,S/cm,1.2e-2,0.40,2011,10.1038/nmat3006,as-reported
-M007,LLZO,garnet,S/cm,2.0e-4,,2016,10.1038/nenergy.2016.030,as-reported activation_energy missing
+M001,LGPS,sulfide,S/cm,1.2e-2,0.40,2011,10.1038/nmat3066,as-reported
+M007,LLZO,garnet,S/cm,2.0e-4,,2007,10.1002/anie.200701144,as-reported activation_energy missing

@@ -34,7 +34,7 @@ class TestProvenance(unittest.TestCase):
         shutil.rmtree(self._tmp, ignore_errors=True)
 
     def test_ev_ids_increment(self):
-        e1 = self.prov.append_evidence("literature", "10.1038/nmat3006",
+        e1 = self.prov.append_evidence("literature", "10.1038/nmat3066",
                                         "P1_lit_search")
         e2 = self.prov.append_evidence("data", "clean/x.csv", "P2_clean_data",
                                         file_path=_sample_file(self._tmp, "x.csv", "a,b\n1,2\n"))
@@ -60,7 +60,7 @@ class TestProvenance(unittest.TestCase):
         self.assertEqual(self.prov.get(ev)["sha256"], "")
 
     def test_conclusion_requires_existing_evidence(self):
-        ev = self.prov.append_evidence("literature", "10.1038/nmat3006",
+        ev = self.prov.append_evidence("literature", "10.1038/nmat3066",
                                         "P1_lit_search")
         # 合法绑定
         self.prov.link_conclusion("C1", "结论一", [ev])
@@ -82,9 +82,9 @@ class TestProvenance(unittest.TestCase):
 
     def test_cite_literature(self):
         ev = self.prov.append_evidence(
-            "literature", "10.1038/nmat3006", "P1_lit_search")
+            "literature", "10.1038/nmat3066", "P1_lit_search")
         text = self.prov.cite(ev)
-        self.assertIn("10.1038/nmat3006", text)
+        self.assertIn("10.1038/nmat3066", text)
         self.assertIn("Nature Materials", text)  # 从 literature.json 取元数据
 
     def test_cite_file_artifact(self):
@@ -168,13 +168,13 @@ class TestThreeTierTrust(unittest.TestCase):
             self.prov.link_conclusion("C1", "试图用判断当证据", [j])
         self.assertIn("tier", str(cm.exception))
         # 混绑（fact + judgment）同样必须失败
-        f = self.prov.append_evidence("literature", "10.1038/nmat3006",
+        f = self.prov.append_evidence("literature", "10.1038/nmat3066",
                                       "P1_lit_search")
         with self.assertRaises(EvidenceError):
             self.prov.link_conclusion("C2", "混绑", [f, j])
 
     def test_link_conclusion_accepts_fact_only(self):
-        f = self.prov.append_evidence("literature", "10.1038/nmat3006",
+        f = self.prov.append_evidence("literature", "10.1038/nmat3066",
                                       "P1_lit_search")
         self.prov.link_conclusion("C1", "正常结论", [f])
         self.assertEqual(self.prov.check_binding_invariants(), [])
@@ -203,7 +203,7 @@ class TestThreeTierTrust(unittest.TestCase):
 
     def test_cite_judgment_is_readable(self):
         ev = self.prov.append_judgment("relevance", "P1_lit_search",
-                                       "10.1038/nmat3006", "relevant",
+                                       "10.1038/nmat3066", "relevant",
                                        "标题含 sulfide 与 ionic conductivity")
         text = self.prov.cite(ev)
         self.assertIn("judgment", text)
