@@ -51,29 +51,40 @@
 ## 2. 提交历史（最新在上）
 
 ```
-8b0d530  fix(sources): 输入数据结构不符时响亮失败（堵住静默产出垃圾的洞）
-4fa122c  docs: AGH 会话内主路径操作手册（含预期输出与故障对照表）
-180eef9  fix(plugin): Python 解释器多候选回退 + 可操作的错误提示
-8d793f9  fix(plugin): 项目根自动推导，不再强依赖环境变量注入
-edb0f77  docs: 判据 2 与反判据的真实模型结论（DeepSeek 实测）
-03135eb  docs: 第二批文档与验收（含两处实测修正、判据状态如实标注）
-d59bd77  feat(freezing): 三段式冻结流程 + CLI 命令 + AGH 插件 3 工具
-ef3cb57  feat(judge): 可插拔判断器 + 反判据对比（含 AGH 模型调用路径的实测否证）
-e2a81ef  feat(anomaly): 双腿 DOI 对接 + 异常驱动打断（D7）
-f811803  feat(litsearch): 联网文献腿（Crossref / OpenAlex 元数据检索）
-ce37f94  docs: 红线措辞修订 + 入口文档更新（第一批收尾）
-ca6b054  demo: 双轨演示（真实数据主线 + legacy 回归）
-64a79b2  feat(pipeline): 主链路切换到真实数据集（快照消费 + 真实清洗 + 实测值排序）
-0ec412b  feat(sources): 外部数据源适配层（OBELiX 数据腿）
-f3fe7cd  feat(snapshot): 冻结输入快照机制（复现契约的载体）
-ae14070  feat(provenance): 三级信任模型（fact / judgment / conclusion）
-1ff6206  tools: OBELiX 技术探针通过（改造方案闸门验证）
-07d09bc  docs: 改造设计方案与竖版流程图（10 项决定 + 差异清单 + 红线修订）
-8933f5c  Merge pull request #1 from Novus0924/leyon     ← 改造前的原作者提交
+121aae5  docs: HANDOFF 重写为改造后状态（原文档停留在 7 工具/演示数据口径）
+c7466ed  fix(sources): 输入数据结构不符时响亮失败（堵住静默产出垃圾的洞）
+471477f  docs: AGH 会话内主路径操作手册（含预期输出与故障对照表）
+a915614  fix(plugin): Python 解释器多候选回退 + 可操作的错误提示
+d64a74d  fix(plugin): 项目根自动推导，不再强依赖环境变量注入
+924b505  docs: 判据 2 与反判据的真实模型结论（DeepSeek 实测）
+e9f55c3  docs: 第二批文档与验收（含两处实测修正、判据状态如实标注）
+9fcb002  feat(freezing): 三段式冻结流程 + CLI 命令 + AGH 插件 3 工具
+70e6e6f  feat(judge): 可插拔判断器 + 反判据对比（含 AGH 模型调用路径的实测否证）
+ecf1a57  feat(anomaly): 双腿 DOI 对接 + 异常驱动打断（D7）
+dcdcbe3  feat(litsearch): 联网文献腿（Crossref / OpenAlex 元数据检索）
+7cd47ec  docs: 红线措辞修订 + 入口文档更新（第一批收尾）
+22d3f64  demo: 双轨演示（真实数据主线 + legacy 回归）
+0148e3d  feat(pipeline): 主链路切换到真实数据集（快照消费 + 真实清洗 + 实测值排序）
+fea6757  feat(sources): 外部数据源适配层（OBELiX 数据腿）
+80f1535  feat(snapshot): 冻结输入快照机制（复现契约的载体）
+98d7e07  feat(provenance): 三级信任模型（fact / judgment / conclusion）
+41c2d4e  tools: OBELiX 技术探针通过（改造方案闸门验证）
+4429615  docs: 改造设计方案与竖版流程图（10 项决定 + 差异清单 + 红线修订）
+8933f5c  Merge pull request #1 from Novus0924/leyon     ← 改造前的原作者提交（已推送）
 ```
 
-- 分支：`main`；远端：`origin git@github-w:Novus0924/paper-agent.git`（SSH 别名 `github-w`）
-- **状态：18 个提交未推送**（按项目纪律，未经明确许可不推送）。
+- 分支：`main`；远端：`origin git@github-w:Novus0924/paper-agent.git`
+  （SSH 别名 `github-w` → `~/.ssh/id_gh_work` → 认证到 GitHub 账号 **Novus0924**）
+- **状态：19 个提交未推送**（按项目纪律，未经明确许可不推送）。
+- **提交署名已统一为 `Novus0924 <18014082610@163.com>`**（仓库级 `user.name/user.email`
+  已写入 `.git/config`）。此前这 19 个提交曾以另一个身份署名，为保证 GitHub 上
+  全部提交都关联到你的账号，已用 `git filter-branch --env-filter` 改写
+  `origin/main..HEAD` 范围的作者与提交者；**改写前后内容树指纹一致**
+  （`c967a59bff3153547fe181c1c3f9f2434f1cf553`），文件内容一字未变，
+  因此上面的 SHA 与改写前不同。已推送的历史（原作者的提交）**未改动**。
+- ⚠️ **推送前请删掉备份分支** `backup/pre-author-rewrite`：它是改写前的旧历史，
+  若用 `git push --all` / `--mirror` 会把旧署名的历史一起推上去。
+  确认无误后执行：`git branch -D backup/pre-author-rewrite`
 - 权威设计文档：`docs/redesign-decisions.md`（含决定、被否决方案、**两处实测修正**、判据状态）
 
 ---
