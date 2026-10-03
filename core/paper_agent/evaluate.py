@@ -365,7 +365,9 @@ def build_demo_evals(root: str) -> dict:
     reading, innovation, citation = [], [], []
 
     for d in docs:
+        _t0 = time.perf_counter()
         note = pdfparse.parse_pdf_bytes(demo_layout_pdf(d), d.get("doc_id", ""))
+        _sys_sec = time.perf_counter() - _t0        # 真实实测耗时，不写死常量
         note["doi"] = d.get("doi", "")
         note["venue"] = d.get("venue", "")
         note["year"] = d.get("year", 0)
@@ -381,8 +383,8 @@ def build_demo_evals(root: str) -> dict:
             "gold_sections": ["Abstract"],
             "gold_key_info": {"method": [gold_kw]} if gold_kw else {},
             "gold_repro": {"has_code": False, "has_data": False},
-            "manual_seconds": 900.0,               # PRD：人工精读 15-30 分钟
-            "system_seconds": 0.05,                # 实测解析典型耗时
+            "manual_seconds": 900.0,               # PRD：人工精读 15-30 分钟（取 15 分钟下界）
+            "system_seconds": round(_sys_sec, 6),  # 实测：解析耗时（本地环境，非估数）
         })
         if gold_kw:
             innovation.append({

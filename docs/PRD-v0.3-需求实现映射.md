@@ -169,8 +169,8 @@
 
 | 子项 | 指标 | 实现 | demo 实测 |
 | --- | --- | --- | --- |
-| **F-7.1 检索质量** | Recall / Precision / **NDCG@10**，含**纯关键词基线**对比 + 失败案例 | `evaluate.eval_search_quality` + `demo_search_testset` + `demo_search_baseline` | 系统 Recall **1.000** / Precision 0.345 / NDCG@10 **0.987**；基线 Recall 0.900 / NDCG@10 0.662 → **Recalli +0.10，NDCG +0.325** |
-| **F-7.2 精读质量** | 结构提取准确率 / 关键信息抽取准确率 / 可复现性判断准确率 + **人工耗时对比** | `evaluate.eval_read_quality`（对 5 篇基准） | 三项均 **1.000**；系统 0.05s/篇 vs 人工 ~900s/篇（参考量级） |
+| **F-7.1 检索质量** | Recall / Precision / **NDCG@10**，含**纯关键词基线**对比 + 失败案例 | `evaluate.eval_search_quality` + `demo_search_testset` + `demo_search_baseline` | 系统 Recall **1.000** / Precision 0.345 / NDCG@10 **0.987**；基线 Recall 0.900 / Precision 0.365 / NDCG@10 0.662 → **Recall +0.10，NDCG +0.325**。诚实说明：小测试集上 **Precision 略低于基线（−0.02）**，因系统召回更多同族文献；主口径为 Recall 与 NDCG |
+| **F-7.2 精读质量** | 结构提取准确率 / 关键信息抽取准确率 / 可复现性判断准确率 + **人工耗时对比** | `evaluate.eval_read_quality`（对 5 篇基准） | 三项均 **1.000**；系统耗时 **实测**（`time.perf_counter`，典型 ~0.001s/篇）vs 人工 900s/篇（PRD 15 分钟下界，人工值为标注常量不是实测） |
 | **F-7.3 创新点提取** | 识别率 / 分类准确率 / **幻觉率** + **混淆矩阵** | `evaluate.eval_innovation` | 识别率 **0.80**、分类准确率 0.80、幻觉率 **0.00**；混淆矩阵可加总（含"未识别"列） |
 | **F-7.4 引用可信度** | 引用准确率 / **引用幻觉率** | `evaluate.eval_citation`（对接 `factcheck.verify_citation`） | 引用准确率 **1.000**、幻觉率 **0.00**（≤5% 达标） |
 
@@ -189,7 +189,7 @@
 | **③ 长任务中断恢复** | `batch_fail_at=N` / `kill_after_r3` | 第 N 篇失败**跳过**继续；进程被真实杀死后 `sciret_resume` 断点续跑 | 批量：`n_failed=1`、失败项 `doc_id` 可查、下游 R3–R6 仍全 DONE；崩溃：退出码 **137** → `resume` → 全部 DONE，账本 append-only 完整 |
 
 - 代码：`core/paper_agent/chaos.py`（`source_should_fail` / `force_scanned` / `batch_fail_index` / `_die()`）+ `core/paper_agent/research.py`
-- 测试：`tests/test_research.py::TestExceptionRecovery`（4 例）+ `::TestCrashAndResume`（1 例，真实子进程 SIGKILL 137 → resume）
+- 测试：`tests/test_research.py::TestExceptionRecovery`（6 例，含**离线路径下场景① 真实生效**的回归用例）+ `::TestCrashAndResume`（1 例，真实子进程 SIGKILL 137 → resume）
 - 复验：
   ```bash
   python -m paper_agent.cli run-all --workflow research --goal "..." --lit-source local --chaos ss_timeout
@@ -209,7 +209,7 @@
 | **可追溯** | 结论可回溯到原文出处；禁止无引用陈述 | ✅ `provenance.py` 证据账本 `[EV-XXXX]`（含 SHA-256）；`key_info.locator`（章节+偏移）；`[需补充引用]` 标记 |
 | **透明性** | 执行过程可展示 | ✅ `events.jsonl` / `toolcalls/*.json` / AGH daemon 原生会话记录 |
 | **容错** | 单篇失败不阻塞 | ✅ 批量精读单项失败跳过并标注（F-4.8 场景③） |
-| **性能目标** | 单篇精读 < 60s；检索响应 < 10s | ✅ 纯本地解析 ~0.05s/篇；检索按源设 timeout（默认 15s）且单源超时跳过 |
+| **性能目标** | 单篇精读 < 60s；检索响应 < 10s | ✅ 纯本地解析实测 ~0.001s/篇（远低于 60s）；检索按源设 timeout（默认 25s）且单源超时跳过 |
 | **双语支持** | 中/英文论文 | ✅ 章节词表含中文；`detect_language` + 笔记语言跟随原文 |
 | **AGH 版本兼容** | 不修改 AGH 核心 | ✅ 仅通过 `plugins/paper-agent-tools`（Cordis 插件）+ `.agh/skills/` 扩展 |
 
@@ -232,7 +232,7 @@
 # 0) 环境
 export PYTHONPATH=core          # Windows: set PYTHONPATH=core
 
-# 1) 全量单测（159 例，离线零 skip）
+# 1) 全量单测（162 例，离线零 skip）
 python -m unittest discover -s tests -p "test_*.py"
 
 # 2) research 工作流端到端（模型驱动 / 兜底两种等价路径）
@@ -261,3 +261,19 @@ python -m paper_agent.cli eval
 `search_papers / parse_paper / analyze / factcheck / write_review / self_review / eval`（科研能力 7 个）。
 
 **AGH Skill**：`.agh/skills/sciret-research-pipeline/SKILL.md`（定义两条工作流与 F-4.8 决策协议）。
+
+---
+
+## 附：本轮复审修复（第二轮优化）
+
+对完成后的实现做了一次**对抗式复审**，发现并修掉 3 个真问题 + 2 处不诚实表述：
+
+| # | 级别 | 问题 | 影响 | 修复 |
+|---|---|---|---|---|
+| 1 | **重大** | `run_r1` 在 `--lit-source local` 时**直接短路**，从不经过多源层 | F-4.8 场景①（`ss_timeout`）在**所有文档给出的复验命令**下都是**空操作**：`unavailable_sources` 恒为 `[]`、`degraded` 恒 False。文档声称的验证结论**不成立** | local 分支不再短路：按 chaos 把受影响源标记为不可用并**切源**，产出 `note=local_source_failover` / `degraded=true`；新增回归用例 `test_scenario1_timeout_takes_effect_on_local_path` |
+| 2 | **中** | `run_r3` 在 R2 未 DONE 时**隐式调用 `run_r2()`** | 模型只要求跑 R3，系统却偷偷把 R2 标记 DONE 并追加证据——破坏「调用-结果一一对应」，模型状态判断失准 | 移除隐式代跑；引入 `STEP_DEPS` 硬依赖表 + `StepDependencyError`，缺前置时**显式失败**并回传 `missing_deps` |
+| 3 | **中** | R4/R5/R6 直接读前置产物，缺失时静默产出**空报告**仍标 DONE | 单步驱动下可能生成无内容却"成功"的报告 | R2–R6 全部加 `_check_deps` 前置校验；`run_step` 返回可读失败而非抛栈 |
+| 4 | 诚实性 | `build_demo_evals` 把精读耗时**写死为 0.05s** | F-7.2 的「加速倍数」基于编造常量 | 改为 `time.perf_counter` **实测**（典型 ~0.001s）；文档同步标注人工值为 PRD 常量、非实测 |
+| 5 | 诚实性 | 文档报检索 Precision 却**回避其低于基线**（0.345 < 0.365） | 选择性汇报 | 文档显式写明 Precision 略低于基线及原因，主口径改为 Recall/NDCG |
+
+复验：`python -m unittest discover -s tests` → **162/162 通过**；四条 F-4.8 命令逐条实跑与文档一致。

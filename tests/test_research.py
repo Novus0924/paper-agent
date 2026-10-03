@@ -202,11 +202,45 @@ class TestExceptionRecovery(_Base):
         self.assertEqual(res["n_documents"], 1)      # 已切换到可用源
         self.assertFalse(res["degraded"])            # 非整体降级
 
+    def test_scenario1_timeout_takes_effect_on_local_path(self):
+        """回归：`--lit-source local --chaos ss_timeout` 必须真实生效。
+
+        此前 R1 的 local 分支直接短路、从不经过多源层，导致该组合下
+        ``unavailable_sources`` 恒为空、`degraded` 恒为 False，
+        文档里声称的验证结论并不成立。本用例锁死修复后的行为。
+        """
+        rid = self._new()
+        ResearchPipeline(self.root, rid, chaos_mode="ss_timeout").run_all()
+        hits = self._json(rid, "literature", "research_hits.json")
+        self.assertEqual(hits["unavailable_sources"], ["semantic_scholar"])
+        self.assertEqual(hits["note"], "local_source_failover")
+        snap = self._json(rid, "state.json")
+        self.assertTrue(snap["degraded"])            # 切源必须被记为降级
+        self.assertGreater(hits["n_hits"], 0)        # 任务未被中断，仍有结果
+
     def test_scenario_unknown_step_rejected(self):
         rid = self._new()
         pipe = ResearchPipeline(self.root, rid)
         with self.assertRaises(KeyError):
             pipe.run_step("P1_lit_search")           # materials 步骤不应存在于 research run
+
+    def test_step_dependency_is_enforced_without_side_effects(self):
+        """R3 缺 R2 前置时必须**显式失败**，且不得偷偷把 R2 跑掉。"""
+        rid = self._new()
+        pipe = ResearchPipeline(self.root, rid)
+        pipe.run_step("R1_search")
+        res = pipe.run_step("R3_analyze")
+        self.assertTrue(res.get("failed"))
+        self.assertEqual(res.get("error_type"), "StepDependencyError")
+        # 关键：R2 不能被隐式执行
+        st = load_state(rid, self.root)
+        self.assertEqual(st.step_status["R2_read"].value, "PENDING")
+        self.assertEqual(st.step_status["R3_analyze"].value, "PENDING")
+
+    def test_all_steps_guard_prerequisites(self):
+        """R4/R5/R6 同样必须有前置依赖声明（防止空数据静默出报告）。"""
+        for sid in ("R2_read", "R3_analyze", "R4_verify", "R5_write", "R6_review"):
+            self.assertTrue(ResearchPipeline.STEP_DEPS.get(sid), sid)
 
 
 class TestCrashAndResume(_Base):

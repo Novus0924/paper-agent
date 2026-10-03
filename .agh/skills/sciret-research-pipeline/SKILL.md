@@ -82,6 +82,21 @@ sciret_plan(goal="...", workflow="research")  # 科研全流程
 `requires_decision=true`。先 `sciret_resume(run_id=...)` 重试；
 仍失败则 `sciret_verify` 取完整原因后终止，并在结论中说明。
 
+### 情形 A2：`error_type=StepDependencyError`（缺少前置步骤）
+
+research 工作流步骤有**硬前置依赖**，必须按顺序执行：
+
+```
+R1_search → R2_read → R3_analyze → R4_verify → R5_write → R6_review
+              ↑            ↑             ↑            ↑
+        依赖 R1      依赖 R1+R2     依赖 R2     依赖 R3   （R6 依赖 R4+R5）
+```
+
+若你在前置步骤尚未 DONE 时直接调用后续步骤，工具会返回
+`failed=true` + `error_type=StepDependencyError` + `missing_deps`。
+**系统不会替你隐式代跑前置步骤**（避免隐藏副作用）。正确做法：
+读出 `missing_deps` → 回到 `sciret_next` → 先按序补齐缺失步骤 → 再重试当前步骤。
+
 ### 情形 B：`degraded=true`
 
 **不能假装没发生**，必须显式声明。可能原因：检索源不可用已自动切换、

@@ -149,7 +149,7 @@ const TOOLS = [
     parameters: objectSchema(
       {
         run_id: str("run instance id, e.g. run-YYYYMMDD-HHMMSS-xxxxxx"),
-        step: str("P1_lit_search|P2_clean_data|P3_run_experiment|P4_verify|P5_report"),
+        step: str("materials: P1_lit_search|P2_clean_data|P3_run_experiment|P4_verify|P5_report ; research: R1_search|R2_read|R3_analyze|R4_verify|R5_write|R6_review"),
         chaos: optStr(CHAOS_DESC),
       },
       ["run_id", "step"],
@@ -173,7 +173,7 @@ const TOOLS = [
     name: "sciret_finish",
     description:
       "Converge the run status (RUNNING -> DONE/FAILED) once you have confirmed all " +
-      "five steps reached terminal states. Refuses if steps are still pending.",
+      "steps reached terminal states. Refuses if steps are still pending.",
     parameters: objectSchema(
       { run_id: str("run instance id"), chaos: optStr(CHAOS_DESC) },
       ["run_id"],

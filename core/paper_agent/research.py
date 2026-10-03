@@ -165,6 +165,10 @@ def scanned_demo_pdf() -> bytes:
 # ResearchPipeline
 # =====================================================================
 
+class StepDependencyError(RuntimeError):
+    """前置步骤未完成，当前步骤无法安全执行（禁止隐式代跑，避免隐藏副作用）。"""
+
+
 class ResearchPipeline:
     """科研全流程编排器（R1..R6）。接口与材料流水线 Pipeline 对齐，便于复用 CLI/Skill。"""
 
@@ -175,6 +179,17 @@ class ResearchPipeline:
         "R4_verify": "run_r4",
         "R5_write": "run_r5",
         "R6_review": "run_r6",
+    }
+
+    #: 每步的硬前置依赖（必须已 DONE/SKIPPED 才能执行本步）。
+    #: 单步驱动时缺依赖会**显式报错**，而不是偷偷把前置步骤跑掉——
+    #: 模型驱动编排要求「调用-结果」一一对应，隐式副作用会让模型的状态判断失准。
+    STEP_DEPS: dict[str, list[str]] = {
+        "R2_read": ["R1_search"],
+        "R3_analyze": ["R1_search", "R2_read"],
+        "R4_verify": ["R2_read"],
+        "R5_write": ["R3_analyze"],
+        "R6_review": ["R4_verify", "R5_write"],
     }
 
     def __init__(self, root: str, run_id: str, chaos_mode: str = ""):
@@ -209,6 +224,18 @@ class ResearchPipeline:
             "input": input_obj, "output": output_obj,
         })
         return path
+
+    # ---------- 前置依赖 ----------
+
+    def _check_deps(self, sid: str) -> None:
+        """执行前校验硬前置依赖；不满足则显式报错（不隐式代跑前置步骤）。"""
+        missing = [d for d in self.STEP_DEPS.get(sid, [])
+                   if self.state.step_status[d] not in (StepStatus.DONE, StepStatus.SKIPPED)]
+        if missing:
+            raise StepDependencyError(
+                f"step {sid} requires {missing} to be DONE first; "
+                f"current={[self.state.step_status[d].value for d in missing]}. "
+                f"请先按顺序执行前置步骤（不做隐式代跑）。")
 
     # ---------- R1 多源检索 ----------
 
@@ -245,6 +272,18 @@ class ResearchPipeline:
             sources_status = {"local": f"ok:{len(docs)}"}
             query_used = goal
             note = "local"
+            # F-4.8 场景① 在离线路径也必须可复现：local 源不再直接短路，
+            # 而是走同一套「≥2 源可选、单源失败自动切源」语义。
+            # 这样 `--lit-source local --chaos ss_timeout` 才会真实产出
+            # unavailable_sources（否则该场景在 local 下是空操作，文档结论不成立）。
+            local_sources = ["local"] + [s for s in litsearch.ALL_SOURCES
+                                         if chaos.CH.source_should_fail(s)]
+            if len(local_sources) > 1:
+                failed_sources = [s for s in local_sources if s != "local"]
+                sources_status.update(
+                    {s: "unavailable:TimeoutError" for s in failed_sources})
+                unavailable = failed_sources
+                note = "local_source_failover"
         else:
             try:
                 res = litsearch.search_papers(
@@ -342,6 +381,7 @@ class ResearchPipeline:
 
     def run_r2(self) -> dict:
         sid = "R2_read"
+        self._check_deps(sid)
         self.state.mark_step_running(sid)
         hits_path = self._out("literature", "research_hits.json")
         hits = _read_json(hits_path)["hits"] if os.path.exists(hits_path) else []
@@ -438,9 +478,9 @@ class ResearchPipeline:
 
     def run_r3(self) -> dict:
         sid = "R3_analyze"
+        self._check_deps(sid)
         self.state.mark_step_running(sid)
-        read = self.run_r2() if self.state.step_status["R2_read"] is not StepStatus.DONE \
-            else self._load_r2_result()
+        read = self._load_r2_result()
         notes = read.get("notes", [])
 
         innovations = [analyze.extract_innovations(n) for n in notes]
@@ -490,6 +530,7 @@ class ResearchPipeline:
 
     def run_r4(self) -> dict:
         sid = "R4_verify"
+        self._check_deps(sid)
         self.state.mark_step_running(sid)
         read = self._load_r2_result()
         notes = read.get("notes", [])
@@ -531,6 +572,7 @@ class ResearchPipeline:
 
     def run_r5(self) -> dict:
         sid = "R5_write"
+        self._check_deps(sid)
         self.state.mark_step_running(sid)
         docs = self._hits()
         notes = self._load_r2_result().get("notes", [])
@@ -580,6 +622,7 @@ class ResearchPipeline:
 
     def run_r6(self) -> dict:
         sid = "R6_review"
+        self._check_deps(sid)
         self.state.mark_step_running(sid)
         docs = self._hits()
         analyses = self._load_analysis().get("targets", [])
@@ -720,6 +763,14 @@ class ResearchPipeline:
         st = self.state.step_status[step]
         if st in (StepStatus.DONE, StepStatus.SKIPPED):
             return {"step": step, "reused": True, "status": st.value}
+        # 前置依赖不满足 → 返回可读失败（不抛栈、不隐式代跑），
+        # 交由模型决定先补哪一步。
+        try:
+            self._check_deps(step)
+        except StepDependencyError as e:
+            return {"step": step, "failed": True, "error": str(e),
+                    "error_type": "StepDependencyError",
+                    "missing_deps": list(self.STEP_DEPS.get(step, []))}
         self._ensure_running()
         return getattr(self, self.STEP_FN[step])()
 
