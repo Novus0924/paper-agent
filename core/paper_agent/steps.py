@@ -537,7 +537,20 @@ class Pipeline:
     def run_p5(self) -> dict:
         sid = "P5_report"
         if self.state.step_status[sid] is StepStatus.DONE:
-            # 幂等复用：DONE→DONE 是非法转移（终态守卫），直接返回既有报告路径
+            # 幂等复用：DONE→DONE 是非法转移（终态守卫），直接返回既有报告路径。
+            # 但复用前必须先过信任门禁：DONE 缓存不能成为绕过报告信任闸门的旁路
+            # （账本被篡改时，旧报告与"报告被拒绝"的承诺同样不可信——与 P4 的
+            # _trusted_cached_verification 同一原则：任何缓存复用路径都要重新校验）。
+            chain_problems = self.prov.verify_chain()
+            if chain_problems:
+                raise EvidenceError(
+                    "provenance ledger tampered, report refused: "
+                    + "; ".join(chain_problems))
+            binding_problems = self.prov.check_binding_invariants()
+            if binding_problems:
+                raise EvidenceError(
+                    "binding invariants violated, report refused: "
+                    + "; ".join(binding_problems))
             rpath = os.path.join(self.root, "runs", self.run_id, "report.md")
             return {"report": rpath, "idempotent_reuse": True}
         self.state.mark_step_running(sid)

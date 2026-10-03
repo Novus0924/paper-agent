@@ -206,6 +206,27 @@ class TestRecovery(unittest.TestCase):
         self.assertEqual(st.step_status["P5_report"].value, "DONE")
         self.assertEqual(st.attempts["P5_report"], 1)
 
+    def test_case_F2_report_idempotent_refuses_tampered_ledger(self):
+        """P5 DONE 幂等复用前必须过信任门禁：账本被篡改时报告复用被拒绝。
+
+        回归用例（demo_trust 攻击 A）：若 DONE 缓存无门禁，篡改 provenance.jsonl
+        后 report 命令仍会返回旧报告——DONE 缓存成了绕过信任闸门的旁路。
+        """
+        from paper_agent.provenance import EvidenceError
+        rid, pipe = self._plan("")
+        pipe.run_all()
+        prov_path = os.path.join(self.root, "runs", rid, "provenance.jsonl")
+        with open(prov_path, "r", encoding="utf-8") as f:
+            lines = [l for l in f.read().splitlines() if l.strip()]
+        rec = json.loads(lines[0])
+        rec["ref"] = "tampered-by-test"
+        lines[0] = json.dumps(rec, ensure_ascii=False)
+        with open(prov_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+        with self.assertRaises(EvidenceError) as cm:
+            pipe.run_p5()
+        self.assertIn("provenance ledger tampered", str(cm.exception))
+
     def test_state_failed_terminal_after_d(self):
         # run FAILED 后不能再 finish_run(DONE)
         from paper_agent.state import StateError
