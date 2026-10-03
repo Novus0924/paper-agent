@@ -182,6 +182,70 @@ class TestReadObelix(unittest.TestCase):
         self.assertEqual(s["duplicate_material_id"], 0)
 
 
+class TestSchemaGuard(unittest.TestCase):
+    """边界处必须响亮失败：列名对不上就抛错，绝不静默产出垃圾行。
+
+    实测教训（2026-10-03）：喂入完全不同领域的 CSV（吸附容量）时，
+    旧实现"成功"返回 4 行全 invalid、9 列里 8 列未解析的记录。
+    """
+
+    ALT_DOMAIN_CSV = (
+        "sample_id,material_name,group,uptake_mg_g,source_doi\n"
+        "A001,Zeolite-5A,zeolite,142.3,10.1002/adma.201800123\n"
+        "A002,MOF-808,MOF,198.7,10.1038/nmat3006\n"
+    )
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp(prefix="pa_schema_")
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _write(self, text):
+        p = os.path.join(self._tmp, "alt.csv")
+        with open(p, "w", encoding="utf-8", newline="") as f:
+            f.write(text)
+        return p
+
+    def test_wrong_schema_raises_by_default(self):
+        p = self._write(self.ALT_DOMAIN_CSV)
+        with self.assertRaises(sources.SchemaError):
+            sources.read_obelix(p)
+
+    def test_error_message_is_actionable(self):
+        p = self._write(self.ALT_DOMAIN_CSV)
+        with self.assertRaises(sources.SchemaError) as cm:
+            sources.read_obelix(p)
+        msg = str(cm.exception)
+        self.assertIn("material_id", msg)      # 缺哪列
+        self.assertIn("Ionic conductivity", msg)  # 期望的列名
+        self.assertIn("uptake_mg_g", msg)      # 实际读到的表头
+        self.assertIn("适配器", msg)            # 下一步该做什么
+
+    def test_strict_false_returns_diagnostics(self):
+        """诊断路径（probe 类工具）仍能拿到未解析列清单。"""
+        p = self._write(self.ALT_DOMAIN_CSV)
+        rows, meta = sources.read_obelix(p, strict=False)
+        self.assertEqual(len(rows), 2)
+        self.assertIn("cond_main", meta["unresolved_columns"])
+        self.assertIn("material_id", meta["unresolved_columns"])
+        self.assertEqual(meta["resolved_columns"]["source_doi"], "source_doi")
+
+    def test_correct_schema_still_works(self):
+        p = _write(self._tmp, FIXTURE_HUMAN)
+        rows, meta = sources.read_obelix(p, strict=True)
+        self.assertEqual(meta["unresolved_columns"], [])
+        self.assertEqual(len(rows), 6)
+
+    def test_only_doi_column_present_still_raises(self):
+        """只对上 DOI 一列也不够——数值列必须存在。"""
+        p = self._write("DOI,title\n10.1/a,x\n")
+        with self.assertRaises(sources.SchemaError) as cm:
+            sources.read_obelix(p)
+        self.assertIn("cond_main", str(cm.exception))
+
+
 class TestRealDatasetIntegrity(unittest.TestCase):
     """对仓库内 OBELiX 快照的完整性断言（无该文件时跳过）。"""
 

@@ -113,7 +113,8 @@ def prepare(root: str, goal: str, input_csv: str = "",
             srcs: tuple = (litsearch.CROSSREF, litsearch.OPENALEX)) -> dict:
     """取两腿数据并落盘 pending；返回待判对象与规则式参考裁决。"""
     csv_path = input_csv or default_input_csv(root)
-    rows, _ = sources.read_obelix(csv_path)
+    # strict=True：列名对不上就在这里响亮失败，绝不把错数据写成"成功的快照"
+    rows, _ = sources.read_obelix(csv_path, strict=True)
     base = sources.summarize(rows)
 
     literature, search_res = build_literature(literature_mode, goal, rows,

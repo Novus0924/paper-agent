@@ -257,9 +257,22 @@ def cmd_search(args) -> int:
 def cmd_freeze(args) -> int:
     """冻结输入快照：--prepare（待判对象）/ --commit（提交裁决）/ 缺省（规则式一步到位）。"""
     from . import freezing
+    from . import sources as sources_mod
     root = os.path.abspath(args.root) if args.root else _root()
     srcs = tuple(s.strip() for s in args.sources.split(",") if s.strip())
 
+    try:
+        return _freeze_dispatch(args, root, srcs, freezing)
+    except sources_mod.SchemaError as e:
+        return _emit_fail({"ok": False, "cmd": "freeze",
+                           "reason": "input_schema_mismatch",
+                           "error": str(e)}, 2)
+    except freezing.FreezeError as e:
+        return _emit_fail({"ok": False, "cmd": "freeze",
+                           "reason": "freeze_error", "error": str(e)}, 2)
+
+
+def _freeze_dispatch(args, root: str, srcs: tuple, freezing) -> int:
     if args.commit:
         if not args.verdicts:
             return _emit_fail({"ok": False, "cmd": "freeze",

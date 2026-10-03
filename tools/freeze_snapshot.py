@@ -73,6 +73,18 @@ def main(argv):
     root = os.path.abspath(args.root) if args.root else repo
     srcs = tuple(s.strip() for s in args.sources.split(",") if s.strip())
 
+    from paper_agent import sources as sources_mod
+    try:
+        return _dispatch(args, root, srcs)
+    except sources_mod.SchemaError as e:
+        return _emit({"ok": False, "cmd": "freeze",
+                      "reason": "input_schema_mismatch", "error": str(e)}, 2)
+    except freezing.FreezeError as e:
+        return _emit({"ok": False, "cmd": "freeze",
+                      "reason": "freeze_error", "error": str(e)}, 2)
+
+
+def _dispatch(args, root: str, srcs: tuple) -> int:
     # ---- commit 模式 ----
     if args.commit:
         if not args.verdicts:

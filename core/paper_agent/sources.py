@@ -136,10 +136,24 @@ def map_row(row: dict, cols: dict[str, str | None]) -> dict:
     }
 
 
-def read_obelix(path: str) -> tuple[list[dict], dict]:
+class SchemaError(RuntimeError):
+    """输入数据不符合本适配层期望的结构（列名对不上）。"""
+
+
+#: 缺这几列就无法产出有意义的标准行 —— 属于必须在边界处**响亮失败**的情形。
+#:
+#: 实测教训（2026-10-03）：喂入一份完全不同领域的 CSV（吸附容量，列名全不同）时，
+#: 若不校验，适配层会"成功"返回 4 行全 invalid、9 列里 8 列未解析的记录，
+#: 上层据此写出一个毫无意义的快照且退出码为 0 —— **静默产出垃圾**。
+#: 诊断类工具（probe）仍用 strict=False，以便把"哪些列没对上"作为信息报出来。
+REQUIRED_COLUMNS = ("material_id", "cond_main")
+
+
+def read_obelix(path: str, strict: bool = True) -> tuple[list[dict], dict]:
     """读取 OBELiX CSV，返回 (标准行列表, 元信息)。
 
-    元信息含列名解析结果与逐类计数，供 P2 与审计包使用。
+    strict=True（默认）时，若 ``material_id`` / ``cond_main`` 等必需列无法解析，
+    立即抛 :class:`SchemaError` —— 宁可在这里响亮失败，也不要让错数据流进流水线。
     """
     if not os.path.exists(path):
         raise FileNotFoundError(f"obelix dataset not found: {path}")
@@ -148,11 +162,19 @@ def read_obelix(path: str) -> tuple[list[dict], dict]:
         fields = list(reader.fieldnames or [])
         cols = resolve_columns(fields)
         rows = [map_row(r, cols) for r in reader]
-    missing = [k for k, v in cols.items() if not v]
+    missing = [k for k in REQUIRED_COLUMNS if not cols.get(k)]
+    if strict and missing:
+        pretty = ", ".join(_OBELIX_COLUMN_CANDIDATES[k][0] for k in missing)
+        raise SchemaError(
+            f"输入数据缺少必需列，无法作为本数据集使用：{', '.join(missing)}"
+            f"（期望的列名形如：{pretty}）。"
+            f"实际读到的表头：{', '.join(fields) if fields else '(空)'}。"
+            f"若这确实是另一个领域的数据，需要先为它写一个适配器"
+            f"（见 core/paper_agent/sources.py 的映射表）。")
     return rows, {
         "source_columns": fields,
         "resolved_columns": cols,
-        "unresolved_columns": missing,
+        "unresolved_columns": [k for k, v in cols.items() if not v],
         "n_rows": len(rows),
     }
 
