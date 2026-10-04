@@ -1,20 +1,92 @@
 # AI 工具使用边界声明（独立完成声明）
 
-- 本项目被研究 / 被评审的 Agent（paper-agent 全部流程）均运行在
-  **Agnes Harness（AGH）+ Agnes 模型**上：会话编排模型为 **Agnes 3.0 Flash**
-  （route `account-acct-60077bdf-…`，baseUrl `https://api.agnes-ai.cn/v1`）；
-  模型调用仅限 Agnes 模型，密钥只存 `~/.agh` credential store 与 `.env`（gitignore，绝不入库）。
-- **模型不参与科学结论生成**：所有数字均由本地确定性模块产生——实验脚本
-  （`experiments/arrhenius_rank.py`）、复现验证器（`core/paper_agent/verify.py`），
-  以及 research 工作流的本地解析/分析链（`pdfparse.py` / `analyze.py` /
-  `factcheck.py` / `writing.py` / `review.py` / `evaluate.py`）；
-  LLM 仅做工具编排与中文总结，**不产出文献内容与数值**。
-- 执行记录可追溯：真实 AGH 会话导出 `evidence/session.jsonl`（首轮 10+10 条）与
-  `evidence/session-full.jsonl`（两轮合计 **21 tool/call + 21 tool/result，7 个
-  `sciret_*` 工具全部出现**），session id
-  `agnes:local:local-dev:cli:workspace:05d7ffbf5caefe74`；每条工具调用另有 run 内
-  `toolcalls/` 与双账本（`events.jsonl` / `provenance.jsonl`）留痕。
-- 开发期使用 AI 辅助工具（如 Qoder）辅助编写代码。按赛事指南"独立完成"要求如实声明：
-  - 核心逻辑、接口设计与合规审查由团队完成并负责；
-  - AI 辅助产生的代码经人工审查、测试（**159/159 单测** + 端到端 + 故障用例 + PRD F-1~F-7 覆盖）后方可入库；
-  - 开发期 AI 工具边界：**仅用于代码编写辅助与知识检索，不代替团队做设计决策**。
+> 本文件口径依据 `docs/redesign-decisions.md` §5 修订。**修订的目的是把话说准，
+> 不是放松红线**：模型现在确实会参与"分析什么"，隐瞒这一点比修订条款更危险。
+
+## 1. 模型在本项目中的角色（修订后口径）
+
+**模型参与检索式生成与相关性筛选，但不产生任何数值与结论。**
+
+| 对象 | 谁能产生 | 能否进结论 | 存证方式 |
+|---|---|---|---|
+| **事实 fact** | 公开数据集（OBELiX，附 DOI）与本地确定性计算 | ✅ 唯一可进结论者 | `provenance.jsonl` 中 `tier=fact`，带 SHA-256 |
+| **判断 judgment** | 模型（当前为可见规则，见 §3） | ❌ 仅影响流程走向 | `provenance.jsonl` 中 `tier=judgment`，**含被排除项与理由** |
+| **结论 conclusion** | 只能由确定性程序从 fact 推导 | — | `conclusions.jsonl`，必须绑定 fact 级证据，否则拒绝生成 |
+
+已由代码强制、可实测的强化约束：
+- `link_conclusion` **拒绝任何非 fact 级证据**（含混绑）——代码级红线
+- 使用快照的 run，**账本缺少判断批次则拒绝生成报告**（"判断留痕"硬前置）
+- 删除快照中的判断记录 → 快照哈希校验失败 + 流水线直接失败
+  （`demo/demo_mainline.sh` 第 [4] 项即为该项实测）
+
+## 2. 复现契约的边界（诚实声明）
+
+- **承诺**：从冻结输入快照到结论的全过程逐字节可复现（相同输入两次运行，
+  结果文件 SHA-256 完全相同）。
+- **不承诺**："这次筛选了哪些材料/文献"跨次一致——模型判断本身不可复现。
+  因此筛选结果一经产生即**冻结为快照**，此后所有复算只针对该快照。
+- 这是数据流水线的通行做法：把不确定的环节变成一次性、有留痕的输入。
+
+## 3. 当前批次的实际状态（如实说明，勿混淆）
+
+判断器有**两个实现，数据契约相同**：
+
+| 实现 | 状态 | 说明 |
+|---|---|---|
+| `RuleJudge`（规则式） | ✅ 可用 | 规则与同义词表全部写在 `core/paper_agent/judge.py` 源码中，可读、可复核、可反驳。**仓库内快照由它产出**（`judged_by=rule`） |
+| `ModelJudge`（模型） | ✅ **已在标准 OpenAI 兼容端点上跑通** | 注入式 `llm_client`；严格校验（JSON 合法性 / verdict 取值 / 覆盖全部待判对象），失败重试一次后报错（不静默降级）；原始响应与模型身份全程留痕。**实测端点：`https://api.deepseek.com` + `deepseek-chat`**；结果存档 `evidence/model-judge-comparison.json` |
+
+**实测对比结论（判据 2 与反判据）**：模型产出 4 条检索式（规则式 2 条），
+判定范围 7/42 与 6/42，1 个族翻转 → 反判据判决 **`model_matters`**（退出码 0）。
+**幅度如实记录**：范围差异小，模型的增量价值主要在**检索式质量**与
+**对字面匹配盲区的补偿**上（详见 `docs/redesign-decisions.md` §9.5）。
+未夸大为"大幅改变结论"。
+
+**仍需注意的两点**：
+
+1. **AGH 会话内主路径尚未端到端实跑**。该路径依赖交互式终端完成插件安装
+   （`package add` 需人工确认，AGH 安全设计无 bypass）。目前证明的是
+   "同样的判断契约在标准端点上确实改变结果"，而非"AGH 会话内链路已跑通"。
+2. **AGH 不能从 Python 当补全 API 用**（实测）：`agh -p` 非交互下会挂起
+   （daemon 启动后重测仍 150s 无输出）；`agh serve model-api` 起的是给人用的
+   Web 控制台（`/v1/models` → 404、`POST /v1/chat/completions` → 405）。
+   故本次**未提供 AGH 专用客户端**，避免交付一个会挂起的构件。
+
+## 3.1 反判据（防止"模型是装饰品"）
+
+`tools/compare_judges.py` 对比规则式基线与模型判断在**同一目标**下的产出：
+检索式是否相同、判定出的研究范围是否相同。退出码即判据：
+
+- `0` = `model_matters`（模型确实改变了结果）
+- `5` = `model_is_decoration`（换回固定规则结论不变 → **本次改造未达标**，可接 CI 当失败）
+
+已自检生效（rule vs rule → 退出码 5）；真实判决待模型端点。
+
+## 4. 运行底座
+
+- **主线（Python 核心 + 快照回放）不需要模型、不需要 key、不需要网络**：
+  任何装有 Python 3.10+ 的干净机器都能复现（零第三方依赖）。这是可验证性的基础。
+- 增强线（真实联网检索 + 模型判断）将运行在 **Agnes Harness（AGH）** 之上，
+  会话编排模型为 **Agnes 3.0 Flash**（route `account-acct-60077bdf-…`，
+  baseUrl `https://api.agnes-ai.cn/v1`）；Agnes Harness 为赛事指定运行底座，
+  插件经 inspect → add（交互确认）→ trust → enable 全链路加载。
+- 模型调用仅限 Agnes 模型；密钥只存 `~/.agh` credential store 与 `.env`
+  （gitignore，**绝不入库**）。
+- 历史联调记录（phase 1，内置演示语料时期）：真实会话导出 21 tool/call +
+  21 tool/result，7 个 `sciret_*` 工具全覆盖，见 `evidence/`。
+
+## 5. 科学结论的来源
+
+- 所有数值均来自 **OBELiX 公开数据集**（NRC-Mila，CC-BY-4.0，arXiv:2502.14234）
+  的**实验实测室温离子电导率**，每条带原始实验论文 DOI，可在线核对。
+- 计算由本地零依赖脚本（`experiments/arrhenius_rank.py`）完成，无随机源。
+- 真实数据模式下**不使用任何自拟权重**：权重无文献依据，因此只做
+  "按实测值排序 + 按化学族统计"，不制造虚假精度。
+- **严禁伪造数据**：不得让模型生成的数值进入计算链路。
+
+## 6. 开发期 AI 辅助工具的使用
+
+- 开发期使用 AI 辅助工具辅助编写代码。按赛事指南"独立完成"要求如实声明：
+  - 核心逻辑、接口设计、数据来源合规审查由本人完成并负责；
+  - AI 辅助产生的代码经人工审查与测试（200+ 项单测 + 多套端到端演示）后方可入库；
+  - 开发期 AI 工具边界：**仅用于代码编写辅助与知识检索，不代替设计决策**。

@@ -1,0 +1,285 @@
+{
+  "conductivity": {
+    "parsed_ic_bulk_ok": 28,
+    "parsed_ic_total_ok": 29,
+    "parsed_main_ok": 562,
+    "raw_empty_or_missing": 0,
+    "raw_format_distribution": {
+      "上界记法 <": 37,
+      "科学计数法": 291,
+      "纯小数": 271
+    },
+    "raw_upper_bound_notation": 37,
+    "usable_numeric_rows": 562,
+    "usable_ratio": 0.9382,
+    "value_source_preference": {
+      "ic_bulk": 0,
+      "ic_total": 0,
+      "main": 562,
+      "none": 37
+    }
+  },
+  "doi": {
+    "doi_coverage": 1.0,
+    "rows_with_close_match_doi": 60,
+    "rows_with_doi": 599,
+    "unique_doi": 223
+  },
+  "doi_resolution": {
+    "crossref_resolved": 10,
+    "details": [
+      {
+        "crossref": {
+          "bytes": 4000,
+          "http": 200,
+          "ms": 1276
+        },
+        "doi": "10.1002/zaac.200500231",
+        "openalex": {
+          "bytes": 4000,
+          "http": 200,
+          "ms": 2257
+        }
+      },
+      {
+        "crossref": {
+          "bytes": 1903,
+          "http": 200,
+          "ms": 6698
+        },
+        "doi": "10.4028/www.scientific.net/msf.76.107",
+        "openalex": {
+          "bytes": 4000,
+          "http": 200,
+          "ms": 3327
+        }
+      },
+      {
+        "crossref": {
+          "bytes": 4000,
+          "http": 200,
+          "ms": 4060
+        },
+        "doi": "10.1021/acsaem.0c00147",
+        "openalex": {
+          "bytes": 4000,
+          "http": 200,
+          "ms": 2180
+        }
+      },
+      {
+        "crossref": {
+          "bytes": 4000,
+          "http": 200,
+          "ms": 930
+        },
+        "doi": "10.1023/a:1026135806929",
+        "openalex": {
+          "bytes": 4000,
+          "http": 200,
+          "ms": 1054
+        }
+      },
+      {
+        "crossref": {
+          "bytes": 4000,
+          "http": 200,
+          "ms": 939
+        },
+        "doi": "10.1021/acs.chemmater.8b00266",
+        "openalex": {
+          "bytes": 4000,
+          "http": 200,
+          "ms": 1239
+        }
+      },
+      {
+        "crossref": {
+          "bytes": 4000,
+          "http": 200,
+          "ms": 905
+        },
+        "doi": "10.1021/acsami.8b00842",
+        "openalex": {
+          "bytes": 4000,
+          "http": 200,
+          "ms": 1250
+        }
+      },
+      {
+        "crossref": {
+          "bytes": 4000,
+          "http": 200,
+          "ms": 1244
+        },
+        "doi": "10.1016/0167-2738(88)90291-3",
+        "openalex": {
+          "bytes": 4000,
+          "http": 200,
+          "ms": 1065
+        }
+      },
+      {
+        "crossref": {
+          "bytes": 4000,
+          "http": 200,
+          "ms": 913
+        },
+        "doi": "10.1016/j.jssc.2016.12.001",
+        "openalex": {
+          "bytes": 4000,
+          "http": 200,
+          "ms": 1012
+        }
+      },
+      {
+        "crossref": {
+          "bytes": 4000,
+          "http": 200,
+          "ms": 1008
+        },
+        "doi": "10.2497/jjspm.65.26",
+        "openalex": {
+          "bytes": 4000,
+          "http": 200,
+          "ms": 1067
+        }
+      },
+      {
+        "crossref": {
+          "bytes": 4000,
+          "http": 200,
+          "ms": 906
+        },
+        "doi": "10.1021/jp304737x",
+        "openalex": {
+          "bytes": 4000,
+          "http": 200,
+          "ms": 1028
+        }
+      }
+    ],
+    "openalex_resolved": 10,
+    "sampled": 10
+  },
+  "field_distribution": {
+    "close_match": {
+      "(空)": 538,
+      "Yes": 61
+    },
+    "family_top20": {
+      "(空)": 33,
+      "LGPS": 36,
+      "LISICON": 24,
+      "Lanthanumlithiumoxide": 3,
+      "NASICON": 134,
+      "antiperovskite": 4,
+      "argyrodites": 52,
+      "chlorides": 5,
+      "garnet": 105,
+      "halides": 9,
+      "hydrides": 3,
+      "molybdates": 6,
+      "nitrides": 3,
+      "oxides": 29,
+      "perovskites": 68,
+      "phosphates": 10,
+      "pyrochlore": 6,
+      "sulfides": 11,
+      "thio-LISICON": 26,
+      "thio-phosphate": 4
+    },
+    "family_unique": 43,
+    "has_cif": {
+      "(空)": 9,
+      "available": 2,
+      "done": 321,
+      "not available": 267
+    },
+    "space_group_unique": 55,
+    "split": {}
+  },
+  "input": "data/external/obelix/all.csv",
+  "n_rows": 599,
+  "ok": true,
+  "resolved_columns": {
+    "close_match": "close match",
+    "close_match_doi": "close match DOI",
+    "composition": "Reduced Composition",
+    "cond_bulk": "IC (Bulk)",
+    "cond_main": "Ionic conductivity (S cm-1)",
+    "cond_total": "IC (Total)",
+    "doi": "DOI",
+    "family": "Family",
+    "has_cif": "Cif ID",
+    "id": "ID",
+    "space_group": "Space group #",
+    "split": null,
+    "true_composition": "True Composition"
+  },
+  "top10_by_conductivity": [
+    {
+      "S_per_cm": 0.025,
+      "composition": "Li9.54Si1.74P1.44S11.7Cl0.3",
+      "doi": "10.1038/nenergy.2016.30",
+      "id": "ete"
+    },
+    {
+      "S_per_cm": 0.025,
+      "composition": "Li3ClO",
+      "doi": "10.1039/c3ta15087a",
+      "id": "4p7"
+    },
+    {
+      "S_per_cm": 0.0246,
+      "composition": "Li10GeP2S12",
+      "doi": "10.1021/acs.chemmater.8b00266",
+      "id": "mtn"
+    },
+    {
+      "S_per_cm": 0.0144,
+      "composition": "Li10.35Ge1.35P1.65S12",
+      "doi": "10.1039/c4ta05231e",
+      "id": "824"
+    },
+    {
+      "S_per_cm": 0.0141,
+      "composition": "Li10(Ge0.776Sn0.224)P2S12",
+      "doi": "10.1021/acs.chemmater.8b00266",
+      "id": "9rc"
+    },
+    {
+      "S_per_cm": 0.0132,
+      "composition": "Li10.2Ge1.2P1.8S12",
+      "doi": "10.1039/c4ta05231e",
+      "id": "8po"
+    },
+    {
+      "S_per_cm": 0.0122,
+      "composition": "Li10.05Ge1.05P1.95S12",
+      "doi": "10.1039/c4ta05231e",
+      "id": "52b"
+    },
+    {
+      "S_per_cm": 0.0121,
+      "composition": "Li10GeP2S12",
+      "doi": "10.1039/c4ta05231e|10.1021/acs.chemmater.7b00886",
+      "id": "j8q"
+    },
+    {
+      "S_per_cm": 0.012,
+      "composition": "Li10GeP2S12",
+      "doi": "10.1038/nmat3066",
+      "id": "1hh"
+    },
+    {
+      "S_per_cm": 0.011,
+      "composition": "Li10.5Ge1.5P1.5S12",
+      "doi": "10.1039/c4ta05231e",
+      "id": "ya8"
+    }
+  ],
+  "unresolved_columns": [
+    "split"
+  ]
+}

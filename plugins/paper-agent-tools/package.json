@@ -2,7 +2,7 @@
   "name": "paper-agent-tools",
   "version": "0.1.0",
   "private": true,
-  "description": "paper-agent research pipeline: 7 AGH hot-tools (thin shell over Python CLI)",
+  "description": "paper-agent research pipeline: 10 AGH tools (thin shell over Python CLI)",
   "type": "module",
   "license": "MIT",
   "exports": "./index.mjs",

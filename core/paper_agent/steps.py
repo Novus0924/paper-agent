@@ -27,6 +27,8 @@ from . import chaos
 from . import litsearch
 from .chaos import TransientError
 from . import verify as verify_mod
+from . import sources
+from . import snapshot as snapshot_mod
 
 MAX_ATTEMPTS = 3
 BACKOFF = [1, 2]  # seconds
@@ -229,8 +231,110 @@ class Pipeline:
                 "output": out_path, "evidence": ev_ids,
                 "hits_file_ev": hits_file_ev}
 
+    # ---------- P1 主路径：消费冻结快照（redesign D6）----------
+
+    def _open_snapshot_or_none(self):
+        """打开项目级冻结快照；不存在或显式禁用则返回 None（回退内置语料路径）。
+
+        环境变量控制（同时支持连字符与下划线两种写法——连字符名在部分
+        shell 下无法 export，故提供等价的下划线别名）：
+          - 未设置   → 自动取最新快照
+          - ``none`` → 强制禁用快照，走内置语料路径（legacy 演示 / 回归用）
+          - 其它值   → 指定快照 id（回放某个特定快照）
+        """
+        raw = ""
+        for name in ("PAPER_AGENT_SNAPSHOT", "paper-agent_SNAPSHOT"):
+            v = os.environ.get(name)
+            if v is not None and str(v).strip():
+                raw = str(v).strip()
+                break
+        if raw.lower() == "none":
+            return None
+        try:
+            return snapshot_mod.open_snapshot(self.root, raw)
+        except snapshot_mod.SnapshotError:
+            return None
+
+    def _p1_from_snapshot(self, sid: str, snap) -> dict:
+        """消费冻结快照：强校验 → 重登记判断 → 登记事实 → 产出命中清单。
+
+        检索与相关性判断本身发生在**快照冻结阶段**（D6：复现契约只覆盖
+        "冻结之后"）；本步骤负责让当前 run 的账本自包含、可独立审计。
+        """
+        self.state.mark_step_running(sid)
+
+        ok, problems = snap.verify()
+        if not ok:
+            self.state.mark_step_failed(
+                sid, "snapshot integrity check failed: " + "; ".join(problems))
+            return {"failed": True, "snapshot_problems": problems}
+
+        # 判据 4 前置：快照必须携带判断批次
+        snap.require_judgments()
+        manifest = snap.load()
+
+        judgment_evs = snap.register_judgments_into(self.prov)
+
+        mat_rows = sources.read_materials(snap.materials_path())
+        mat_stats = sources.summarize(mat_rows)
+
+        ev_manifest = self.prov.append_evidence(
+            kind="data", ref=f"snapshots/{snap.snapshot_id}/manifest.json",
+            producer_step=sid, file_path=snap.manifest_path,
+            meta={"snapshot_id": snap.snapshot_id,
+                  "content_sha256": manifest.get("content_sha256"),
+                  "producer": manifest.get("producer")})
+        ev_lit = self.prov.append_evidence(
+            kind="literature",
+            ref=f"snapshots/{snap.snapshot_id}/{snapshot_mod.LITERATURE_FILE}",
+            producer_step=sid,
+            file_path=snap.file_path(snapshot_mod.LITERATURE_FILE),
+            meta={"source": "snapshot"})
+        ev_mat = self.prov.append_evidence(
+            kind="data",
+            ref=f"snapshots/{snap.snapshot_id}/{snapshot_mod.MATERIALS_FILE}",
+            producer_step=sid, file_path=snap.materials_path(),
+            meta={"rows": mat_stats["n_rows"],
+                  "usable_rows": mat_stats["value_status"].get("numeric", 0)})
+
+        literature = snap.literature()
+        hits = literature.get("hits", [])
+        out_path = os.path.join(self.root, "runs", self.run_id, "literature",
+                                "literature_hits.json")
+        _write_json(out_path, {
+            "goal": self.state.goal,
+            "snapshot_id": snap.snapshot_id,
+            "snapshot_content_sha256": manifest.get("content_sha256"),
+            "n_hits": len(hits),
+            "hits": hits,
+            "degraded": False,
+            "materials_rows": mat_stats["n_rows"],
+            "materials_usable": mat_stats["value_status"].get("numeric", 0),
+            "judgments_registered": len(judgment_evs),
+        })
+
+        self._toolcall("P1_lit_search", "sciret_run_step",
+                       {"snapshot_id": snap.snapshot_id},
+                       {"n_hits": len(hits), "materials_rows": mat_stats["n_rows"]})
+        self.state.mark_step_done(sid, {
+            "snapshot_id": snap.snapshot_id,
+            "n_hits": len(hits),
+            "materials_rows": mat_stats["n_rows"],
+            "judgments": len(judgment_evs)})
+        return {"snapshot_id": snap.snapshot_id,
+                "n_hits": len(hits),
+                "materials_rows": mat_stats["n_rows"],
+                "output": out_path,
+                "evidence": [ev_manifest, ev_lit, ev_mat],
+                "judgment_evidence": judgment_evs}
+
     def run_p1(self) -> dict:
         sid = "P1_lit_search"
+        # 主路径：消费冻结输入快照（redesign D6）；无快照时回退内置语料本地匹配
+        snap = self._open_snapshot_or_none()
+        if snap is not None:
+            return self._p1_from_snapshot(sid, snap)
+
         goal = self.state.goal
         self.state.mark_step_running(sid)
         result = None
@@ -274,6 +378,11 @@ class Pipeline:
 
     def run_p2(self) -> dict:
         sid = "P2_clean_data"
+        # 主路径：清洗快照数据腿产出的标准 materials.csv
+        snap = self._open_snapshot_or_none()
+        if snap is not None:
+            return self._p2_from_materials(sid, snap)
+
         self.state.mark_step_running(sid)
         raw_path = os.path.join(self.root, "data", "conductivity_raw.csv")
         with open(raw_path, "r", encoding="utf-8-sig", newline="") as f:
@@ -380,7 +489,186 @@ class Pipeline:
                 "input_rows": in_n, "output_rows": len(clean_rows),
                 "evidence": [ev_data, ev_rep]}
 
+    # ---------- P2 主路径：清洗真实数据集 ----------
+
+    #: 数据源自带注记 → 质量标记（不删行，只标注，供报告与人工复核）
+    QUALITY_RULES = (
+        ("not matching", "structure_mismatch"),
+        ("not correct", "source_flagged"),
+        ("partial occupancy", "partial_occupancy"),
+        ("check", "needs_review"),
+    )
+
+    #: 清洗后供计算使用的列
+    CLEAN_COLUMNS = ["material_id", "formula", "family", "conductivity_Scm",
+                     "space_group", "source_doi", "dup_measurement",
+                     "quality_flag", "in_scope"]
+
+    def _quality_flags(self, note: str) -> str:
+        n = (note or "").lower()
+        return "|".join(name for kw, name in self.QUALITY_RULES if kw in n)
+
+    def _p2_from_materials(self, sid: str, snap) -> dict:
+        """清洗真实数据集：值分类过滤 / 家族补缺 / 重复标注 / 质量标注。
+
+        原则：
+        - **不可比较的值必须剔除，但绝不静默丢弃**（写入 excluded_rows.json 留证）
+        - **重复测量不删除**（同一材料同一论文的多条记录是真实存在的），只标注
+        - 清洗只做过滤与标注，**不做任何科学计算**（派生量留给 P3）
+        """
+        self.state.mark_step_running(sid)
+        src = snap.materials_path()
+        rows = sources.read_materials(src)
+        in_n = len(rows)
+
+        # (formula, doi) 出现次数：用于识别"同论文同材料的重复记录"
+        pair_count: dict[tuple, int] = {}
+        for r in rows:
+            pair_count[(r.get("formula", ""), r.get("source_doi", ""))] = \
+                pair_count.get((r.get("formula", ""), r.get("source_doi", "")), 0) + 1
+
+        actions: list[dict] = []
+        excluded: list[dict] = []
+        clean: list[dict] = []
+        seen_rows: set[tuple] = set()
+
+        for r in rows:
+            mid = r.get("material_id", "")
+            status = r.get("value_status", "")
+
+            # 规则 1：值状态过滤（上界值 / 无效值不可参与排序）
+            if status != sources.VALUE_NUMERIC:
+                reason = ("upper bound notation (e.g. '<1E-10'): "
+                          "not a comparable value"
+                          if status == sources.VALUE_UPPER_BOUND
+                          else "no parsable positive numeric value")
+                excluded.append({
+                    "material_id": mid,
+                    "formula": r.get("formula", ""),
+                    "family": r.get("family", ""),
+                    "conductivity_raw": r.get("conductivity_raw", ""),
+                    "value_status": status,
+                    "source_doi": r.get("source_doi", ""),
+                    "reason": reason,
+                })
+                actions.append({"action": "exclude_non_numeric",
+                                "material_id": mid,
+                                "value_status": status,
+                                "reason": reason})
+                continue
+
+            # 规则 2：完全重复行剔除（防御性；本数据集 ID 全唯一，预期 0 条）
+            key = tuple(sorted(r.items()))
+            if key in seen_rows:
+                actions.append({"action": "dedup_exact", "material_id": mid,
+                                "note": "entire row identical to a previous one"})
+                continue
+            seen_rows.add(key)
+
+            out = {k: r.get(k, "") for k in self.CLEAN_COLUMNS}
+
+            # 规则 3：家族缺失 → unknown（不删除，避免静默缩小样本）
+            if not out["family"]:
+                out["family"] = "unknown"
+                actions.append({"action": "family_fill_unknown",
+                                "material_id": mid,
+                                "note": "source family empty → 'unknown'"})
+
+            # 规则 4：同论文同材料的重复记录 → 标注（不删除）
+            pair = (r.get("formula", ""), r.get("source_doi", ""))
+            if pair_count.get(pair, 0) > 1:
+                out["dup_measurement"] = "yes"
+                actions.append({"action": "flag_duplicate_measurement",
+                                "material_id": mid,
+                                "note": "same composition + same DOI appears "
+                                        f"{pair_count[pair]} times"})
+
+            # 规则 5：数据源质量注记 → 质量标记（不删除）
+            qf = self._quality_flags(r.get("data_notes", ""))
+            if qf:
+                out["quality_flag"] = qf
+                actions.append({"action": "flag_quality_note",
+                                "material_id": mid, "flags": qf})
+
+            clean.append({k: out.get(k, "") for k in self.CLEAN_COLUMNS})
+
+        clean_path = os.path.join(self.root, "runs", self.run_id, "clean",
+                                  "materials_clean.csv")
+        _write_csv(clean_path, self.CLEAN_COLUMNS, clean)
+
+        counts: dict[str, int] = {}
+        for a in actions:
+            counts[a["action"]] = counts.get(a["action"], 0) + 1
+
+        def _family_counts(rs):
+            c: dict[str, int] = {}
+            for x in rs:
+                c[x["family"]] = c.get(x["family"], 0) + 1
+            return dict(sorted(c.items()))
+
+        report = {
+            "input_rows": in_n,
+            "output_rows": len(clean),
+            "excluded_rows": len(excluded),
+            "action_counts": dict(sorted(counts.items())),
+            "actions": actions,
+            "value_source": "snapshot:" + snap.snapshot_id,
+            "included_families": _family_counts(clean),
+            "excluded_families": _family_counts(excluded) if excluded else {},
+        }
+        rep_path = os.path.join(self.root, "runs", self.run_id, "clean",
+                                "cleaning_report.json")
+        _write_json(rep_path, report)
+
+        exc_path = os.path.join(self.root, "runs", self.run_id, "clean",
+                                "excluded_rows.json")
+        _write_json(exc_path, {
+            "note": "行被排除出排序计算，但保留留证（不静默丢弃）",
+            "n_excluded": len(excluded),
+            "rows": excluded,
+        })
+
+        ev_data = self.prov.append_evidence(
+            kind="data", ref="clean/materials_clean.csv",
+            producer_step="P2_clean_data", file_path=clean_path,
+            meta={"input_rows": in_n, "output_rows": len(clean)})
+        ev_rep = self.prov.append_evidence(
+            kind="data", ref="clean/cleaning_report.json",
+            producer_step="P2_clean_data", file_path=rep_path,
+            meta={"action_count": len(actions)})
+        ev_exc = self.prov.append_evidence(
+            kind="data", ref="clean/excluded_rows.json",
+            producer_step="P2_clean_data", file_path=exc_path,
+            meta={"n_excluded": len(excluded),
+                  "n_upper_bound": sum(
+                      1 for e in excluded
+                      if e["value_status"] == sources.VALUE_UPPER_BOUND)})
+
+        self._toolcall("P2_clean_data", "sciret_run_step",
+                       {"input": f"snapshot:{snap.snapshot_id}",
+                        "input_rows": in_n},
+                       {"clean": clean_path, "output_rows": len(clean),
+                        "excluded": len(excluded)})
+        self.state.mark_step_done(sid, {"output_rows": len(clean),
+                                        "excluded": len(excluded),
+                                        "actions": len(actions)})
+        chaos.CH.kill_after(sid)
+        return {"clean": clean_path, "report": rep_path, "excluded": exc_path,
+                "input_rows": in_n, "output_rows": len(clean),
+                "excluded_rows": len(excluded),
+                "evidence": [ev_data, ev_rep, ev_exc]}
+
     # ---------- P3 实验子进程 ----------
+
+    def _clean_csv(self) -> str:
+        """优先使用真实数据集清洗产物（materials_clean.csv）；
+        否则回退内置演示数据的清洗产物（conductivity_clean.csv）。"""
+        p_new = os.path.join(self.root, "runs", self.run_id, "clean",
+                             "materials_clean.csv")
+        if os.path.exists(p_new):
+            return p_new
+        return os.path.join(self.root, "runs", self.run_id, "clean",
+                            "conductivity_clean.csv")
 
     def _spawn_experiment(self, input_csv: str, outdir: str, extra_env: dict | None = None) -> int:
         env = dict(os.environ)
@@ -397,8 +685,7 @@ class Pipeline:
     def run_p3(self) -> dict:
         sid = "P3_run_experiment"
         self.state.mark_step_running(sid)
-        clean_csv = os.path.join(self.root, "runs", self.run_id, "clean",
-                                 "conductivity_clean.csv")
+        clean_csv = self._clean_csv()
         exp_dir = os.path.join(self.root, "runs", self.run_id, "experiment")
         rc = self._spawn_experiment(clean_csv, exp_dir)
         if rc != 0:
@@ -459,8 +746,7 @@ class Pipeline:
         exp_dir = os.path.join(self.root, "runs", self.run_id, "experiment")
         rerun_dir = os.path.join(self.root, "runs", self.run_id,
                                  "verification", "rerun")
-        clean_csv = os.path.join(self.root, "runs", self.run_id, "clean",
-                                 "conductivity_clean.csv")
+        clean_csv = self._clean_csv()
 
         # 原 P3 实验的 summary（作为 expected）
         orig_summary_path = os.path.join(exp_dir, "results", "summary.json")

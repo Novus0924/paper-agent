@@ -10,6 +10,9 @@ export PYTHONPATH="$PWD/core"
 export PAPER_AGENT_ROOT="$PWD"
 # 强制 Python 输入输出 UTF-8，避免 Git Bash 管道按系统码页解码中文路径 JSON 失败
 export PYTHONIOENCODING="utf-8"
+# 本脚本演示 **legacy 路径**的故障注入（重试 / 降级 / 断点续跑）——
+# 这些注入点挂在编排逻辑上，需显式禁用快照以保证确定性。
+export PAPER_AGENT_SNAPSHOT="none"
 PY="$(printenv paper-agent_PYTHON || echo python)"
 
 T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT

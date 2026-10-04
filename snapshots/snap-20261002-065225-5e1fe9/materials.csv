@@ -1,0 +1,600 @@
+material_id,formula,family,conductivity_Scm,conductivity_raw,value_status,space_group,source_doi,data_notes,in_scope
+jqc,Li7BiO6,hexaoxometalates,1.584890e-06,1.58489e-06,numeric,2,10.1002/zaac.200500231,partial occupancy not correct,excluded
+oi6,Li7SbO6,hexaoxometalates,6.700000e-08,6.7e-08,numeric,2,10.1021/ic030208w,partial occupancy not correct,excluded
+2t8,LiV(PO4)F,Tavorite,8.100000e-07,8.1e-07,numeric,2,10.1016/j.ssi.2013.04.002,appendix: diffraction data available,excluded
+ro9,Li3BP2O8,Borophosphates,9.600000e-12,9.6e-12,numeric,2,10.1039/C3DT52917G,,excluded
+7cr,Li2NaBP2O8,Borophosphates,4.400000e-18,4.4e-18,numeric,2,10.1016/j.jssc.2014.11.024,,excluded
+47i,Li4P2O7,diphosphate,,<1E-10,upper_bound,2,10.1016/j.jssc.2013.12.015,,excluded
+clt,Li6CuB4O10,copper pyroborate,1.000000e-13,1e-13,numeric,2,10.1021/acs.inorgchem.8b01785,,excluded
+mdp,Li7P3S11,,3.200000e-03,0.0032,numeric,2,10.1039/c3ee41655k|10.1016/j.ssi.2007.05.020|10.1016/j.ssi.2006.04.017,,excluded
+ix1,Li0.91Hf2.022(PO4)3,NASICON,3.200000e-07,3.2e-07,numeric,167,10.1021/cm970078n,true formula: Hf2.032 Li0.87 O12 P3;  partial occupancy corrected,excluded
+ptg,Li7P3S11,,8.600000e-03,0.0086,numeric,2,10.1021/acs.chemmater.6b02163,,excluded
+bq9,Li3BiO3,oxides,2.400000e-10,2.4e-10,numeric,2,10.1016/j.ssi.2015.10.016,D - Rhi - 1_si_1_ Li3BiO3,excluded
+skm,Li5BiO5,oxides,3.900000e-09,3.9e-09,numeric,8,10.1016/j.ssi.2015.10.016,D - Rhi - 1_si_2_ Li5BiO5,excluded
+pwr,Li7.22Si1.5P0.5O8,LISICON,1.640000e-07,1.64e-07,numeric,11,10.1021/jacs.5b04444,partial occupancy corrected,excluded
+o4u,Li3.8Ge0.8P0.2S4,thio-LISICON,1.780000e-06,1.78e-06,numeric,11,10.1149/1.1379028,,relevant
+yy9,Li3.6Ge0.6P0.4S4,thio-LISICON,1.750000e-04,0.000175,numeric,11,10.1149/1.1379028,,relevant
+mvq,Li3.4Ge0.4P0.6S4,thio-LISICON,6.540000e-04,0.000654,numeric,11,10.1149/1.1379028,,relevant
+2yl,Li3.35Ge0.35P0.65S4,thio-LISICON,1.540000e-03,0.00154,numeric,11,10.1149/1.1379028,,relevant
+5qm,Li3.3Ge0.3P0.7S4,thio-LISICON,1.740000e-03,0.00174,numeric,11,10.1149/1.1379028,,relevant
+3jh,Li3.25Ge0.25P0.75S4,thio-LISICON,2.200000e-03,0.0022,numeric,11,10.1149/1.1379028,,relevant
+j3x,Li3.2Ge0.2P0.8S4,thio-LISICON,5.550000e-04,0.000555,numeric,11,10.1149/1.1379028,,relevant
+b4c,Li4SiS4,thio-LISICON,1.590000e-08,1.59e-08,numeric,11,10.1006/jssc.2002.9701,,relevant
+7se,Li3.8Si0.8P0.2S4,thio-LISICON,8.110000e-07,8.11e-07,numeric,11,10.1006/jssc.2002.9701,,relevant
+5e2,Li3.6Si0.6P0.4S4,thio-LISICON,7.190000e-05,7.19e-05,numeric,11,10.1006/jssc.2002.9701,,relevant
+dj2,Li3.4Si0.4P0.6S4,thio-LISICON,6.620000e-04,0.000662,numeric,11,10.1006/jssc.2002.9701,,relevant
+10u,Li3.2Si0.2P0.8S4,thio-LISICON,3.200000e-06,3.2e-06,numeric,11,10.1006/jssc.2002.9701,,relevant
+s3r,Li4Al0.33Si0.33P0.33O4,LISICON,3.250000e-06,3.25e-06,numeric,11,10.1021/acsami.6b14402,appendix: diffraction data available,excluded
+max,Li4.25Si0.75Al0.25O4,LISICON,2.020000e-08,2.02e-08,numeric,11,10.1021/acsami.6b14402,appendix: diffraction data available,excluded
+k5y,Li3.75Si0.75P0.25O4,LISICON,5.540000e-07,5.54e-07,numeric,11,10.1021/acsami.6b14402,appendix: diffraction data available,excluded
+y2l,Li5AlS4,thio-LISICON,1.400000e-09,1.4e-09,numeric,11,10.1016/j.jssc.2017.09.018,,relevant
+gl0,Li4.2Si0.8Al0.2S4,thio-LISICON,2.400000e-08,2.4e-08,numeric,11,10.1006/jssc.2002.9701,,relevant
+wmr,Li4.4Si0.6Al0.4S4,thio-LISICON,3.050000e-08,3.05e-08,numeric,11,10.1006/jssc.2002.9701,,relevant
+xxq,Li4.6Si0.4Al0.6S4,thio-LISICON,1.460000e-08,1.46e-08,numeric,11,10.1006/jssc.2002.9701,,relevant
+h8o,Li4.8Si0.2Al0.8S4,thio-LISICON,2.290000e-07,2.29e-07,numeric,11,10.1006/jssc.2002.9701,,relevant
+de5,Li3InCl6,Halide,2.040000e-03,0.00204,numeric,12,10.1002/anie.201909805,partial occupancy corrected,excluded
+cfy,Li2P2S6,thio-LISICON,7.800000e-11,7.8e-11,numeric,12,10.1021/acs.inorgchem.7b00751,,relevant
+na5,Li3(Mo8S8O8(OH)8(HWO5(H2O)))*(H2O)18,,3.800000e-07,3.8e-07,numeric,12,10.1002/1521-3765(20020118)8:2<349::aid-chem349>3.0.co;2-5,,excluded
+pe2,Li17Sb13S28,,1.050000e-09,1.05e-09,numeric,12,10.1002/chem.201502052,partial occupancy corrected,excluded
+opo,Li0.6[Li0.2Sn0.8S2],layered,1.200000e-04,0.00012,numeric,12,10.1039/c6ee00633g,,excluded
+elz,Li3YBr6,halides,1.920000e-03,0.00192,numeric,12,10.1002/adma.201803075,appendix: diffraction data available,excluded
+lkm,Li6Ge2O7,,8.500000e-07,8.5e-07,numeric,14,10.4028/www.scientific.net/msf.76.107,,excluded
+p81,LiAlCl4,halides,1.000000e-06,1e-06,numeric,14,10.1149/1.2133238,,excluded
+bv2,LiYO2,oxides,1.800000e-08,1.8e-08,numeric,14,10.1016/0167-2738(81)90021-7,check cif file matching,excluded
+be9,LiGaBr4,halides,7.000000e-06,7e-06,numeric,14,10.1016/s0167-2738(00)00491-4,,excluded
+n27,LiBO2,,1.000000e-08,1e-08,numeric,14,10.1140/epjst/e2008-00753-4,"Value for nanocrystalline ceramic (16h) other values for micro, single crystal and amorphous",excluded
+goi,LiClC3H7NO,,1.600000e-04,0.00016,numeric,14,10.1021/acs.chemmater.5b00940,,excluded
+ecp,LaLiO2,Lanthanumlithiumoxide,,<1E-10,upper_bound,14,10.1016/j.ssi.2015.09.001,,excluded
+me3,(La0.9Sr0.1)LiO2,Lanthanumlithiumoxide,6.290000e-10,6.29e-10,numeric,14,10.1016/j.ssi.2015.09.001,,excluded
+zs0,La(Li0.76Mg0.08)O2,Lanthanumlithiumoxide,7.270000e-10,7.27e-10,numeric,14,10.1016/j.ssi.2015.09.001,,excluded
+lrh,Li2.5V2(PO4)3,NASICON,1.900000e-07,1.9e-07,numeric,14,10.1021/cm034802f,,excluded
+1xt,LiSbO2,oxides,,<1E-10,upper_bound,14,10.1021/ic201183e,,excluded
+kbo,Li2Sr2Al(PO4)3,NASICON,,<1E-10,upper_bound,14,10.1016/j.jssc.2016.08.006,,excluded
+5zv,Li4Zn(PO4)2,phosphates,5.550000e-18,5.55e-18,numeric,14,10.1021/acs.chemmater.7b05139,,excluded
+5bz,Li3BN2,boron nitride,8.700000e-08,8.7e-08,numeric,14,10.1016/0022-4596(87)90135-6,,excluded
+883,LiAlH4,hydrides,8.700000e-09,8.7e-09,numeric,14,10.1063/1.3356981,,excluded
+uu4,LiVO3,oxides,2.050000e-09,2.05e-09,numeric,15,10.1006/jssc.2000.9009,,excluded
+tws,Li6Zr2O7,zirconates,5.200000e-10,5.2e-10,numeric,15,10.3103/s1062873810050199,,excluded
+l9v,Li3AlF6,fluorides,5.000000e-07,5e-07,numeric,15,10.1149/2.012206eel,Ball milled conducvitity; structure may be different,excluded
+t0h,Li2ZrO3,oxides,6.100000e-10,6.1e-10,numeric,15,10.1016/0167-2738(81)90021-7,check cif file matching,excluded
+4kt,Li2CrCl4,halides,,<1E-10,upper_bound,15,10.1016/0022-4596(88)90301-5,,excluded
+xas,Li2SnS3,sulfides,1.500000e-05,1.5e-05,numeric,15,10.1021/cm5037524,,relevant
+kfp,Li2BaP2O7,pyrophosphate,1.598810e-17,1.59881e-17,numeric,15,10.1007/s11581-014-1261-6,,excluded
+qy4,Li3Na5(TiS4)2,sulfides,8.800000e-06,8.8e-06,numeric,15,10.1016/j.jssc.2008.01.023,,relevant
+00x,LiGd(PO3)4,phosphates,,<1E-10,upper_bound,15,10.1016/j.jssc.2006.06.003,,excluded
+ard,LiTa2PO8,oxides,1.600000e-03,0.0016,numeric,15,10.1039/c8ta09170f,,excluded
+9wf,Li3ErI6,halides,6.500000e-04,0.00065,numeric,15,10.1021/acsaem.0c00147,"appendix: diffraction data available, D_0 calculation",excluded
+dmq,Li3AlS3,sulfides,1.310000e-08,1.31e-08,numeric,15,10.1021/acs.chemmater.9b03230,,relevant
+uox,Li3.7Zn0.7Ga0.3(PO4)2,phosphates,5.650000e-12,5.65e-12,numeric,19,10.1021/acs.chemmater.7b05139,,excluded
+joc,Li3PS4,thio-LISICON,2.600000e-07,2.6e-07,numeric,31,10.1021/ja3110895,,relevant
+mq1,Li3SbS4,thio-LISICON,4.800000e-09,4.8e-09,numeric,31,10.1016/j.ssi.2019.01.017,diffraction data available,relevant
+ssv,Li3P0.2V0.8O4,LISICON,1.310000e-13,1.31e-13,numeric,31,10.1021/acs.chemmater.8b01504,D_0 calculation,excluded
+h6c,Li3VO4,LISICON,9.200000e-14,9.2e-14,numeric,31,10.1021/acs.chemmater.8b01504,,excluded
+bsa,LiGaO2,oxides,2.400000e-14,2.4e-14,numeric,33,10.1007/bf00549810,check cif file matching,excluded
+mde,LiB6O9F,fluorooxoborate,,<1E-10,upper_bound,33,10.1002/zaac.200900056,,excluded
+1e9,Li3SbS3,sulfides,1.000000e-09,1e-09,numeric,33,10.1002/zaac.201200277,,relevant
+an2,Li6SiO4Cl2,argyrodite,1.000000e-10,1e-10,numeric,33,10.1021/acs.chemmater.1c00157,,relevant
+tka,LiSi2N3,nitride,6.170000e-08,6.17e-08,numeric,36,10.1016/0167-2738(87)90119-6,,excluded
+cdk,Li2(PO2N),LIPON,,<1E-10,upper_bound,36,10.1016/j.ssi.2012.12.013,,excluded
+fwz,Li2SiS3,thio-LISICON,2.000000e-06,2e-06,numeric,36,10.1016/0025-5408(89)90053-6,appendix: diffraction data available,relevant
+hln,LiGa2GeS6,sulfides,3.800000e-08,3.8e-08,numeric,43,10.1016/j.ssi.2014.04.015,,relevant
+cy2,La0.64Li0.08TiO3,perovskites,3.350000e-04,0.000335,numeric,47,10.1016/s0167-2738(00)00761-x,,excluded
+5tl,La0.62Li0.14TiO3,perovskites,4.420000e-04,0.000442,numeric,47,10.1016/s0167-2738(00)00761-x,,excluded
+u2y,La0.595Li0.215TiO3,perovskites,8.530000e-04,0.000853,numeric,47,10.1016/s0167-2738(00)00761-x,,excluded
+ku9,Li0.4Na0.1La0.5Nb2O6,perovskites,9.920000e-06,9.92e-06,numeric,47,10.1134/s002016851103006x,partial occupancy corrected,excluded
+9n0,Li0.3Na0.2La0.5Nb2O6,perovskites,1.110000e-05,1.11e-05,numeric,47,10.1134/s002016851103006x,partial occupancy corrected,excluded
+ozo,Li0.2Na0.3La0.5Nb2O6,perovskites,1.180000e-05,1.18e-05,numeric,47,10.1134/s002016851103006x,partial occupancy corrected,excluded
+h5i,Li0.1Na0.4La0.5Nb2O6,perovskites,1.210000e-05,1.21e-05,numeric,123,10.1134/s002016851103006x,"partial occupancy corrected, changed symmetry to reflect actual higher symmetry",excluded
+o9h,Li0.07Na0.43La0.5Nb2O6,perovskites,1.230000e-05,1.23e-05,numeric,47,10.1134/s002016851103006x,partial occupancy corrected,excluded
+4xq,Li0.04Na0.46La0.5Nb2O6,perovskites,5.910000e-06,5.91e-06,numeric,47,10.1134/s002016851103006x,partial occupancy corrected,excluded
+0ii,Li0.02Na0.48La0.5Nb2O6,perovskites,3.990000e-06,3.99e-06,numeric,47,10.1134/s002016851103006x,partial occupancy corrected,excluded
+81x,(Ag0.33Li0.67)0.27La0.57TiO3,perovskites,1.000000e-04,0.0001,numeric,47,10.1021/cm001207u,,excluded
+5fj,(Ag0.5Li0.5)0.27La0.57TiO3,perovskites,2.300000e-05,2.3e-05,numeric,47,10.1021/cm001207u,,excluded
+0vd,(Ag0.67Li0.33)0.27La0.57TiO3,perovskites,2.000000e-07,2e-07,numeric,47,10.1021/cm001207u,,excluded
+kxh,Pr0.56Li0.34TiO3.01,perovskites,1.000000e-06,1e-06,numeric,47,10.1016/0167-2738(94)90310-7,,excluded
+3we,Nd0.55Li0.34TiO3,perovskites,8.000000e-08,8e-08,numeric,47,10.1016/0167-2738(94)90310-7,,excluded
+5z0,Li5AlO4,oxides,5.000000e-10,5e-10,numeric,61,10.1016/0025-5408(76)90169-0,,excluded
+472,Li14Nd5(Si11N19O5)O2F2,nitridosilicates,1.700000e-10,1.7e-10,numeric,59,10.1021/ja302255d,,excluded
+9zk,Li5GaO4,oxides,5.000000e-09,5e-09,numeric,61,10.1016/0025-5408(76)90169-0,,excluded
+dnt,Li2CrTi(PO4)3,NASICON,4.410000e-07,4.41e-07,numeric,61,10.1016/s0167-2738(96)00565-6,,excluded
+g5g,Li2CrZr(PO4)3,NASICON,5.910000e-07,5.91e-07,numeric,61,10.1016/s0167-2738(96)00565-6,,excluded
+hpu,Li2CrHf(PO4)3,NASICON,4.200000e-08,4.2e-08,numeric,61,10.1016/s0167-2738(96)00565-6,,excluded
+c6h,Li2FeTi(PO4)3,NASICON,3.340000e-07,3.34e-07,numeric,61,10.1016/s0167-2738(96)00565-6,,excluded
+vzu,Li2FeZr(PO4)3,NASICON,1.440000e-07,1.44e-07,numeric,61,10.1016/s0167-2738(96)00565-6,,excluded
+a3e,Li2InHf(PO4)3,NASICON,2.740000e-08,2.74e-08,numeric,61,10.1016/s0167-2738(96)00565-6,,excluded
+ubi,Li2InTi(PO4)3,NASICON,8.300000e-06,8.3e-06,numeric,61,10.1016/s0167-2738(96)00565-6,,excluded
+9z8,Li2InZr(PO4)3,NASICON,8.220000e-08,8.22e-08,numeric,61,10.1016/s0167-2738(96)00565-6,,excluded
+nhq,Li3PS4,thio-LISICON,8.930000e-07,8.93e-07,numeric,62,10.1021/ja3110895,lattice parameters not matching cif,relevant
+w7d,Li3PO4,LISICON,4.200000e-18,4.2e-18,numeric,62,10.1006/jssc.1995.1140,,excluded
+fj5,Li6.5O8P1.5Si0.5,LISICON,4.490000e-07,4.49e-07,numeric,62,10.1021/jacs.5b04444,partial occupancy corrected,excluded
+gxz,Li4Zn(PO4)2,phosphates,,<1E-10,upper_bound,62,10.1021/acs.chemmater.7b05139,"should be deleted, high T structure, refer the alpha phase",excluded
+tbu,Li3.5Zn0.5Ga0.5(PO4)2,phosphates,,<1E-10,upper_bound,62,10.1021/acs.chemmater.7b05139,,excluded
+uxo,Li2.88PO3.73N0.14,LISICON,1.400000e-13,1.4e-13,numeric,62,10.1006/jssc.1995.1140,refer 79426-ICSD; po information is missing,excluded
+e6b,Li4GeS4,thio-LISICON,2.000000e-07,2e-07,numeric,62,10.1016/s0167-2738(00)00277-0,partial occupancy corrected,relevant
+pbz,Li3.75Ge0.75V0.25O4,LISICON,5.660000e-06,5.66e-06,numeric,62,10.1023/a:1026135806929,partial occupancy corrected,excluded
+7ek,Li3.70Ge0.85W0.15O4,LISICON,3.800000e-05,3.8e-05,numeric,62,10.1023/a:1026135806929,partial occupancy corrected,excluded
+86k,Li0.2Ca0.4TaO3,perovskites,3.530000e-09,3.53e-09,numeric,62,10.1016/j.solidstatesciences.2004.05.006,"structure avialble for x=0.15, but no conductivity",excluded
+2uv,Li4SnSe4,Chalcogenidotetrelates,2.000000e-05,2e-05,numeric,62,10.1021/cm400541n,,excluded
+kmv,Li4SnS4,Chalcogenidotetrelates,7.000000e-05,7e-05,numeric,62,10.1021/cm3011315,,excluded
+n7a,Li2.5Y0.5Zr0.5Cl6,halides,1.400000e-03,0.0014,numeric,62,10.1021/acsenergylett.9b02599,Li2.5Er0.5Zr0.5Cl6 is available,excluded
+i6k,Sm0.52Li0.38TiO2.97,perovskites,2.000000e-07,2e-07,numeric,62,10.1016/0167-2738(94)90310-7,IC number should be read from the graph,excluded
+2r7,Li3Cr(MoO4)3,molybdates,3.190000e-09,3.19e-09,numeric,62,10.1039/b301189e,,excluded
+b56,Li2Mg2(MoO4)3,molybdates,,<1E-10,upper_bound,62,10.1039/b301189e,,excluded
+mfu,Li3Fe(MoO4)3,molybdates,5.890000e-10,5.89e-10,numeric,62,10.1039/b301189e,,excluded
+x94,Li4SiS4,thio-LISICON,4.930000e-08,4.93e-08,numeric,62,10.1016/0025-5408(89)90053-6,appendix: diffraction data available,relevant
+kmr,Li10Ge0.95Si0.05P2S12,thio-LISICON,8.600000e-03,0.0086,numeric,137,10.1016/j.jpowsour.2014.07.159,,relevant
+e6e,Li3.2Ge0.2P0.8O4,LISICON,1.140000e-06,1.14e-06,numeric,62,10.1021/acs.chemmater.8b01504,,excluded
+ylh,Li3.2Ge0.2V0.8O4,LISICON,1.900000e-05,1.9e-05,numeric,62,10.1021/acs.chemmater.8b01504,,excluded
+eij,Li3.4Ge0.4P0.6O4,LISICON,4.500000e-06,4.5e-06,numeric,62,10.1021/acs.chemmater.8b01504,,excluded
+ldd,Li3.4Ge0.4V0.6O4,LISICON,8.890000e-07,8.89e-07,numeric,62,10.1021/acs.chemmater.8b01504,,excluded
+efb,Li3.6Ge0.6P0.4O4,LISICON,1.100000e-05,1.1e-05,numeric,62,10.1021/acs.chemmater.8b01504,,excluded
+lcm,Li3.6Ge0.6V0.4O4,LISICON,3.190000e-05,3.19e-05,numeric,62,10.1021/acs.chemmater.8b01504,,excluded
+mgs,Li3.8Ge0.8P0.2O4,LISICON,1.030000e-06,1.03e-06,numeric,62,10.1021/acs.chemmater.8b01504,,excluded
+31s,Li3.8Ge0.8V0.2O4,LISICON,2.710000e-06,2.71e-06,numeric,62,10.1021/acs.chemmater.8b01504,,excluded
+dku,Li3P0.4V0.6O4,LISICON,3.550000e-13,3.55e-13,numeric,62,10.1021/acs.chemmater.8b01504,,excluded
+ndx,Li3P0.6V0.4O4,LISICON,3.200000e-13,3.2e-13,numeric,62,10.1021/acs.chemmater.8b01504,,excluded
+m0j,Li3P0.8V0.2O4,LISICON,2.050000e-13,2.05e-13,numeric,62,10.1021/acs.chemmater.8b01504,,excluded
+9lo,Li3PO4,LISICON,1.750000e-13,1.75e-13,numeric,62,10.1021/acs.chemmater.8b01504,,excluded
+dth,Li4GeO4,LISICON,1.300000e-12,1.3e-12,numeric,63,10.1021/acs.chemmater.8b01504,,excluded
+45e,Li2MgBr4,halides,7.800000e-10,7.8e-10,numeric,65,10.1002/chin.198639014|10.1149/1.2108704,,excluded
+85t,La0.57Li0.29TiO3,perovskites,1.600000e-03,0.0016,numeric,65,10.1016/j.jpowsour.2012.11.098,,excluded
+x2i,LiBiO2,oxides,3.800000e-08,3.8e-08,numeric,72,10.1016/j.ssi.2015.10.016,,excluded
+i9a,Li2.5Zn0.25PS4,sulfides,8.400000e-04,0.00084,numeric,82,10.1021/acs.chemmater.7b05108,,relevant
+i47,LiZnPS4,sulfides,5.400000e-08,5.4e-08,numeric,82,10.1021/acs.chemmater.7b05108,,relevant
+dco,Li2Zn0.5PS4,sulfides,1.300000e-04,0.00013,numeric,82,10.1021/acs.chemmater.7b05108,,relevant
+tqb,Li1.5Zn0.75PS4,sulfides,1.650000e-05,1.65e-05,numeric,82,10.1021/acs.chemmater.7b05108,,relevant
+xz4,(Li0.5Ce0.5)(MoO4),molybdates,1.300000e-08,1.3e-08,numeric,88,10.1007/s12039-011-0068-5,partial occupancy corrected,excluded
+hja,(Li0.5Ce0.25Pr0.25)(MoO4),molybdates,1.000000e-09,1e-09,numeric,88,10.1007/s12039-011-0068-5,partial occupancy corrected,excluded
+3nb,(Li0.5Ce0.25Sm0.25)(MoO4),molybdates,1.800000e-10,1.8e-10,numeric,88,10.1007/s12039-011-0068-5,partial occupancy corrected,excluded
+qa9,Li3BN2,boron nitride,1.600000e-10,1.6e-10,numeric,136,10.1016/0022-4596(87)90135-6,changed space group to reflect actual higher symmetry,excluded
+ihb,Li0.33La0.56Ti0.99Al0.01O2.99F0.01,perovskites,9.800000e-04,0.00098,numeric,99,10.1007/s11581-006-0011-9,,excluded
+3k7,Li0.33La0.56Ti0.98Al0.02O2.98F0.02,perovskites,1.060000e-03,0.00106,numeric,99,10.1007/s11581-006-0011-9,,excluded
+1sz,Li0.33La0.56Ti0.97Al0.03O2.97F0.03,perovskites,9.280000e-04,0.000928,numeric,99,10.1007/s11581-006-0011-9,,excluded
+yh8,Li0.33La0.56Ti0.96Al0.04O2.96F0.04,perovskites,6.220000e-04,0.000622,numeric,99,10.1007/s11581-006-0011-9,,excluded
+coh,Li0.33La0.56Ti0.95Al0.05O2.95F0.05,perovskites,1.760000e-04,0.000176,numeric,99,10.1007/s11581-006-0011-9,,excluded
+1pw,Li0.33La0.56Ti0.94Al0.06O2.94F0.06,perovskites,1.060000e-04,0.000106,numeric,99,10.1007/s11581-006-0011-9,,excluded
+bw3,Li0.33La0.56Ti0.93Al0.07O2.93F0.07,perovskites,6.450000e-04,0.000645,numeric,99,10.1007/s11581-006-0011-9,,excluded
+my5,Li0.33La0.56Ti0.92Al0.08O2.92F0.08,perovskites,4.940000e-04,0.000494,numeric,99,10.1007/s11581-006-0011-9,,excluded
+0lo,Li0.27La0.57TiO3,perovskites,3.400000e-04,0.00034,numeric,123,10.1021/cm001207u,,excluded
+hta,La0.565Li0.305TiO3,perovskites,9.570000e-04,0.000957,numeric,123,10.1016/s0167-2738(00)00761-x,,excluded
+s3h,La0.5Li0.5TiO3,perovskites,9.250000e-04,0.000925,numeric,123,10.1016/s0167-2738(00)00761-x,,excluded
+86o,La0.61Li0.18TiO3,perovskites,4.120000e-04,0.000412,numeric,123,10.1016/s0167-2738(98)00070-8,,excluded
+2lu,La0.55Li0.36TiO3,perovskites,6.880000e-04,0.000688,numeric,123,10.1016/s0167-2738(98)00070-8,,excluded
+bd5,La0.54Li0.39TiO3,perovskites,6.510000e-04,0.000651,numeric,123,10.1016/s0167-2738(98)00070-8,,excluded
+ukw,La0.52Li0.45TiO3,perovskites,5.010000e-04,0.000501,numeric,123,10.1016/s0167-2738(98)00070-8,,excluded
+5h8,La0.58Li0.27TiO3,perovskites,5.990000e-04,0.000599,numeric,123,10.1016/s0167-2738(98)00070-8,,excluded
+vwy,La0.56Li0.33TiO3,perovskites,6.680000e-04,0.000668,numeric,123,10.1016/s0167-2738(98)00070-8,,excluded
+2ha,La0.56Li0.33TiO3,perovskites,1.650000e-04,0.000165,numeric,123,10.1016/j.jallcom.2013.04.195,,excluded
+il5,Nd0.25Li0.25TaO3,perovskites,1.310000e-08,1.31e-08,numeric,123,10.1016/s0167-2738(98)00414-7,,excluded
+r1m,Sm0.25Li0.25TaO3,perovskites,4.320000e-10,4.32e-10,numeric,123,10.1016/s0167-2738(98)00414-7,,excluded
+nua,Li(LaTiO4),perovskites,,<1E-10,upper_bound,129,10.4028/www.scientific.net/msf.321-324.965,,excluded
+3rx,Li(NdTiO4),perovskites,,<1E-10,upper_bound,129,10.4028/www.scientific.net/msf.321-324.965,,excluded
+7e5,La0.65Li0.05(Mg0.5W0.5)O3,perovskites,1.800000e-07,1.8e-07,numeric,129,10.1016/j.ssi.2004.05.010,partial occupancy corrected,excluded
+sib,La0.63Li0.11(Mg0.5W0.5)O3,perovskites,6.800000e-06,6.8e-06,numeric,129,10.1016/j.ssi.2004.05.010,partial occupancy corrected,excluded
+r99,La0.62 Li0.14(Mg0.5W0.5)O3,perovskites,1.200000e-05,1.2e-05,numeric,129,10.1016/j.ssi.2004.05.010,partial occupancy corrected,excluded
+lol,Li4PS4I,thio-LISICON,1.200000e-04,0.00012,numeric,129,10.1021/acs.chemmater.7b00013,appendix: diffraction data available,relevant
+d7f,Li3BiO4,oxides,4.100000e-10,4.1e-10,numeric,136,10.1016/j.ssi.2015.10.016,,excluded
+52b,Li10.05Ge1.05P1.95S12,LGPS,1.220000e-02,0.0122,numeric,137,10.1039/c4ta05231e,,relevant
+8po,Li10.2Ge1.2P1.8S12,LGPS,1.320000e-02,0.0132,numeric,137,10.1039/c4ta05231e,,relevant
+ya8,Li10.5Ge1.5P1.5S12,LGPS,1.100000e-02,0.011,numeric,137,10.1039/c4ta05231e,,relevant
+j8q,Li10GeP2S12,LGPS,1.210000e-02,0.0121,numeric,137,10.1039/c4ta05231e|10.1021/acs.chemmater.7b00886,,relevant
+824,Li10.35Ge1.35P1.65S12,LGPS,1.440000e-02,0.0144,numeric,137,10.1039/c4ta05231e,,relevant
+mqo,Li3.45Si0.45P0.55S4,LGPS,6.730000e-03,0.00673,numeric,137,10.1039/c4fd00143e,refer D2 - 109; 252037-ICSD,relevant
+izs,Li3.475Si0.475P0.525S4,LGPS,5.270000e-03,0.00527,numeric,137,10.1039/c4fd00143e,,relevant
+8nc,Li3.425Si0.425P0.575S4,LGPS,5.650000e-03,0.00565,numeric,137,10.1039/c4fd00143e,,relevant
+3sx,Li3.4Si0.4P0.6S4,LGPS,4.210000e-03,0.00421,numeric,137,10.1039/c4fd00143e,,relevant
+xga,Li3.335Sn0.33P0.67S4,LGPS,3.730000e-03,0.00373,numeric,137,10.1039/c4fd00143e,,relevant
+xn9,Li3.3Sn0.3P0.7S4,LGPS,3.650000e-03,0.00365,numeric,137,10.1039/c4fd00143e,,relevant
+sg4,Li3.285Sn0.28P0.72S4,LGPS,4.360000e-03,0.00436,numeric,137,10.1039/c4fd00143e,,relevant
+ns3,Li3.27Sn0.27P0.73S4,LGPS,4.960000e-03,0.00496,numeric,137,10.1039/c4fd00143e,,relevant
+g8j,Li3.26Sn0.26P0.74S4,LGPS,4.530000e-03,0.00453,numeric,137,10.1039/c4fd00143e,,relevant
+bim,Li3.25Sn0.25P0.75S4,LGPS,3.600000e-03,0.0036,numeric,137,10.1039/c4fd00143e,,relevant
+02p,Li10SiP2S12,LGPS,2.300000e-03,0.0023,numeric,137,10.1149/2.0501412jes,,relevant
+9lx,Li10SnP2S12,LGPS,7.000000e-03,0.007,numeric,137,10.1021/ja407393y,,relevant
+mtn,Li10GeP2S12,LGPS,2.460000e-02,0.0246,numeric,137,10.1021/acs.chemmater.8b00266,,relevant
+9rc,Li10(Ge0.776Sn0.224)P2S12,LGPS,1.410000e-02,0.0141,numeric,137,10.1021/acs.chemmater.8b00266,,relevant
+13q,Li10SnP2S12,LGPS,3.980000e-03,0.00398,numeric,137,10.1021/acs.chemmater.8b00266,lattice parameters not matching cif,relevant
+ik8,Li10(Ge0.416Sn0.584)P2S12,LGPS,7.430000e-03,0.00743,numeric,137,10.1021/acs.chemmater.8b00266,,relevant
+nip,Li9.81Sn0.81P2.19S12,LGPS,5.500000e-03,0.0055,numeric,137,10.1107/s2052520615022283,partial occupancy corrected,relevant
+1hh,Li10GeP2S12,LGPS,1.200000e-02,0.012,numeric,137,10.1038/nmat3066,appendix: diffraction data available,relevant
+8ub,Li10.5(Sn0.2Si0.8)1.5P1.5S12,LGPS,8.790000e-03,0.00879,numeric,137,10.1021/acs.chemmater.7b00886,appendix: diffraction data available,relevant
+7tu,Li10.2(Sn0.2Si0.8)1.2P1.8S12,LGPS,7.820000e-03,0.00782,numeric,137,10.1021/acs.chemmater.7b00886,appendix: diffraction data available,relevant
+ui6,Li10.35(Sn0.27Si1.08)P1.65S12,LGPS,1.100000e-02,0.011,numeric,137,10.1021/acs.chemmater.7b00886,duplicated with line 204; deleted,relevant
+nkr,Li10GeP2S12,LGPS,1.430000e-03,0.00143,numeric,137,10.1016/j.ssi.2017.01.014,,relevant
+906,Li9.8Ba0.1GeP2S12,LGPS,5.610000e-04,0.000561,numeric,137,10.1016/j.ssi.2017.01.014,,relevant
+fnu,Li9.6Ba0.2GeP2S12,LGPS,5.720000e-04,0.000572,numeric,137,10.1016/j.ssi.2017.01.014,,relevant
+pfi,Li9.4Ba0.3GeP2S12,LGPS,7.070000e-04,0.000707,numeric,137,10.1016/j.ssi.2017.01.014,,relevant
+f0h,Li9.2Ba0.4GeP2S12,LGPS,3.160000e-04,0.000316,numeric,137,10.1016/j.ssi.2017.01.014,,relevant
+7iw,Li9Ba0.5GeP2S12,LGPS,9.980000e-05,9.98e-05,numeric,137,10.1016/j.ssi.2017.01.014,,relevant
+ikh,Li9.6P3S12,LGPS,1.200000e-03,0.0012,numeric,137,10.1038/nenergy.2016.30,appendix: diffraction data available,relevant
+hd3,Li7GePS8,LGPS,7.000000e-03,0.007,numeric,137,10.1039/c3ee41728j,,relevant
+ete,Li9.54Si1.74P1.44S11.7Cl0.3,LGPS,2.500000e-02,0.025,numeric,137,10.1038/nenergy.2016.30,appendix: diffraction data available,relevant
+k4x,Li10.35Si1.35P1.65S12,LGPS,6.500000e-03,0.0065,numeric,137,10.1107/s2052520615022283,,relevant
+ia5,LiLaNb2O7,perovskites,,<1E-8,upper_bound,139,10.1016/0925-8388(93)90192-p,,excluded
+xq3,Li4Sr3Nb5.77Fe0.23O19.77,perovskites,,<1E-10,upper_bound,139,10.1021/cm980736j,partial occupancy incorrect,excluded
+wgw,Li4Sr3Nb6O20,perovskites,,<1E-10,upper_bound,139,10.1021/cm980736j,partial occupancy incorrect,excluded
+sg0,LiScO2,oxides,,<1E-10,upper_bound,141,10.2320/matertrans.y-m2016816,ICSD request,excluded
+97b,Li0.9Sc0.9Zr0.1O2,oxides,,<1E-10,upper_bound,141,10.2320/matertrans.y-m2016816,ICSD request,excluded
+ipo,Li7La3Hf2O12,garnet,9.850000e-07,9.85e-07,numeric,142,10.1016/j.jssc.2009.10.030,,excluded
+wyu,Li7La3Zr2O12,garnet,1.630000e-06,1.63e-06,numeric,142,10.1016/j.jssc.2009.05.020,,excluded
+bnu,LiGa0.5Al0.5GeO4,oxides,,<1E-10,upper_bound,146,10.1149/2.1111610jes,,excluded
+kxw,LiAlGeO4,oxides,,<1E-10,upper_bound,146,10.1149/2.1111610jes,,excluded
+um1,LiGaGeO4,oxides,,<1E-10,upper_bound,167,10.1149/2.1111610jes,,excluded
+019,LiTi2(PO4)3,NASICON,1.610000e-04,0.000161,numeric,168,10.1021/ic400577v,,excluded
+yqu,Li1.2Ti1.8Al0.2(PO4)3,NASICON,4.820000e-03,0.00482,numeric,148,10.1021/ic400577v,"true formula for lattice params is  Li1.17(Ti1.83Al0.17)(PO4)3, IC at Li1.2",excluded
+95j,Li3AlH6,hydrides,1.400000e-07,1.4e-07,numeric,148,10.1063/1.3356981,,excluded
+l2w,Li3.333Mg0.333P2S6,thio-phosphate,8.200000e-08,8.2e-08,numeric,162,10.1016/s0167-2738(02)00007-3,partial occupancy corrected,relevant
+ob9,Li2.667Mg0.667P2S6,thio-phosphate,4.000000e-06,4e-06,numeric,162,10.1016/s0167-2738(02)00007-3,partial occupancy corrected,relevant
+0iv,Li4P2S6,thio-phosphate,2.380000e-07,2.38e-07,numeric,162,10.1016/j.ssi.2015.10.015,,relevant
+2ro,Li4P2S6,thio-phosphate,1.600000e-10,1.6e-10,numeric,162,10.1021/acs.chemmater.6b04175,could be deleted; glass ceramic,relevant
+ei3,Li3YCl6,halides,5.390000e-04,0.000539,numeric,164,10.1002/adma.201803075,appendix: diffraction data available,excluded
+deu,Li4.4Al0.4Ge0.6S4,sulfides,4.300000e-05,4.3e-05,numeric,164,10.1021/acs.chemmater.8b03175,,relevant
+usu,Li4.4Al0.4Sn0.6S4,sulfides,4.300000e-06,4.3e-06,numeric,164,10.1021/acs.chemmater.8b03175,,relevant
+ur9,LiZr2(PO4)3,NASICON,1.000000e-09,1e-09,numeric,167,10.1016/0025-5408(86)90194-7,,excluded
+0o6,Li1.2Ti1.8Sc0.2(PO4)3,,9.980000e-05,9.98e-05,numeric,167,10.1021/acs.inorgchem.6b02274,,excluded
+a3l,LiHf2(PO4)3,NASICON,2.830000e-07,2.83e-07,numeric,167,10.1002/chin.199345017,,excluded
+4ba,LiGe2(PO4)3,NASICON,3.330000e-07,3.33e-07,numeric,167,10.1002/chin.199345017,Precision of IC is not good non linear extrapolation,excluded
+qea,LiTi2(PO4)3,NASICON,2.000000e-06,2e-06,numeric,167,10.1149/1.2086597,,excluded
+ldx,LiGe2(PO4)3,NASICON,4.830000e-09,4.83e-09,numeric,167,10.1021/acsami.8b00842,,excluded
+0fh,Li1.2Al0.2Ge1.8(PO4)3,NASICON,4.830000e-05,4.83e-05,numeric,167,10.1021/acsami.8b00842,,excluded
+gw2,Li1.4Al0.4Ge1.6(PO4)3,NASICON,1.880000e-04,0.000188,numeric,167,10.1021/acsami.8b00842,,excluded
+1xf,Li1.5Al0.5Ge1.5(PO4)3,NASICON,3.360000e-04,0.000336,numeric,167,10.1021/acsami.8b00842,,excluded
+tjh,Li1.7Al0.7Ge1.3(PO4)3,NASICON,2.640000e-04,0.000264,numeric,167,10.1021/acsami.8b00842,,excluded
+8fn,Li1.8Al0.8Ge1.2(PO4)3,NASICON,1.370000e-04,0.000137,numeric,167,10.1021/acsami.8b00842,,excluded
+mdj,Li1.2Ti2Si0.2P2.8O12,NASICON,8.600000e-05,8.6e-05,numeric,167,10.1149/1.2086597,,excluded
+t1l,Li1.3Ti2Si0.3P2.7O12,NASICON,3.200000e-04,0.00032,numeric,167,10.1149/1.2086597,,excluded
+my9,Li1.2Al0.2Ti1.8(PO4)3,NASICON,5.950000e-04,0.000595,numeric,167,10.1149/1.2086597,,excluded
+9s4,Li1.3Al0.3Ti1.7(PO4)3,NASICON,7.220000e-04,0.000722,numeric,167,10.1149/1.2086597,,excluded
+iqt,Li1.4Al0.4Ti1.6(PO4)3,NASICON,3.880000e-04,0.000388,numeric,167,10.1149/1.2086597,,excluded
+xa0,Li1.5Al0.5Ti1.5(PO4)3,NASICON,2.480000e-04,0.000248,numeric,167,10.1149/1.2086597,,excluded
+f4x,Li1.2Cr0.2Ti1.8(PO4)3,NASICON,1.820000e-05,1.82e-05,numeric,167,10.1149/1.2086597,,excluded
+txm,Li1.3Cr0.3Ti1.7(PO4)3,NASICON,3.510000e-05,3.51e-05,numeric,167,10.1149/1.2086597,,excluded
+v1t,Li1.4Cr0.4Ti1.6(PO4)3,NASICON,1.490000e-04,0.000149,numeric,167,10.1149/1.2086597,,excluded
+d6b,Li1.5Cr0.5Ti1.5(PO4)3,NASICON,3.860000e-04,0.000386,numeric,167,10.1149/1.2086597,,excluded
+x9a,Li1.2Ga0.2Ti1.8(PO4)3,NASICON,1.620000e-04,0.000162,numeric,167,10.1149/1.2086597,,excluded
+3ta,Li1.3Ga0.3Ti1.7(PO4)3,NASICON,2.610000e-04,0.000261,numeric,167,10.1149/1.2086597,,excluded
+gjy,Li1.4Ga0.4Ti1.6(PO4)3,NASICON,1.280000e-04,0.000128,numeric,167,10.1149/1.2086597,,excluded
+lz8,Li1.5Ga0.5Ti1.5(PO4)3,NASICON,1.220000e-04,0.000122,numeric,167,10.1149/1.2086597,,excluded
+6st,Li1.2Fe0.2Ti1.8(PO4)3,NASICON,1.800000e-04,0.00018,numeric,167,10.1149/1.2086597,,excluded
+t9r,Li1.3Fe0.3Ti1.7(PO4)3,NASICON,2.460000e-04,0.000246,numeric,167,10.1149/1.2086597,,excluded
+xr7,Li1.4Fe0.4Ti1.6(PO4)3,NASICON,3.920000e-04,0.000392,numeric,167,10.1149/1.2086597,,excluded
+pg8,Li1.5Fe0.5Ti1.5(PO4)3,NASICON,1.740000e-04,0.000174,numeric,167,10.1149/1.2086597,,excluded
+1wm,Li1.2Sc0.2Ti1.8(PO4)3,NASICON,6.900000e-04,0.00069,numeric,167,10.1149/1.2086597,,excluded
+do2,Li1.3Sc0.3Ti1.7(PO4)3,NASICON,7.030000e-04,0.000703,numeric,167,10.1149/1.2086597,,excluded
+uaj,Li1.4Sc0.4Ti1.6(PO4)3,NASICON,5.150000e-04,0.000515,numeric,167,10.1149/1.2086597,,excluded
+5u3,Li1.2In0.2Ti1.8(PO4)3,NASICON,3.900000e-04,0.00039,numeric,167,10.1149/1.2086597,,excluded
+2eq,Li1.3In0.3Ti1.7(PO4)3,NASICON,3.930000e-04,0.000393,numeric,167,10.1149/1.2086597,,excluded
+yn6,Li1.4In0.4Ti1.6(PO4)3,NASICON,3.020000e-04,0.000302,numeric,167,10.1149/1.2086597,,excluded
+8jy,Li1.5In0.5Ti1.5(PO4)3,NASICON,2.040000e-04,0.000204,numeric,167,10.1149/1.2086597,,excluded
+p4l,Li1.2La0.2Ti1.8(PO4)3,NASICON,8.000000e-05,8e-05,numeric,167,10.1149/1.2086597,,excluded
+qkr,Li1.3La0.3Ti1.7(PO4)3,NASICON,5.230000e-04,0.000523,numeric,167,10.1149/1.2086597,,excluded
+e0z,Li1.4La0.4Ti1.6(PO4)3,NASICON,4.980000e-04,0.000498,numeric,167,10.1149/1.2086597,,excluded
+vus,Li1.5La0.5Ti1.5(PO4)3,NASICON,2.810000e-04,0.000281,numeric,167,10.1149/1.2086597,,excluded
+h7r,Li(Ti1.4Sn0.6)(PO4)3,NASICON,2.280000e-05,2.28e-05,numeric,167,10.1016/j.physb.2011.11.006,partial occupancy corrected,excluded
+9ky,Li(Ti0.6Sn1.4)(PO4)3,NASICON,9.420000e-06,9.42e-06,numeric,167,10.1016/j.physb.2011.11.006,partial occupancy corrected,excluded
+4ea,Li(Ti0.4Sn1.6)(PO4)3,NASICON,3.150000e-06,3.15e-06,numeric,167,10.1016/j.physb.2011.11.006,partial occupancy corrected,excluded
+z7n,Li0.86Hf2.035(PO4)3,NASICON,9.200000e-08,9.2e-08,numeric,167,10.1021/cm970078n,double check with ID 11,excluded
+7kf,Li1.7Al0.3Ti1.6(PO4)3,NASICON,1.220000e-03,0.00122,numeric,167,10.1016/s0167-2738(00)00493-8,ic # check,excluded
+i8k,Li1.2In0.2Ti1.8(PO4)3,NASICON,8.220000e-05,8.22e-05,numeric,167,10.1021/cm030422i,,excluded
+hzf,Li1.3Al0.2Sc0.1Ti1.7(PO4)3,NASICON,9.720000e-04,0.000972,numeric,167,10.1016/j.ssi.2012.03.045,,excluded
+x61,Li1.3Al0.15Sc0.15Ti1.7(PO4)3,NASICON,1.240000e-03,0.00124,numeric,167,10.1016/j.ssi.2012.03.045,,excluded
+czo,Li1.3Al0.1Sc0.2Ti1.7(PO4)3,NASICON,4.290000e-04,0.000429,numeric,167,10.1016/j.ssi.2012.03.045,,excluded
+o8s,Li1.3Sc0.3Ti1.7(PO4)3,NASICON,4.520000e-04,0.000452,numeric,167,10.1016/j.ssi.2012.03.045,,excluded
+lap,Li1.3Al0.3Ti1.7(PO4)3,NASICON,1.130000e-03,0.00113,numeric,167,10.1016/j.ssi.2012.03.045,,excluded
+yp3,LiTi2(PO4)3,NASICON,6.000000e-05,6e-05,numeric,167,10.1016/j.ssi.2014.07.018,composition should be corrected,excluded
+tzl,Li1.05Al0.05Ti1.95(PO4)3,NASICON,1.100000e-03,0.0011,numeric,167,10.1016/j.ssi.2014.07.018,composition should be corrected,excluded
+hyj,Li1.1Al0.1Ti1.9(PO4)3,NASICON,6.700000e-04,0.00067,numeric,167,10.1016/j.ssi.2014.07.018,composition should be corrected,excluded
+mg4,Li1.3Al0.3Ti1.7(PO4)3,NASICON,6.200000e-03,0.0062,numeric,167,10.1016/j.ssi.2014.07.018,composition should be corrected,excluded
+50s,Li1.4Al0.4Ti1.6(PO4)3,NASICON,3.300000e-03,0.0033,numeric,167,10.1016/j.ssi.2014.07.018,composition should be corrected,excluded
+d4q,Li1.05Cr0.05Ti1.95(PO4)3,NASICON,1.800000e-04,0.00018,numeric,167,10.1016/j.ssi.2014.07.018,composition should be corrected,excluded
+6he,Li1.1Cr0.1Ti1.9(PO4)3,NASICON,2.600000e-04,0.00026,numeric,167,10.1016/j.ssi.2014.07.018,composition should be corrected,excluded
+pwy,Li1.2Cr0.2Ti1.8(PO4)3,NASICON,4.300000e-04,0.00043,numeric,167,10.1016/j.ssi.2014.07.018,composition should be corrected,excluded
+y9l,Li1.3Cr0.3Ti1.7(PO4)3,NASICON,2.900000e-04,0.00029,numeric,167,10.1016/j.ssi.2014.07.018,composition should be corrected,excluded
+rc1,Li1.05Fe0.05Ti1.95(PO4)3,NASICON,1.300000e-04,0.00013,numeric,167,10.1016/j.ssi.2014.07.018,composition should be corrected,excluded
+lzt,Li1.1Fe0.1Ti1.9(PO4)3,NASICON,6.300000e-04,0.00063,numeric,167,10.1016/j.ssi.2014.07.018,composition should be corrected,excluded
+kbp,Li1.2Fe0.2Ti1.8(PO4)3,NASICON,1.400000e-03,0.0014,numeric,167,10.1016/j.ssi.2014.07.018,composition should be corrected,excluded
+b9u,Li1.3Fe0.3Ti1.7(PO4)3,NASICON,2.300000e-03,0.0023,numeric,167,10.1016/j.ssi.2014.07.018,composition should be corrected,excluded
+3uq,Li1.3Al0.3Ge1.7(PO4)3,NASICON,8.240000e-05,8.24e-05,numeric,167,10.1021/acsami.8b00842,"check ID 242-247; refer D2 - 140, D2- 146, D1-421",excluded
+1dm,Li1.6Al0.6Ge1.4(PO4)3,NASICON,2.840000e-04,0.000284,numeric,167,10.1021/acsami.8b00842,,excluded
+rg6,Li1.4Al0.4Ti1.6 (PO4)3,NASICON,3.380000e-03,0.00338,numeric,167,10.1016/j.jeurceramsoc.2014.11.023,refere D2 - 134,excluded
+ed4,Li1.2Al0.2Ge1.8(PO4)3,NASICON,7.940000e-05,7.94e-05,numeric,167,10.1016/j.jeurceramsoc.2014.11.023,,excluded
+vg0,Li1.5Al0.5Ge1.5(PO4)3,NASICON,1.900000e-04,0.00019,numeric,167,10.1016/j.jeurceramsoc.2014.11.023,,excluded
+z9y,Li1.2Al0.2Ti1.8(PO4)3,NASICON,3.380000e-03,0.00338,numeric,167,10.1016/j.jeurceramsoc.2014.11.023,,excluded
+w3n,Li1.4Al0.4Ti1.6(PO4)3,NASICON,1.120000e-03,0.00112,numeric,167,10.1016/j.materresbull.2007.08.007,refer D2 - 134; D2 - 243; D1 - 40; D1 - 170,excluded
+ym6,Li1.3Al0.3Ti1.7(PO4)3,NASICON,1.210000e-03,0.00121,numeric,167,10.1016/j.ssi.2014.07.018|10.1016/j.ssi.2016.07.010,,excluded
+nng,Li1.6Al0.6Ge0.8Ti0.6(PO4)3,NASICON,7.000000e-04,0.0007,numeric,167,10.1021/cm021717j,bulk Ic,excluded
+qno,LiTi2(PO4)3,NASICON,3.830000e-07,3.83e-07,numeric,167,10.1021/jp973296c,,excluded
+oxc,Li1.4Al0.4Ti1.6(PO4)3,NASICON,5.630000e-03,0.00563,numeric,167,10.1039/c5ta08545d,,excluded
+dq4,Li1.3Al0.1Sc0.2Ti1.7(PO4)3,NASICON,4.260000e-04,0.000426,numeric,167,10.1007/s10008-012-1780-x,refer D2 - 144,excluded
+0fa,Li1.3Al0.2Sc0.1Ti1.7(PO4)3,NASICON,2.690000e-04,0.000269,numeric,167,10.1007/s10008-012-1780-x,,excluded
+rr5,LiTi2(PO4)3,NASICON,7.200000e-05,7.2e-05,numeric,167,10.1007/s11164-013-1348-0,,excluded
+6j9,Li1.15Fe0.15Ti1.85(PO4)3,NASICON,5.220000e-04,0.000522,numeric,167,10.1007/s11164-013-1348-0,,excluded
+0x9,Li1.2Sc0.2Ti1.8(PO4)3,NASICON,2.460000e-04,0.000246,numeric,167,10.1016/0167-2738(86)90179-7,,excluded
+iwe,Li1.3Sc0.3Ti1.7(PO4)3,NASICON,4.070000e-04,0.000407,numeric,167,10.1016/0167-2738(86)90179-7,,excluded
+ib2,Li1.1Sc0.1Ti1.9(PO4)3,NASICON,1.580000e-04,0.000158,numeric,167,10.1016/0167-2738(86)90179-7,,excluded
+ppz,Li1.3In0.3Hf1.7(PO4)3,NASICON,1.000000e-05,1e-05,numeric,167,10.1016/0167-2738(86)90179-7,,excluded
+ci1,LiTi0.2Zr1.8(PO4)3,NASICON,5.600000e-08,5.6e-08,numeric,167,10.1016/0167-2738(86)90179-7,,excluded
+08e,LiTi1.8Zr0.2(PO4)3,NASICON,8.500000e-08,8.5e-08,numeric,167,10.1016/0167-2738(86)90179-7,,excluded
+xkh,LiTi0.1Zr1.9(PO4)3,NASICON,3.200000e-08,3.2e-08,numeric,167,10.1016/0167-2738(86)90179-7,,excluded
+wng,Li1.2In0.2Hf1.8(PO4)3,NASICON,4.000000e-06,4e-06,numeric,167,10.1016/0167-2738(86)90179-7,,excluded
+ncr,LiHf2(PO4)3,NASICON,6.850000e-07,6.85e-07,numeric,167,10.1016/0167-2738(93)90387-i,,excluded
+dx2,Li1.1Fe0.1Hf1.9(PO4)3,NASICON,1.070000e-04,0.000107,numeric,167,10.1016/0167-2738(93)90387-i,,excluded
+6xc,Li1.1In0.1Hf1.9(PO4)3,NASICON,5.130000e-05,5.13e-05,numeric,167,10.1016/0167-2738(93)90387-i,,excluded
+21m,Li1.1Lu0.1Hf1.9(PO4)3,NASICON,5.880000e-05,5.88e-05,numeric,167,10.1016/0167-2738(93)90387-i,,excluded
+4k1,Li1.1Sc0.1Hf1.9(PO4)3,NASICON,2.450000e-05,2.45e-05,numeric,167,10.1016/0167-2738(93)90387-i,,excluded
+gzp,Li1.2Lu0.2Hf1.8(PO4)3,NASICON,9.790000e-05,9.79e-05,numeric,167,10.1016/0167-2738(93)90387-i,,excluded
+lh8,Li1.3Cr0.3Hf1.7(PO4)3,NASICON,5.260000e-07,5.26e-07,numeric,167,10.1016/0167-2738(93)90387-i,,excluded
+ew5,Li1.3Fe0.3Hf1.7(PO4)3,NASICON,5.400000e-05,5.4e-05,numeric,167,10.1016/0167-2738(93)90387-i,,excluded
+9l3,Li1.3In0.3Hf1.7(PO4)3,NASICON,1.420000e-04,0.000142,numeric,167,10.1016/0167-2738(93)90387-i,,excluded
+jdk,Li1.3Lu0.3Hf1.7(PO4)3,NASICON,3.560000e-05,3.56e-05,numeric,167,10.1016/0167-2738(93)90387-i,,excluded
+h8a,Li1.3Sc0.3Hf1.7(PO4)3,NASICON,8.320000e-05,8.32e-05,numeric,167,10.1016/0167-2738(93)90387-i,,excluded
+jq7,Li1.3Y0.3Hf1.7(PO4)3,NASICON,3.190000e-05,3.19e-05,numeric,167,10.1016/0167-2738(93)90387-i,,excluded
+ylt,Li1.4In0.4Hf1.6(PO4)3,NASICON,1.420000e-04,0.000142,numeric,167,10.1016/0167-2738(93)90387-i,,excluded
+gnq,Li1.4Lu0.4Hf1.6(PO4)3,NASICON,2.060000e-05,2.06e-05,numeric,167,10.1016/0167-2738(93)90387-i,,excluded
+sso,Li1.4Y0.4Hf1.6(PO4)3,NASICON,2.090000e-05,2.09e-05,numeric,167,10.1016/0167-2738(93)90387-i,,excluded
+lpx,Li1.15Y0.15Zr1.85(PO4)3,NASICON,7.100000e-05,7.1e-05,numeric,167,10.1016/j.jpowsour.2013.03.175,bulk ic (total ic 7.10E-05),excluded
+f7p,Li1.3Al0.2Y0.1Ti1.7(PO4)3,NASICON,1.200000e-04,0.00012,numeric,167,10.1016/j.ssi.2012.05.011,,excluded
+l8t,Li1.3Al0.1Y0.2Ti1.7(PO4)3,NASICON,7.300000e-05,7.3e-05,numeric,167,10.1016/j.ssi.2012.05.011,,excluded
+3tt,Li1.3Al0.15Y0.15Ti1.7(PO4)3,NASICON,1.900000e-05,1.9e-05,numeric,167,10.1016/j.ssi.2012.05.011,,excluded
+za6,Li1.1Al0.1Ge1.9(PO4)3,NASICON,2.900000e-06,2.9e-06,numeric,167,10.1016/s0955-2219(99)00055-2,,excluded
+ag1,Li1.3Al0.3Ge1.7(PO4)3,NASICON,3.900000e-05,3.9e-05,numeric,167,10.1016/s0955-2219(99)00055-2,,excluded
+u5t,Li1.5Al0.5Ge1.5(PO4)3,NASICON,2.800000e-04,0.00028,numeric,167,10.1016/s0955-2219(99)00055-2,,excluded
+0y6,Li1.6Al0.6Ge1.4(PO4)3,NASICON,1.400000e-04,0.00014,numeric,167,10.1016/s0955-2219(99)00055-2,,excluded
+yq2,Li1.1Al0.1Ti1.9(PO4)3,NASICON,3.000000e-05,3e-05,numeric,167,10.1016/s0955-2219(99)00055-2,,excluded
+kab,Li1.3Al0.3Ti1.7(PO4)3,NASICON,3.750000e-05,3.75e-05,numeric,167,10.1016/S0955-2219(99)00055-2,,excluded
+tp2,Li1.6Al0.6Ti1.4(PO4)3,NASICON,2.300000e-05,2.3e-05,numeric,167,10.1016/s0955-2219(99)00055-2,,excluded
+nf0,Li1.5Al0.5Ti1.5(PO4)3,NASICON,1.100000e-05,1.1e-05,numeric,167,10.1021/cm010528i,refer D2 - 134,excluded
+fkt,Li1.2La0.2Ti1.8(PO4)3,NASICON,5.280000e-04,0.000528,numeric,167,10.1149/1.2096693,duplicate with line 273,excluded
+ctg,Li1.3La0.3Ti1.7(PO4)3,NASICON,5.280000e-04,0.000528,numeric,167,10.1149/1.2096693,duplicate with line 274,excluded
+cmn,Li1.8Cr0.8Ti1.2(PO4)3,NASICON,2.400000e-04,0.00024,numeric,167,10.1016/0167-2738(88)90291-3,,excluded
+lc1,Li1.2Al1.1Ta0.9(PO4)3,NASICON,6.500000e-07,6.5e-07,numeric,167,10.1039/a807007e,,excluded
+sxv,LiAlTa(PO4)3,NASICON,6.500000e-07,6.5e-07,numeric,167,10.1039/a807007e,,excluded
+4t5,LiCrSb(PO4)3,NASICON,3.570000e-10,3.57e-10,numeric,167,10.1063/1.2357843,,excluded
+smk,LiAlSb(PO4)3,NASICON,3.170000e-08,3.17e-08,numeric,167,10.1063/1.2357843,,excluded
+vtr,LiFeSb(PO4)3,NASICON,1.370000e-06,1.37e-06,numeric,167,10.1063/1.2357843,,excluded
+dc8,Li9Mg3(PO4)4F3,fluorophosphates,,<1E-10,upper_bound,173,10.1039/c3ta15264b,,excluded
+hai,Pb6.12Ca1.9Li1.96(PO4)6,phosphates,,<1E-10,upper_bound,176,10.1006/jssc.2002.9596,,excluded
+ux3,Li0.284Sm4.512Si3O12.91,silicates,,<1E-10,upper_bound,176,10.1016/0167-2738(95)00240-5,,excluded
+tvf,Li3(NH2)2I,hydrides,1.000000e-05,1e-05,numeric,186,10.1021/cm1006857,,excluded
+u8r,Ba3LiTa5ZrSi4O26,oxides,,<1E-10,upper_bound,189,10.1016/j.ssi.2015.08.011,,excluded
+gvd,Li3N,nitrides,5.767000e-04,0.0005767,numeric,191,10.1039/c0ee00052c,,excluded
+uex,Fe2Na2K(Li3Si12O30),sugilites,,<1E-10,upper_bound,192,10.1016/j.jssc.2018.05.008,,excluded
+11b,Li3P,phosphates,7.030000e-04,0.000703,numeric,194,10.1016/0167-2738(89)90438-4,,excluded
+fft,Li3N,nitrides,2.085000e-04,0.0002085,numeric,194,10.1016/0167-2738(83)90045-0,,excluded
+lf5,Li6BaLa2Nb2O12,garnet,6.000000e-06,6e-06,numeric,199,10.1111/j.1551-2916.2005.00060.x,,excluded
+68u,Li5La3Nb2O12,garnet,8.000000e-06,8e-06,numeric,199,10.1111/j.1551-2916.2005.00060.x,,excluded
+gyw,Li6SrLa2Ta2O12,garnet,4.200000e-06,4.2e-06,numeric,199,10.1111/j.1551-2916.2005.00060.x,,excluded
+0v9,Li5.5La3Nb1.75In0.25O12,garnet,2.400000e-05,2.4e-05,numeric,199,10.1016/j.jssc.2005.12.025,,excluded
+qtc,Li5.5La2.75K0.25Nb2O12,garnet,1.060000e-05,1.06e-05,numeric,199,10.1016/j.jssc.2005.12.025,,excluded
+vy5,(K0.1Li0.9)(SbO3),oxides,1.360000e-08,1.36e-08,numeric,201,10.1016/0167-2738(81)90178-8,,excluded
+rwr,Li8GeP4,phosphates,1.800000e-05,1.8e-05,numeric,205,10.1021/acs.chemmater.8b02759,,excluded
+pql,Li8SiP4,phosphates,4.500000e-05,4.5e-05,numeric,205,10.1021/acs.chemmater.8b02759,,excluded
+br1,Li3AlN2,nitrides,5.000000e-08,5e-08,numeric,206,10.1016/0167-2738(85)90106-7,,excluded
+dl7,Li2MgTi3O8,oxides,,<1E-10,upper_bound,212,10.1039/a800234g,,excluded
+i12,Li2CoTi3O8,oxides,,<1E-10,upper_bound,212,10.1039/a800234g,,excluded
+aui,Li2CoGe3O8,oxides,,<1E-10,upper_bound,212,10.1039/a800234g,,excluded
+mfs,Li2ZnGe3O8,oxides,,<1E-10,upper_bound,212,10.1039/a800234g,,excluded
+jl4,(Li0.61Mg0.39)(Li0.46Mg0.005Ti0.035)Ti1.5O4,oxides,6.560000e-10,6.56e-10,numeric,212,10.1016/j.ssi.2010.06.003,,excluded
+jkq,(Li0.55Mg0.45)(Li0.445Mg0.055)Ti1.5O4,oxides,1.530000e-11,1.53e-11,numeric,212,10.1016/j.ssi.2010.06.003,,excluded
+jy6,Li6PO5Cl,argyrodites,1.000000e-09,1e-09,numeric,216,10.1002/zaac.201000121,,relevant
+yav,Li2VCl4,cholorides,6.950000e-06,6.95e-06,numeric,216,10.1016/0167-2738(83)90223-0,,excluded
+9yt,Li6PS5Cl0.25Br0.75,argyrodites,1.860000e-03,0.00186,numeric,216,10.1021/jacs.7b06327,,relevant
+122,Li6PS5Cl,argyrodites,2.050000e-03,0.00205,numeric,216,10.1021/jacs.7b06327,,relevant
+ij5,Li6PS5Cl0.5Br0.5,argyrodites,3.330000e-03,0.00333,numeric,216,10.1021/jacs.7b06327,,relevant
+6jf,Li6PS5Br,argyrodites,1.150000e-03,0.00115,numeric,216,10.1021/jacs.7b06327,,relevant
+ymc,Li6PS5Br0.5I0.5,argyrodites,2.620000e-05,2.62e-05,numeric,216,10.1021/jacs.7b06327,,relevant
+ywe,Li6PS5I,argyrodites,1.300000e-06,1.3e-06,numeric,216,10.1021/jacs.7b06327,,relevant
+kgl,Li6PS5Cl0.75Br0.25,argyrodites,2.260000e-03,0.00226,numeric,216,10.1021/jacs.7b06327,,relevant
+vqj,Li6PS5Br0.75I0.25,argyrodites,1.120000e-04,0.000112,numeric,216,10.1021/jacs.7b06327,,relevant
+h82,Li6PS5Br0.25I0.75,argyrodites,4.720000e-06,4.72e-06,numeric,216,10.1021/jacs.7b06327,,relevant
+9zr,Li6PS5Br,argyrodites,7.010000e-04,0.000701,numeric,216,10.1039/c7ta08581h,,relevant
+a8v,Li6.025P0.975Si0.025S5Br,argyrodites,8.780000e-04,0.000878,numeric,216,10.1039/c7ta08581h,,relevant
+09w,Li6.05P0.95Si0.05S5Br,argyrodites,4.370000e-04,0.000437,numeric,216,10.1039/c7ta08581h,,relevant
+x2v,Li6.075P0.925Si0.075S5Br,argyrodites,8.730000e-04,0.000873,numeric,216,10.1039/c7ta08581h,,relevant
+bnh,Li6.1P0.95Si0.1S5Br,argyrodites,7.990000e-04,0.000799,numeric,216,10.1039/c7ta08581h,,relevant
+x9d,Li6.125P0.875Si0.125S5Br,argyrodites,9.020000e-04,0.000902,numeric,216,10.1039/c7ta08581h,,relevant
+ish,Li6.175P0.825Si0.175S5Br,argyrodites,9.310000e-04,0.000931,numeric,216,10.1039/c7ta08581h,,relevant
+iiy,Li6.2P0.8Si0.2S5Br,argyrodites,1.690000e-03,0.00169,numeric,216,10.1039/c7ta08581h,,relevant
+3zo,Li6.225P0.775Si0.225S5Br,argyrodites,1.080000e-03,0.00108,numeric,216,10.1039/c7ta08581h,,relevant
+vj7,Li6.25P0.75Si0.25S5Br,argyrodites,1.410000e-03,0.00141,numeric,216,10.1039/c7ta08581h,,relevant
+wsd,Li6.3P0.7Si0.3S5Br,argyrodites,1.650000e-03,0.00165,numeric,216,10.1039/c7ta08581h,,relevant
+10s,Li6.35P0.65Si0.35S5Br,argyrodites,2.340000e-03,0.00234,numeric,216,10.1039/c7ta08581h,,relevant
+fkj,Li6.5P0.5Si0.5S5Br,argyrodites,2.190000e-03,0.00219,numeric,216,10.1039/c7ta08581h,,relevant
+24k,Li7Ge3PS12,argyrodites,1.100000e-04,0.00011,numeric,216,10.1016/j.jssc.2016.12.001,,relevant
+tt3,Li6PS5Cl,argyrodites,1.300000e-03,0.0013,numeric,216,10.1016/j.ssi.2012.06.008,,relevant
+nig,Li6PS5Br,argyrodites,2.770000e-03,0.00277,numeric,216,10.1021/acs.inorgchem.8b02443,,relevant
+z16,Li6P(S4.9Se0.1)Br,argyrodites,3.200000e-03,0.0032,numeric,216,10.1021/acs.inorgchem.8b02443,,relevant
+hbz,Li6P(S4.8Se0.2)Br,argyrodites,3.920000e-03,0.00392,numeric,216,10.1021/acs.inorgchem.8b02443,,relevant
+uut,Li6P(S4.7Se0.3)Br,argyrodites,3.620000e-03,0.00362,numeric,216,10.1021/acs.inorgchem.8b02443,,relevant
+cju,Li6P(S4.6Se0.4)Br,argyrodites,3.640000e-03,0.00364,numeric,216,10.1021/acs.inorgchem.8b02443,,relevant
+d9l,Li6P(S4.5Se0.5)Br,argyrodites,2.680000e-03,0.00268,numeric,216,10.1021/acs.inorgchem.8b02443,,relevant
+96f,Li6P(S4.4Se0.6)Br,argyrodites,2.780000e-03,0.00278,numeric,216,10.1021/acs.inorgchem.8b02443,,relevant
+1kq,Li6P(S4.3Se0.7)Br,argyrodites,3.010000e-03,0.00301,numeric,216,10.1021/acs.inorgchem.8b02443,,relevant
+c6e,Li6P(S4.2Se0.8)Br,argyrodites,3.480000e-03,0.00348,numeric,216,10.1021/acs.inorgchem.8b02443,,relevant
+t2c,Li6P(S4.1Se0.9)Br,argyrodites,3.820000e-03,0.00382,numeric,216,10.1021/acs.inorgchem.8b02443,,relevant
+dlj,Li6P(S4Se)Br,argyrodites,3.610000e-03,0.00361,numeric,216,10.1021/acs.inorgchem.8b02443,,relevant
+w87,Li6PS5Br,argyrodites,3.200000e-05,3.2e-05,numeric,216,10.1002/pssa.201001117,,relevant
+97p,Li6PS5Cl,argyrodites,3.300000e-05,3.3e-05,numeric,216,10.1002/pssa.201001117,,relevant
+p9u,Li6PS5I,argyrodites,2.200000e-04,0.00022,numeric,216,10.1002/pssa.201001117,,relevant
+5wz,Li6PS5I,argyrodites,1.260000e-06,1.26e-06,numeric,216,10.1021/jacs.8b10282,appendix: diffraction data available,relevant
+5gj,Li6.1P0.90Ge0.1S5I,argyrodites,8.860000e-06,8.86e-06,numeric,216,10.1021/jacs.8b10282,appendix: diffraction data available,relevant
+t17,Li6.15P0.85Ge0.15S5I,argyrodites,3.930000e-05,3.93e-05,numeric,216,10.1021/jacs.8b10282,appendix: diffraction data available,relevant
+kf7,Li6.2P0.8Ge0.2S5I,argyrodites,3.190000e-05,3.19e-05,numeric,216,10.1021/jacs.8b10282,appendix: diffraction data available,relevant
+utv,Li6.25P0.75Ge0.25S5I,argyrodites,1.500000e-04,0.00015,numeric,216,10.1021/jacs.8b10282,appendix: diffraction data available,relevant
+q9f,Li6.3P0.7Ge0.3S5I,argyrodites,6.500000e-04,0.00065,numeric,216,10.1021/jacs.8b10282,appendix: diffraction data available,relevant
+5qw,Li6.4P0.6Ge0.4S5I,argyrodites,1.500000e-03,0.0015,numeric,216,10.1021/jacs.8b10282,appendix: diffraction data available,relevant
+znj,Li6.5P0.5Ge0.5S5I,argyrodites,1.860000e-03,0.00186,numeric,216,10.1021/jacs.8b10282,appendix: diffraction data available,relevant
+pa1,Li6.6P0.4Ge0.6S5I,argyrodites,5.210000e-03,0.00521,numeric,216,10.1021/jacs.8b10282,appendix: diffraction data available,relevant
+lxk,Li6.7P0.3Ge0.7S5I,argyrodites,5.540000e-03,0.00554,numeric,216,10.1021/jacs.8b10282,appendix: diffraction data available,relevant
+1m8,Li6.8P0.2Ge0.8S5I,argyrodites,2.580000e-03,0.00258,numeric,216,10.1021/jacs.8b10282,appendix: diffraction data available,relevant
+xnb,Li5PS4(BH4)2,argyrodites,1.800000e-03,0.0018,numeric,216,10.1021/acsomega.8b00377,,relevant
+ga9,LiCe(BH4)3Cl,argyrodites,1.030000e-04,0.000103,numeric,217,10.1021/cm300792t,,relevant
+240,Li8GeP4,phosphates,8.600000e-05,8.6e-05,numeric,218,10.1021/acs.chemmater.8b02759,,excluded
+6l9,Li4B7O12Cl,boracites,2.000000e-06,2e-06,numeric,219,10.1107/s0567740877009443,,excluded
+mtr,Fe0.16La2.95Li5.68Zr2O12,garnet,9.350000e-04,0.000935,numeric,220,10.1021/acs.chemmater.6b02516,check the composition,excluded
+s2v,Fe0.19La2.95Li5.57Zr2O12,garnet,1.380000e-03,0.00138,numeric,220,10.1021/acs.chemmater.6b02516,check the composition,excluded
+4p7,Li3ClO,antiperovskite,2.500000e-02,0.025,numeric,221,10.1039/c3ta15087a,,excluded
+gas,Li0.31La0.63(Ti0.9Co0.1)O3,perovskites,2.600000e-04,0.00026,numeric,221,10.1016/j.mseb.2004.07.003,,excluded
+f5n,Li2(OH)0.9F0.1Cl,antiperovskite,3.860000e-05,3.86e-05,numeric,221,10.1002/anie.201604554,,excluded
+hx7,Li2(OH)Br,antiperovskite,1.200000e-06,1.2e-06,numeric,221,10.1002/ange.201604554,,excluded
+lk8,(La0.55Li0.45)(Ti0.9Al0.1)O3,perovskites,1.510000e-03,0.00151,numeric,221,10.1016/j.jallcom.2017.05.278,,excluded
+lud,(La0.6Li0.4)(Ti0.8Al0.2)O3,perovskites,5.680000e-04,0.000568,numeric,221,10.1016/j.jallcom.2017.05.278,,excluded
+vlm,(La0.65Li0.35)(Ti0.7Al0.3)O3,perovskites,1.610000e-04,0.000161,numeric,221,10.1016/j.jallcom.2017.05.278,,excluded
+gwu,(La0.7Li0.3)(Ti0.6Al0.4)O3,perovskites,1.040000e-07,1.04e-07,numeric,221,10.1016/j.jallcom.2017.05.278,,excluded
+oi4,Li0.375Sr0.4375Hf0.25Ta0.75O3,perovskites,3.800000e-04,0.00038,numeric,221,10.1021/acsami.6b03070,,excluded
+lcx,La0.6Sr0.06Li0.06TiO3,perovskites,1.130000e-05,1.13e-05,numeric,221,10.1021/cm020609u,lattice parameter should be checked,excluded
+mam,La0.56Sr0.1Li0.1TiO3,perovskites,1.370000e-05,1.37e-05,numeric,221,10.1021/cm020609u,lattice parameter should be checked,excluded
+0jx,La0.51Sr0.15Li0.15TiO3,perovskites,5.300000e-05,5.3e-05,numeric,221,10.1021/cm020609u,lattice parameter should be checked,excluded
+lyq,La0.41Sr0.25Li0.25TiO3,perovskites,7.640000e-05,7.64e-05,numeric,221,10.1021/cm020609u,lattice parameter should be checked,excluded
+2tt,La0.385Sr0.275Li0.275TiO3,perovskites,6.040000e-05,6.04e-05,numeric,221,10.1021/cm020609u,lattice parameter should be checked,excluded
+xy0,La0.36Sr0.3Li0.3TiO3,perovskites,1.920000e-05,1.92e-05,numeric,221,10.1021/cm020609u,lattice parameter should be checked,excluded
+epv,La0.58Li0.27TiO3,perovskites,8.320000e-04,0.000832,numeric,221,10.1016/s0167-2738(98)00070-8,,excluded
+v7r,La0.56Li0.33TiO3,perovskites,1.300000e-03,0.0013,numeric,221,10.1016/s0167-2738(98)00070-8,,excluded
+yhc,La0.55Li0.36TiO3,perovskites,1.540000e-03,0.00154,numeric,221,10.1016/s0167-2738(98)00070-8,,excluded
+q3c,La0.54Li0.39TiO3,perovskites,1.250000e-03,0.00125,numeric,221,10.1016/s0167-2738(98)00070-8,,excluded
+pdv,La0.52Li0.45TiO3,perovskites,7.850000e-04,0.000785,numeric,221,10.1016/s0167-2738(98)00070-8,,excluded
+sv7,La0.51Li0.34TiO2.94,perovskites,1.000000e-03,0.001,numeric,221,10.1016/0167-2738(94)90309-3,,excluded
+qbb,Li3OBr,antiperovskite,1.100000e-06,1.1e-06,numeric,221,10.1016/j.ssi.2015.11.027,,excluded
+o23,Li0.25La0.25TaO3,perovskites,2.610000e-05,2.61e-05,numeric,221,10.1016/s0167-2738(98)00414-7,,excluded
+w1l,Li0.5Sr0.5Cr0.25Ta0.75O3,perovskites,6.000000e-05,6e-05,numeric,221,10.1016/s0378-7753(97)02645-1,,excluded
+jce,Li0.5Sr0.5Fe0.25Ta0.75O3,perovskites,1.000000e-04,0.0001,numeric,221,10.1016/s0378-7753(97)02645-1,,excluded
+9ph,Li0.19La0.67(Ti0.9Co0.1)O3,perovskites,1.080000e-04,0.000108,numeric,225,10.1016/j.mseb.2004.07.003,,excluded
+kkn,Li6NBr3,halides,1.000000e-08,1e-08,numeric,225,10.1016/j.jallcom.2015.01.082,,excluded
+m0v,Li(Li0.34Ti1.66)O4,oxides,6.030000e-08,6.03e-08,numeric,227,10.1016/j.ssi.2010.06.003,,excluded
+6du,(Li0.916Mg0.084)(Li0.352Mg0.016Ti1.634)O4,oxides,1.730000e-08,1.73e-08,numeric,227,10.1016/j.ssi.2010.06.003,,excluded
+u0c,(Li0.826Mg0.174)(Li0.374Mg0.026Ti1.60)O4,oxides,4.240000e-09,4.24e-09,numeric,227,10.1016/j.ssi.2010.06.003,,excluded
+xub,(Li0.74Mg0.26)(Li0.40Mg0.04Ti1.56)O4,oxides,1.510000e-09,1.51e-09,numeric,227,10.1016/j.ssi.2010.06.003,,excluded
+bjw,Li2MnCl4,chlorides,4.790000e-06,4.79e-06,numeric,227,10.1016/0167-2738(83)90223-0,,excluded
+dvn,Li2MgCl4,chlorides,6.240000e-07,6.24e-07,numeric,227,10.1016/0167-2738(83)90223-0,,excluded
+t3k,Li1.9Mn0.9Ga0.1Cl4,chlorides,2.370000e-07,2.37e-07,numeric,227,10.1016/s0167-2738(96)00592-9,,excluded
+uxi,Li1.65Mn0.65In0.35Cl4,chlorides,9.900000e-08,9.9e-08,numeric,227,10.1016/s0167-2738(96)00592-9,,excluded
+r5y,Li2CdCl4,chlorides,5.800000e-07,5.8e-07,numeric,227,10.1016/0025-5408(81)90142-2,composition corrected,excluded
+ek5,LiSrNb2O6F,pyrochlore,,<1E-10,upper_bound,227,10.2497/jjspm.65.26,,excluded
+xut,LiSrTa2O6F,pyrochlore,,<1E-10,upper_bound,227,10.2497/jjspm.65.26,,excluded
+ckw,LiSr0.9Nb2O6F0.8,pyrochlore,,<1E-10,upper_bound,227,10.2497/jjspm.65.26,,excluded
+yab,LiSr0.9Ta2O6F0.8,pyrochlore,,<1E-10,upper_bound,227,10.2497/jjspm.65.26,,excluded
+ysm,Li1.1SrNb1.9Zr0.1O6F,pyrochlore,,<1E-10,upper_bound,227,10.2497/jjspm.65.26,,excluded
+e81,Li1.1SrTa1.9Zr0.1O6F,pyrochlore,,<1E-10,upper_bound,227,10.2497/jjspm.65.26,,excluded
+3qz,Li7La3Zr2O12,,1.200000e-04,0.00012,numeric,230,10.1039/c2jm31413d,,excluded
+cjq,Li6SrLa2Nb2O12,,4.200000e-06,4.2e-06,numeric,230,10.1111/j.1551-2916.2005.00060.x,duplicate with line 491; 374,excluded
+uaz,Li6CaLa2Nb2O12,garnet,1.600000e-06,1.6e-06,numeric,230,10.1111/j.1551-2916.2005.00060.x,"ic # check, was wrong paper",excluded
+aax,Li5.25Ba0.25La2.75Ta2O12,garnet,7.410000e-06,7.41e-06,numeric,230,10.1007/s11581-007-0097-8,lattice parameter double check,excluded
+o86,Li5.5Ba0.5La2.5Ta2O12,garnet,1.410000e-05,1.41e-05,numeric,230,10.1007/s11581-007-0097-8,lattice parameter double check,excluded
+coi,Li6.25Ba1.25La1.75Ta2O12,garnet,4.990000e-05,4.99e-05,numeric,230,10.1007/s11581-007-0097-8,lattice parameter double check,excluded
+3vi,Li6.5Ba1.5La1.5Ta2O12,garnet,3.080000e-05,3.08e-05,numeric,230,10.1007/s11581-007-0097-8,lattice parameter double check,excluded
+vwn,Li6.75Ba1.75La1.25Ta2O12,garnet,1.180000e-05,1.18e-05,numeric,230,10.1007/s11581-007-0097-8,lattice parameter double check,excluded
+tlp,Li7Ba2LaTa2O12,garnet,2.850000e-06,2.85e-06,numeric,230,10.1007/s11581-007-0097-8,lattice parameter double check,excluded
+ka6,Li5La3Ta2O12,garnet,6.610000e-06,6.61e-06,numeric,230,10.1007/s11581-007-0097-8,lattice parameter double check,excluded
+7o7,Li6BaLa2Ta2O12,garnet,2.950000e-05,2.95e-05,numeric,230,10.1007/s11581-007-0097-8,lattice parameter double check,excluded
+d6f,Li7La3Zr1.89Al0.15O12,garnet,3.400000e-04,0.00034,numeric,230,10.1016/j.jpowsour.2013.03.049,,excluded
+dvs,Li7.06La3Y0.06Zr1.94O12,garnet,8.100000e-04,0.00081,numeric,230,10.1016/j.elecom.2011.08.014,,excluded
+3o4,Li6.25La3Zr2Ga0.25O12,garnet,3.500000e-04,0.00035,numeric,230,10.1016/j.matchemphys.2012.03.054,,excluded
+kji,Li6.4La3Zr1.4Ta0.6O12,garnet,1.000000e-03,0.001,numeric,230,10.1039/c2jm31413d,,excluded
+gdr,Li6.2La3Zr1.2Ta0.8O12,garnet,3.200000e-04,0.00032,numeric,230,10.1039/c2jm31413d,,excluded
+v1q,Li6.8La3Zr1.8Ta0.2O12,garnet,7.300000e-04,0.00073,numeric,230,10.1149/2.024205esl,,excluded
+4vd,Li6.75La3Zr1.75Ta0.25O12,garnet,6.300000e-04,0.00063,numeric,230,10.1149/2.024205esl,duplicate with line 512,excluded
+5xk,Li6.65La3Zr1.65Ta0.35O12,garnet,4.600000e-04,0.00046,numeric,230,10.1149/2.024205esl,,excluded
+2wb,Li6.6La3Zr1.6Ta0.4O12,garnet,4.700000e-04,0.00047,numeric,230,10.1149/2.024205esl,,excluded
+zfg,Li6.55La3Zr1.55Ta0.45O12,garnet,4.000000e-04,0.0004,numeric,230,10.1149/2.024205esl,,excluded
+6hq,Li6La3ZrTaO12,garnet,3.500000e-04,0.00035,numeric,230,10.1149/2.024205esl,,excluded
+hcm,Li5La3Ta2O12,garnet,3.400000e-05,3.4e-05,numeric,230,10.1149/2.024205esl,,excluded
+e6a,Li6.7La3Zr1.7Ta0.3O12,garnet,6.900000e-04,0.00069,numeric,230,10.1149/2.024205esl,,excluded
+g5q,Li6.5La3Zr1.5Ta0.5O12,garnet,2.800000e-04,0.00028,numeric,230,10.1149/2.024205esl,,excluded
+4ie,Li6.05Ga0.25La3Zr2O11.8F0.2,garnet,1.280000e-03,0.00128,numeric,230,10.1021/acsami.8b17656,appendix: diffraction data available,excluded
+5z8,Li5.72Al0.26La3Zr1.5W0.25O12,garnet,4.900000e-04,0.00049,numeric,230,10.1021/acs.chemmater.5b02429,composition check,excluded
+5d6,Li6.8La3Zr1.9Mo0.1O12,garnet,8.000000e-05,8e-05,numeric,230,10.1021/acs.inorgchem.5b01895,,excluded
+ciq,Li6.6La3Zr1.8Mo0.2O12,garnet,3.110000e-04,0.000311,numeric,230,10.1021/acs.inorgchem.5b01895,,excluded
+suz,Li6.4La3Zr1.7Mo0.3O12,garnet,3.690000e-04,0.000369,numeric,230,10.1021/acs.inorgchem.5b01895,,excluded
+1tk,Li6.2La3Zr1.6Mo0.4O12,garnet,3.400000e-04,0.00034,numeric,230,10.1021/acs.inorgchem.5b01895,,excluded
+9o6,Li6.5La3Zr1.75Mo0.25O12,garnet,3.330000e-04,0.000333,numeric,230,10.1021/acs.inorgchem.5b01895,,excluded
+r07,Li6.75La3Zr1.875Te0.125O12,garnet,3.300000e-04,0.00033,numeric,230,10.1016/j.jpowsour.2013.03.166,,excluded
+uht,Li6.5La3Zr1.75Te0.25O12,garnet,1.020000e-03,0.00102,numeric,230,10.1016/j.jpowsour.2013.03.166,,excluded
+kbq,Li5La3Bi2O12,garnet,1.900000e-05,1.9e-05,numeric,230,10.1016/j.mseb.2007.07.009,,excluded
+uw9,Li6La2SrBi2O12,garnet,2.000000e-05,2e-05,numeric,230,10.1016/j.mseb.2007.07.009,,excluded
+vqu,Li5Nd3Sb2O12,garnet,1.300000e-07,1.3e-07,numeric,230,10.1016/j.materresbull.2007.04.002,,excluded
+lpt,Li4Nd3TeSbO12,garnet,8.700000e-09,8.7e-09,numeric,230,10.1021/cm703677q,,excluded
+xog,Li5La3Sb2O12,garnet,7.800000e-06,7.8e-06,numeric,230,10.1016/j.materresbull.2007.10.035,,excluded
+bi3,Li6SrLa2Sb2O12,garnet,6.300000e-06,6.3e-06,numeric,230,10.1016/j.materresbull.2007.10.035,,excluded
+gcj,Li6(La2Ca)(NbO6)2,garnet,1.330000e-06,1.33e-06,numeric,230,10.1016/j.ssi.2008.01.047,,excluded
+20k,Li6(La2Sr)(NbO6)2,garnet,3.690000e-06,3.69e-06,numeric,230,10.1016/j.ssi.2008.01.047,"Value for annealed, quenched also available: 6.2e-7",excluded
+jej,Li6CaLa2Ta2O12,garnet,2.200000e-06,2.2e-06,numeric,230,10.1016/j.ssi.2008.10.022,,excluded
+hud,Li6BaLa2Ta2O12,garnet,1.300000e-05,1.3e-05,numeric,230,10.1016/j.ssi.2008.10.022,,excluded
+4uu,Li6.15La3Zr1.75Ta0.25Ga0.2O12,garnet,4.100000e-04,0.00041,numeric,230,10.1016/j.jpowsour.2012.01.131,,excluded
+sdz,Li6.15La3Zr1.75Ta0.25Al0.2O12,garnet,3.700000e-04,0.00037,numeric,230,10.1016/j.jpowsour.2012.01.131,,excluded
+7w5,Li6.75La3Zr1.75Ta0.25O12,garnet,8.700000e-04,0.00087,numeric,230,10.1016/j.jpowsour.2012.01.131,,excluded
+etz,Li7La3Zr2O12,,1.970000e-06,1.97e-06,numeric,230,10.1039/c1cp22108f,,excluded
+ner,Li6BaLa2Ta2O12,garnet,1.690000e-05,1.69e-05,numeric,230,10.1016/j.materresbull.2012.04.032,,excluded
+z2s,Nd3Zr2Al0.5Li5.5O12,garnet,3.900000e-05,3.9e-05,numeric,230,10.1039/c3ta13252h,,excluded
+72f,(Li6.26Al0.24)La3Zr2O12,garnet,2.100000e-04,0.00021,numeric,230,10.1016/j.ssi.2015.04.011,,excluded
+j5g,Li6La3Nb1.5Y0.5O12,garnet,1.880000e-04,0.000188,numeric,230,10.1021/jp304737x,,excluded
+dvb,Li5.2La3Nb1.9Y0.1O12,garnet,6.390000e-05,6.39e-05,numeric,230,10.1021/jp304737x,,excluded
+cti,Li5.4La3Nb1.8Y0.2O12,garnet,6.740000e-05,6.74e-05,numeric,230,10.1021/jp304737x,,excluded
+2d1,Li5.5La3Nb1.75Y0.25O12,garnet,9.180000e-05,9.18e-05,numeric,230,10.1021/jp304737x,,excluded
+sqm,Li6Ba0.5Sr0.5La2Ta2O12,garnet,7.100000e-06,7.1e-06,numeric,230,10.1021/am4060194,,excluded
+zxr,Li6SrLa2Ta2O12,garnet,5.400000e-06,5.4e-06,numeric,230,10.1021/am4060194,,excluded
+h89,Li6BaLa2Ta2O12,garnet,1.500000e-05,1.5e-05,numeric,230,10.1021/am4060194,,excluded
+l9r,Li6CaLa2Ta2O12,garnet,2.200000e-06,2.2e-06,numeric,230,10.1021/am4060194,,excluded
+544,Li6BaLa2Ta2O12,garnet-like,4.000000e-05,4e-05,numeric,199,10.1002/adfm.200400044,,excluded
+ps0,Li6SrLa2Ta2O12,garnet-like,7.000000e-06,7e-06,numeric,199,10.1002/adfm.200400044,,excluded
+ueu,Li5.74La3Zr1.5Ta0.5O12,garnet,9.030000e-04,0.000903,numeric,230,10.1002/aenm.201570062|10.1002/aenm.201500096,,excluded
+uwh,La3Li5.08Ta1.51Zr0.39O12,garnet,1.030000e-04,0.000103,numeric,230,10.1002/aenm.201570062|10.1002/aenm.201500096,,excluded
+wa3,Li51.2Al1.6La24Zr16O96,garnet,2.540000e-04,0.000254,numeric,230,10.1038/srep18053,"Z, composition incorrect",excluded
+l6h,Li49.6Al1.6La24Zr14.4Ta1.6O96,garnet,6.140000e-04,0.000614,numeric,230,10.1038/srep18053,,excluded
+gz8,Li5La3Ta2O12,garnet,1.590000e-05,1.59e-05,numeric,230,10.1021/acs.inorgchem.7b00816,,excluded
+419,Li5.3La3Ta1.85Sm0.15O12,garnet,7.110000e-06,7.11e-06,numeric,230,10.1021/acs.inorgchem.7b00816,,excluded
+c0g,Li5.5La3Ta1.75Sm0.25O12,garnet,5.170000e-06,5.17e-06,numeric,230,10.1021/acs.inorgchem.7b00816,,excluded
+kbu,Li5.70La3Ta1.65Sm0.35O12,garnet,2.150000e-05,2.15e-05,numeric,230,10.1021/acs.inorgchem.7b00816,,excluded
+fam,Li5.90La3Ta1.55Sm0.45O12,garnet,1.180000e-05,1.18e-05,numeric,230,10.1021/acs.inorgchem.7b00816,,excluded
+dae,Li6.10La3Ta1.45Sm0.55O12,garnet,1.400000e-05,1.4e-05,numeric,230,10.1021/acs.inorgchem.7b00816,,excluded
+9p1,Li7La3Zr2O12,,5.690000e-04,0.000569,numeric,230,10.1016/j.ssi.2010.12.010,,excluded
+gkl,Li5La3Nb2O12,garnet,5.080000e-06,5.08e-06,numeric,230,10.1016/j.jpowsour.2011.05.031,ic # incorrect,excluded
+ijh,Li5La3Nb1.95Y0.05O12,garnet,1.340000e-05,1.34e-05,numeric,230,10.1016/j.jpowsour.2011.05.031,,excluded
+q46,Li5La3Nb1.9Y0.1O12,garnet,1.440000e-05,1.44e-05,numeric,230,10.1016/j.jpowsour.2011.05.031,,excluded
+8m3,Li5La3Nb1.85Y0.15O12,garnet,5.710000e-06,5.71e-06,numeric,230,10.1016/j.jpowsour.2011.05.031,,excluded
+zyx,Li5La3Nb1.8Y0.2O12,garnet,9.130000e-06,9.13e-06,numeric,230,10.1016/j.jpowsour.2011.05.031,,excluded
+qvu,Li5La3Nb1.75Y0.25O12,garnet,9.680000e-06,9.68e-06,numeric,230,10.1016/j.jpowsour.2011.05.031,,excluded
+v07,La3Zr2Ga0.5Li5.5O12,garnet,1.000000e-04,0.0001,numeric,230,10.1039/c2dt31318a,appendix: diffraction data available,excluded
+whw,Li6.8La3Zr1.8Sb0.2O12,garnet,5.900000e-05,5.9e-05,numeric,230,10.1039/c3cp50991e,,excluded
+duf,Li6.6La3Zr1.6Sb0.4O12,garnet,7.700000e-04,0.00077,numeric,230,10.1039/c3cp50991e,,excluded
+dll,Li6.4La3Zr1.4Sb0.6O12,garnet,6.600000e-04,0.00066,numeric,230,10.1039/c3cp50991e,,excluded
+i90,Li6.2La3Zr1.2Sb0.8O12,garnet,4.500000e-04,0.00045,numeric,230,10.1039/c3cp50991e,,excluded
+dm9,Li6La3ZrSbO12,garnet,2.600000e-04,0.00026,numeric,230,10.1039/c3cp50991e,,excluded
+bqx,Li3Nd3Te2O12,garnet,,<1E-10,upper_bound,230,10.1021/cm060992t,,excluded
+32j,Li7La3Hf2O12,garnet,2.400000e-04,0.00024,numeric,230,10.1007/s11581-010-0486-2,,excluded
+z53,Li6.6La3Zr1.6Ta0.4O12,garnet,3.130000e-04,0.000313,numeric,230,10.1021/am503731h,,excluded
+8y4,Li6.6La2.875Y0.125Zr1.6Ta0.4O12,garnet,3.170000e-04,0.000317,numeric,230,10.1021/am503731h,,excluded
+ucw,Li6.6La2.75Y0.25Zr1.6Ta0.4O12,garnet,4.360000e-04,0.000436,numeric,230,10.1021/am503731h,,excluded
+ff9,Li6.6La2.5Y0.5Zr1.6Ta0.4O12,garnet,2.260000e-04,0.000226,numeric,230,10.1021/am503731h,,excluded
+2mn,Li7La3Zr2O12,garnet,5.110000e-04,0.000511,numeric,230,10.1002/anie.200701144,appendix: diffraction data available,excluded
+8ee,Li6.4Al0.19La3Zr2O11.8,,3.100000e-04,0.00031,numeric,230,10.1016/j.jpowsour.2012.02.100,,excluded
+8k7,Li5La3Ta2O12,garnet,1.540000e-06,1.54e-06,numeric,230,10.1016/j.ssi.2009.11.015,,excluded
+b7v,Li5La3Bi2O12,garnet,2.200000e-05,2.2e-05,numeric,230,10.1016/j.ssi.2017.03.030,,excluded
+66a,Li6.75La3Zr1.75Nb0.25O12,garnet,8.000000e-04,0.0008,numeric,230,10.1016/j.jpowsour.2010.11.089,,excluded
+3rh,Li6.5La3Nb1.25Y0.75O12,garnet,2.700000e-04,0.00027,numeric,230,10.1021/jp304737x,duplicate with line 550,excluded
+kh3,Li6.5La3Zr1.5Ta0.5O12,,9.200000e-04,0.00092,numeric,230,10.1039/c2jm31413d,,excluded
+zqx,Li6.6La3Zr1.6Ta0.4O12,,7.300000e-04,0.00073,numeric,230,10.1039/c2jm31413d,,excluded
+o5q,Li6.8La3Zr1.8Ta0.2O12,,2.800000e-04,0.00028,numeric,230,10.1039/c2jm31413d,,excluded
+0ew,Li6La3ZrTaO12,,1.600000e-04,0.00016,numeric,230,10.1039/c2jm31413d,duplicate with line 510,excluded
+a6v,Li5.4La3Nb1.8Y0.75O12,,2.510000e-05,2.51e-05,numeric,230,10.1021/jp304737x,wrong composition;  may duplicate with 548,excluded
+tbj,Li5La3Sb2O12,garnet,3.330000e-06,3.33e-06,numeric,230,10.1016/j.ssi.2008.01.002,duplicate with line 536,excluded
+dbs,Li6.5La3Zr1.5Ta0.5O12,garnet,7.940000e-04,0.000794,numeric,230,10.3389/fenrg.2016.00028,,excluded
+bt0,Li6.5La2.95Ba0.05Zr1.45Ta0.55O12,garnet,8.320000e-04,0.000832,numeric,230,10.3389/fenrg.2016.00028,,excluded
+dti,Li6.5La2.9Ba0.1Zr1.4Ta0.6O12,garnet,8.340000e-04,0.000834,numeric,230,10.3389/fenrg.2016.00028,,excluded
+7gm,Li6.5La2.8Ba0.2Zr1.3Ta0.7O12,garnet,6.310000e-04,0.000631,numeric,230,10.3389/fenrg.2016.00028,,excluded
+c71,Li6.5La2.7Ba0.3Zr1.2Ta0.8O12,garnet,4.920000e-04,0.000492,numeric,230,10.3389/fenrg.2016.00028,,excluded
+rgo,Li7La3Ta2O13,garnet,2.650000e-06,2.65e-06,numeric,230,10.1016/j.ssi.2009.07.002,,excluded
+ar1,Li4SnS3Se,,7.500000e-05,7.5e-05,numeric,62,10.1021/acs.chemmater.0c04150,,excluded
+cz2,Li4SnSSe3,,9.500000e-07,9.5e-07,numeric,62,10.1021/acs.chemmater.0c04150,,excluded
+klr,Li4SnS2Se2,,3.600000e-05,3.6e-05,numeric,62,10.1021/acs.chemmater.0c04150,,excluded
+mn3,Li4SnSe4,,4.500000e-08,4.5e-08,numeric,62,10.1021/acs.chemmater.0c04150,,excluded
+o0a,Li4Ge0.75Sn0.25Se4,,6.000000e-06,6e-06,numeric,62,10.1021/acs.chemmater.0c04150,,excluded
+qer,Li4Ge0.50Sn0.50Se4,,1.800000e-06,1.8e-06,numeric,62,10.1021/acs.chemmater.0c04150,,excluded
+aab,Li4Ge0.25Sn0.75Se4,,8.300000e-07,8.3e-07,numeric,62,10.1021/acs.chemmater.0c04150,,excluded
+1ty,Li4GeS3Se,,8.500000e-06,8.5e-06,numeric,62,10.1021/acs.chemmater.0c04150,,excluded
+zv5,Li4GeS2Se2,,2.800000e-05,2.8e-05,numeric,62,10.1021/acs.chemmater.0c04150,,excluded
+xk3,Li4GeSe4,,5.000000e-06,5e-06,numeric,62,10.1021/acs.chemmater.0c04150,,excluded
+i4l,Li4GeSSe3,,1.500000e-05,1.5e-05,numeric,62,10.1021/acs.chemmater.0c04150,,excluded
+zzr,Li10GeP2S12,,7.600000e-03,0.0076,numeric,137,10.1021/jacs.0c10735,,excluded
+kop,Li10Ge0.66Sn0.33P2S12,,6.400000e-03,0.0064,numeric,137,10.1021/jacs.0c10735,,excluded
+rty,Li10Ge0.33Sn0.66P2S12,,4.800000e-03,0.0048,numeric,137,10.1021/jacs.0c10735,,excluded
+kko,Li10SnP2S12,,3.800000e-03,0.0038,numeric,137,10.1021/jacs.0c10735,,excluded

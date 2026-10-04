@@ -1,0 +1,63 @@
+<svg viewBox="0 0 680 590" width="100%" role="img" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
+<title>五步流水线内部流程与故障恢复</title>
+<desc>P1 到 P5 竖向主流程，右侧标注各步故障行为，左侧 resume 虚线表示断点续跑从 P5 回到 P3。</desc>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</marker>
+</defs>
+<text x="320" y="28" font-size="15" font-weight="500" fill="#444441" text-anchor="middle">五步流水线内部流程与故障恢复</text>
+<g>
+<rect x="60" y="50" width="320" height="72" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text x="76" y="70" font-size="14" font-weight="500" fill="#0C447C">P1 文献检索</text>
+<text x="76" y="88" font-size="12" fill="#185FA5">goal 关键词 × 本地语料（5 篇）</text>
+<text x="76" y="104" font-size="12" fill="#185FA5">→ literature_hits.json · EV-0001…0006</text>
+</g>
+<g>
+<rect x="60" y="158" width="320" height="72" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text x="76" y="178" font-size="14" font-weight="500" fill="#0C447C">P2 数据清洗</text>
+<text x="76" y="196" font-size="12" fill="#185FA5">去重 · mS/cm→S/cm · 中位数插补</text>
+<text x="76" y="212" font-size="12" fill="#185FA5">→ conductivity_clean.csv · EV-0007/0008</text>
+</g>
+<g>
+<rect x="60" y="266" width="320" height="72" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text x="76" y="286" font-size="14" font-weight="500" fill="#0C447C">P3 实验执行</text>
+<text x="76" y="304" font-size="12" fill="#185FA5">spawn arrhenius_rank.py --seed 0</text>
+<text x="76" y="320" font-size="12" fill="#185FA5">→ results.csv + SVG · EV-0009/0010</text>
+</g>
+<g>
+<rect x="60" y="374" width="320" height="72" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text x="76" y="394" font-size="14" font-weight="500" fill="#0C447C">P4 复现验证</text>
+<text x="76" y="412" font-size="12" fill="#185FA5">隔离目录独立复跑 + 5 项容差校验</text>
+<text x="76" y="428" font-size="12" fill="#185FA5">→ verification.json · EV-0011</text>
+</g>
+<g>
+<rect x="60" y="482" width="320" height="72" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text x="76" y="502" font-size="14" font-weight="500" fill="#0C447C">P5 报告汇总</text>
+<text x="76" y="520" font-size="12" fill="#185FA5">结论 C1–C5 强制绑定 EV 证据</text>
+<text x="76" y="536" font-size="12" fill="#185FA5">→ report.md · EV-0012 · 幂等</text>
+</g>
+<line x1="220" y1="122" x2="220" y2="154" stroke="#185FA5" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="220" y1="230" x2="220" y2="262" stroke="#185FA5" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="220" y1="338" x2="220" y2="370" stroke="#185FA5" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="220" y1="446" x2="220" y2="478" stroke="#185FA5" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M60 518 L40 518 L40 302 L54 302" fill="none" stroke="#0F6E56" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrow)" stroke-linecap="round"/>
+<text x="40" y="352" font-size="11" fill="#0F6E56">resume 断点续跑</text>
+<line x1="380" y1="86" x2="398" y2="86" stroke="#888780" stroke-width="0.75" stroke-dasharray="3 3"/>
+<text x="404" y="72" font-size="11" fill="#5F5E5A">TransientError 重试 ×3</text>
+<text x="404" y="88" font-size="11" fill="#5F5E5A">耗尽 → 降级全语料命中</text>
+<text x="404" y="104" font-size="11" fill="#5F5E5A">degrade 事件留痕</text>
+<line x1="380" y1="194" x2="398" y2="194" stroke="#888780" stroke-width="0.75" stroke-dasharray="3 3"/>
+<text x="404" y="180" font-size="11" fill="#5F5E5A">chaos: kill_after_p2</text>
+<text x="404" y="196" font-size="11" fill="#5F5E5A">os._exit(137) 真实杀进程</text>
+<text x="404" y="212" font-size="11" fill="#5F5E5A">账本已落盘 · 可 resume</text>
+<line x1="380" y1="302" x2="398" y2="302" stroke="#888780" stroke-width="0.75" stroke-dasharray="3 3"/>
+<text x="404" y="292" font-size="11" fill="#5F5E5A">子进程超时 60s</text>
+<text x="404" y="308" font-size="11" fill="#5F5E5A">产物三件套缺失 → FAILED</text>
+<line x1="380" y1="410" x2="398" y2="410" stroke="#888780" stroke-width="0.75" stroke-dasharray="3 3"/>
+<text x="404" y="400" font-size="11" fill="#5F5E5A">MUTATE 注入 → top3 交换</text>
+<text x="404" y="416" font-size="11" fill="#5F5E5A">5 项校验 FAIL → run FAILED</text>
+<line x1="380" y1="518" x2="398" y2="518" stroke="#888780" stroke-width="0.75" stroke-dasharray="3 3"/>
+<text x="404" y="508" font-size="11" fill="#5F5E5A">无证据 → EvidenceError</text>
+<text x="404" y="524" font-size="11" fill="#5F5E5A">DONE 后重复调用幂等复用</text>
+</svg>

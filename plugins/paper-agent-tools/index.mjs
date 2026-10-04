@@ -13,12 +13,13 @@
  *  会话内逐步驱动流水线：每次只执行一步，返回决策上下文，由模型决定下一步。
  *  run-all 降级为"确定性兜底路径"，仍保留但不再是主导。
  *
- * 工具清单（17 个，两条工作流）：
+ * 工具清单（20 个 = 科研全流程 17 + 可信增强 3，合并 mike ∪ Novus）：
  *  驱动型（主导）：sciret_step_driven / sciret_next / sciret_finish
  *  基础型：        sciret_plan / sciret_run_step / sciret_status / sciret_resume
  *  可信框架：      sciret_verify / sciret_report / sciret_cite
  *  科研全流程：    sciret_search_papers / sciret_parse_paper / sciret_analyze
  *                  sciret_factcheck / sciret_write_review / sciret_self_review / sciret_eval
+ *  真实检索+冻结： sciret_search / sciret_freeze_prepare / sciret_freeze_commit
  *
  * 两条工作流（sciret_plan 的 workflow 参数选择）：
  *   materials（默认）: P1_lit_search .. P5_report（可复现实验底座）
@@ -26,12 +27,40 @@
  */
 
 import { spawn } from "node:child_process";
+import { writeFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import os from "node:os";
 import path from "node:path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const KIND = Symbol.for("TypeBox.Kind");
 
+/** 读环境变量，同时兼容连字符与下划线两种写法。
+ *  （连字符名在部分 shell 下无法 export，见 core/paper_agent/llm.py 的同类说明） */
+function envAny(names) {
+  for (const n of names) {
+    const v = process.env[n];
+    if (v && String(v).trim()) return String(v).trim();
+  }
+  return "";
+}
+
+/** 项目根：环境变量优先；未设置则由插件位置推导（plugins/paper-agent-tools → 上溯两级）。
+ *  这样即便没有注入环境变量，插件也能正确定位 core/ 与 data/。 */
+function projectRoot() {
+  return envAny(["PAPER_AGENT_ROOT", "paper-agent_ROOT"])
+    || path.resolve(__dirname, "..", "..");
+}
+
+/** Python 解释器候选：环境变量优先；否则按平台常见命名依次尝试。
+ *  多候选是为了避免"python 不在 PATH 上"直接导致所有工具不可用。 */
+function pythonCandidates() {
+  const explicit = envAny(["PAPER_AGENT_PYTHON", "paper-agent_PYTHON"]);
+  if (explicit) return [explicit];
+  return process.platform === "win32"
+    ? ["python", "python3", "py"]
+    : ["python3", "python"];
+}
 
 // ---------- TypeBox schema helpers（对齐 AGH 标准写法）----------
 function objectSchema(properties, required = []) {
@@ -89,21 +118,32 @@ function cliArgs(args, chaos) {
   return out;
 }
 
-function runCli(argv, timeoutMs = 120_000) {
-  const py = process.env["paper-agent_PYTHON"] || "python";
-  const root = process.env["paper-agent_ROOT"] || __dirname;
+/** 用单个解释器跑一次 CLI；spawn 失败（如解释器不存在）时 reject 并带 ENOENT。 */
+function runCliWith(py, argv, timeoutMs) {
+  const root = projectRoot();
   const env = {
     ...process.env,
     "paper-agent_ROOT": root,
+    PAPER_AGENT_ROOT: root,
     PYTHONPATH: path.join(root, "core"),
   };
-  return new Promise((resolve) => {
-    const proc = spawn(py, argv, { env, cwd: root, stdio: ["ignore", "pipe", "pipe"] });
+  return new Promise((resolve, reject) => {
+    let proc;
+    try {
+      proc = spawn(py, argv, { env, cwd: root, stdio: ["ignore", "pipe", "pipe"] });
+    } catch (err) {
+      reject(err);
+      return;
+    }
     let stdout = "";
     let stderr = "";
     const timer = setTimeout(() => proc.kill("SIGKILL"), timeoutMs);
     proc.stdout.on("data", (d) => (stdout += d));
     proc.stderr.on("data", (d) => (stderr += d));
+    proc.on("error", (err) => {      // 解释器不存在时会走到这里
+      clearTimeout(timer);
+      reject(err);
+    });
     proc.on("close", (code) => {
       clearTimeout(timer);
       let parsed = null;
@@ -119,11 +159,32 @@ function runCli(argv, timeoutMs = 120_000) {
         stderr: stderr.trim() || undefined,
       });
     });
-    proc.on("error", (err) => {
-      clearTimeout(timer);
-      resolve({ ok: false, exitCode: -1, structured: { ok: false, error: err.message } });
-    });
   });
+}
+
+/** 依次尝试候选解释器，避免"python 不在 PATH 上"直接导致工具全不可用。 */
+async function runCli(argv, timeoutMs = 120_000) {
+  const candidates = pythonCandidates();
+  let lastErr = null;
+  for (let i = 0; i < candidates.length; i++) {
+    try {
+      return await runCliWith(candidates[i], argv, timeoutMs);
+    } catch (err) {
+      lastErr = err;
+      const retryable = err && (err.code === "ENOENT" || /ENOENT/.test(String(err.message)));
+      if (!retryable || i === candidates.length - 1) break;
+    }
+  }
+  return {
+    ok: false,
+    exitCode: -1,
+    structured: {
+      ok: false,
+      error: `cannot launch python (tried: ${candidates.join(", ")}): `
+             + `${lastErr && lastErr.message ? lastErr.message : lastErr}`,
+      hint: "设置 PAPER_AGENT_PYTHON 指向 Python 3.10+ 的绝对路径",
+    },
+  };
 }
 
 /** 统一的工具执行器：调用 CLI，按 AGH 返回格式包装。 */
@@ -136,7 +197,34 @@ function makeRunner(argsOf, timeoutMs) {
   };
 }
 
-// ---------- 工具定义 ----------
+/** 把逗号分隔的字符串解析成数组（用于 ack 码）。 */
+function csv(s) {
+  return String(s || "").split(",").map((x) => x.trim()).filter(Boolean);
+}
+
+/** 解析检索式：优先 JSON 数组，退化为 "|" 分隔的字符串。 */
+function parseQueries(s) {
+  if (!s) return [];
+  try {
+    const v = JSON.parse(s);
+    return Array.isArray(v) ? v.map(String) : [];
+  } catch {
+    return String(s).split("|").map((x) => x.trim()).filter(Boolean);
+  }
+}
+
+/** 把裁决 JSON 写到临时文件，返回路径（CLI 的 --verdicts 需要文件）。 */
+function writeVerdicts(verdicts) {
+  const text = typeof verdicts === "string" ? verdicts : JSON.stringify(verdicts);
+  JSON.parse(text); // 提前校验，避免把坏 JSON 传给子进程
+  const dir = path.join(os.tmpdir(), "paper-agent-verdicts");
+  mkdirSync(dir, { recursive: true });
+  const p = path.join(dir, `verdicts-${process.pid}-${Date.now()}.json`);
+  writeFileSync(p, text, "utf8");
+  return p;
+}
+
+// ---------- 工具定义（20 个：科研全流程 17 + 可信增强 3）----------
 const TOOLS = [
   // ===== 驱动型工具（主导路径：编排权在模型侧）=====
   {
@@ -439,6 +527,76 @@ const TOOLS = [
       const a = ["eval"];
       if (c.run_id) a.push("--run", c.run_id);
       if (c.out_dir) a.push("--out-dir", c.out_dir);
+      return a;
+    }),
+  },
+
+  // ---- 第二批：真实检索与冻结快照（判断由会话内模型给出）----
+
+  {
+    name: "sciret_search",
+    description:
+      "Network literature search over Crossref/OpenAlex METADATA only (never fetches full text). Returns candidate papers (DOI/title/authors/year/venue) for a research goal, so you can judge relevance.",
+    parameters: objectSchema(
+      {
+        goal: str("research goal"),
+        queries: optStr('optional JSON array of explicit queries, e.g. ["sulfide ionic conductivity"]; omit to derive from goal'),
+        sources: optStr("comma-separated: crossref,openalex (default both)"),
+        rows: optStr("results per query (default 10)"),
+      },
+      ["goal"],
+    ),
+    meta: READONLY_META,
+    execute: makeRunner((c) => {
+      const a = ["search", "--goal", c.goal];
+      for (const q of parseQueries(c.queries)) a.push("--query", q);
+      if (c.sources) a.push("--sources", c.sources);
+      if (c.rows) a.push("--rows", String(c.rows));
+      return a;
+    }, 240_000),
+  },
+
+  {
+    name: "sciret_freeze_prepare",
+    description:
+      "Prepare a frozen input snapshot: fetch both legs (literature + dataset) and return the objects awaiting YOUR judgment, namely the material families and a rule-based reference verdict for each. Does NOT write a snapshot yet — call sciret_freeze_commit after you decide.",
+    parameters: objectSchema(
+      {
+        goal: str("research goal"),
+        literature: optStr("bootstrap (offline, default) | network (live Crossref/OpenAlex search)"),
+        rows: optStr("results per query when literature=network"),
+      },
+      ["goal"],
+    ),
+    meta: writeMeta("never", 300_000),
+    execute: makeRunner((c) => {
+      const a = ["freeze", "--goal", c.goal, "--prepare"];
+      if (c.literature) a.push("--literature", c.literature);
+      if (c.rows) a.push("--rows", String(c.rows));
+      return a;
+    }, 300_000),
+  },
+
+  {
+    name: "sciret_freeze_commit",
+    description:
+      "Commit YOUR relevance judgments to freeze the snapshot. verdicts must cover EVERY family returned by sciret_freeze_prepare, each marked relevant or excluded with a reason. Judgments are recorded as auditable 'judgment'-tier evidence and never become conclusions. Anomalies (zero hits / no leg overlap / extreme hit-rate / self-contradiction) will halt the flow and must be explicitly acknowledged.",
+    parameters: objectSchema(
+      {
+        pending_id: str("pending id returned by sciret_freeze_prepare"),
+        verdicts: str('JSON object: {"queries":["..."],"families":{"<family>":{"verdict":"relevant|excluded","reason":"..."}}} — a flat map {"<family>":"relevant|excluded"} is also accepted'),
+        model_name: optStr("your model identity, recorded in the audit trail"),
+        ack: optStr("comma-separated anomaly codes you explicitly acknowledge (only after human review)"),
+      },
+      ["pending_id", "verdicts"],
+    ),
+    meta: writeMeta("never", 300_000),
+    execute: makeRunner((c) => {
+      const a = ["freeze", "--commit", c.pending_id,
+                 "--verdicts", writeVerdicts(c.verdicts),
+                 "--judged-by", "model"];
+      if (c.model_name) a.push("--model-name", c.model_name);
+      for (const code of csv(c.ack)) a.push("--ack", code);
       return a;
     }, 300_000),
   },

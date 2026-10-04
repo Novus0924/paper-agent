@@ -51,20 +51,20 @@ def _cli(*args, root: str):
 
 
 class TestPluginToolCount(unittest.TestCase):
-    """文档声称插件注册 17 工具 + 1 Skill，必须与插件真实注册数一致。"""
+    """文档声称插件注册 20 工具 + 1 Skill，必须与插件真实注册数一致。"""
 
     DOCS = ("README.md", "submission/项目说明.md",
             "docs/PRD-v0.3-需求实现映射.md")
 
-    def test_docs_claim_17_tools(self):
+    def test_docs_claim_20_tools(self):
         for rel in self.DOCS:
             txt = _read(rel)
             self.assertTrue(
-                re.search(r"17\s*(?:个)?\s*`?sciret", txt)
-                or "17 工具" in txt or "17 个" in txt and "工具" in txt,
-                f"{rel} 未声明 17 个工具（文档漂移）")
+                re.search(r"20\s*(?:个)?\s*`?sciret", txt)
+                or "20 工具" in txt or "20 个" in txt and "工具" in txt,
+                f"{rel} 未声明 20 个工具（文档漂移）")
 
-    def test_plugin_registers_17_tool_names(self):
+    def test_plugin_registers_20_tool_names(self):
         """直接在 mock 宿主下加载插件，核对注册的工具数。"""
         script = (
             "import('./plugins/paper-agent-tools/index.mjs').then(async (m)=>{"
@@ -78,8 +78,8 @@ class TestPluginToolCount(unittest.TestCase):
         r = subprocess.run(["node", "-e", script], capture_output=True,
                            text=True, cwd=_PROJ)
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(r.stdout.strip(), "17",
-                         "插件实际注册工具数与文档声称的 17 不一致")
+        self.assertEqual(r.stdout.strip(), "20",
+                         "插件实际注册工具数与文档声称的 20 不一致")
 
 
 class TestWorkflowSteps(unittest.TestCase):

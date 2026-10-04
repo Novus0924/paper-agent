@@ -1,0 +1,65 @@
+{
+  "content_sha256": "5a0071827742be0e719591f78b78be118f9caaf2bf007b02b25b1d3594cf556e",
+  "created_at": "2026-10-02T06:52:25Z",
+  "files": [
+    {
+      "bytes": 63476,
+      "name": "materials.csv",
+      "rows": 599,
+      "sha256": "af2fba373c2aeec5ef796b66c0fce87c9dc7ad0b500029b0f88f2b136b5139da"
+    },
+    {
+      "bytes": 20342,
+      "name": "literature.json",
+      "sha256": "a2b308145f789bca0f297cd91436fc7ef2ab6885f97243d6fb9e436e6d7b00d5"
+    },
+    {
+      "bytes": 12284,
+      "count": 43,
+      "name": "judgments.jsonl",
+      "sha256": "46d1ab768cb01b512f38ecc9189696d8fc34abfa4acbb10329dac7f00710ff0d"
+    }
+  ],
+  "judgment_batch": {
+    "count": 43,
+    "kinds": [
+      "query_generation",
+      "relevance"
+    ]
+  },
+  "producer": "bootstrap_rule_v1",
+  "snapshot_id": "snap-20261002-065225-5e1fe9",
+  "sources": [
+    {
+      "citation": "Therrien et al., arXiv:2502.14234",
+      "license": "CC-BY-4.0",
+      "name": "obelix",
+      "url": "https://github.com/NRC-Mila/OBELiX"
+    }
+  ],
+  "stats": {
+    "anomalies_acknowledged": [],
+    "anomalies_detected": [],
+    "family_empty": 33,
+    "goal": "sulfide solid electrolyte ionic conductivity ranking",
+    "in_scope_families": 6,
+    "in_scope_rows": 130,
+    "judge_impl": "rule",
+    "judgments": 43,
+    "leg_join": {
+      "join_rate_of_data": 1.0,
+      "join_rate_of_literature": 1.0,
+      "n_data_dois": 222,
+      "n_literature_dois": 222,
+      "n_literature_supporting_info_dois": 0,
+      "n_matched": 222
+    },
+    "literature_mode": "bootstrap",
+    "n_families": 42,
+    "n_rows": 599,
+    "value_status": {
+      "numeric": 562,
+      "upper_bound": 37
+    }
+  }
+}

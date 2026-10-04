@@ -265,10 +265,11 @@ python -m paper_agent.cli eval
 #    见 §1 4.8 复验命令
 ```
 
-**工具清单（插件共 17 个 `sciret_*`）**：
+**工具清单（插件共 20 个 `sciret_*` = 编排底座 10 + 科研能力 7 + 可信增强 3）**：
 `plan / step_driven / next / finish / run_step / status / verify / report / cite / resume`
 （编排与底座 10 个）＋
-`search_papers / parse_paper / analyze / factcheck / write_review / self_review / eval`（科研能力 7 个）。
+`search_papers / parse_paper / analyze / factcheck / write_review / self_review / eval`（科研能力 7 个）＋
+`search / freeze_prepare / freeze_commit`（可信增强：联网检索腿 + 三段式冻结，3 个）。
 
 **AGH Skill**：`.agh/skills/sciret-research-pipeline/SKILL.md`（定义两条工作流与 F-4.8 决策协议）。
 
