@@ -679,7 +679,7 @@ export const paperAgentTools = {
       if (typeof agnes.on === "function") {
         agnes.on("session_start", () => {
           agnes.ctx.log.info(
-            "sciret_* tools (17, two workflows: materials P1..P5 / research R1..R6) are available; " +
+            "sciret_* tools (20, two workflows: materials P1..P5 / research R1..R6) are available; " +
             "pipeline orchestration is model-driven");
         });
       }

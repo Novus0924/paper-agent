@@ -598,3 +598,42 @@ $PY -m paper_agent.cli resume --run <RUN_ID>
 - 场景② `reading_report.scanned_or_low_conf>0`，且对应笔记 `status=="scanned"`、`confidence=="low"`；
 - 场景③ `reading_report.n_failed==1`（失败项 doc_id 可查）、`n_read>=1`，且 R3–R6 仍全部 DONE；
 - 场景③' 先退出码 137，`resume` 后六步全 DONE，`report.md` 存在。
+
+---
+
+# 第六部分 · AGH 插件接入核验（无需 AGH / daemon / TTY）
+
+插件本身是否健康，与"AGH 那边配好了没有"是两件事。下面两个脚本把前者单独隔离出来，
+**安装前后都能跑**，用来定位故障到底在插件侧还是 AGH 侧（安装步骤见插件安装指南）。
+
+```bash
+cd <ROOT>
+
+# ① 静态自检（离线，13 项）：模块加载 / package.json 声明 / inject 一致性 / apply 注册 /
+#    工具数与命名规范 / description / meta 8 键 / 只读工具的审批等级 / parameters schema /
+#    execute / Skill 注册 / 薄壳零依赖
+node tools/verify-plugin-offline.mjs
+# 期望：13 项 PASS；注册工具数 = 20；meta 8 键校验 = PASS；inject = ["extension","skills"]
+
+# ② 端到端自检（真调 Python CLI，6 项）：解释器可用 / 加载 / plan / status / cite / H1 边界
+node tools/verify-plugin-e2e.mjs --cleanup
+# 期望：6 项 PASS；plan 返回 ok:true + run_id；非法 run_id ../../etc/passwd 被 H1 拦下
+```
+
+两个脚本均 `0=通过 / 1=失败`，支持 `--json`（机器可读，CI 可直接解析）。
+
+**判定口径**：
+
+| 观测 | 结论 |
+|---|---|
+| 两个都 PASS | 插件与 Python 核心均健康 ⇒ 故障在 AGH 侧（环境变量注入 / daemon 启动 cwd / trust+enable） |
+| ① FAIL | 插件自身问题（工具面 / meta / schema / 依赖），先修插件 |
+| ② 的 `python.available` FAIL | 解释器路径或 `core/` 位置不对，与 AGH 无关 |
+| ② 的 `guard.h1.runid` FAIL | run_id 边界校验被破坏 —— 属安全问题，优先修 |
+
+> 这两个脚本本身也在 CI 里被守门：`tests/test_docs_consistency.py::TestPluginSmokeScripts`
+> 断言它们**存在且真实通过**，并有一个负向用例确认"工具数被改错时必须 FAIL"，
+> 避免自检退化成永远绿的摆设。
+
+> 注：脚本只用**异步 `spawn`**（与插件实现一致），不用 `spawnSync`/`execFileSync` ——
+> 个别受限环境会把同步建进程判 `EBUSY`，从而产生与真实故障无关的假报错。

@@ -82,6 +82,57 @@ class TestPluginToolCount(unittest.TestCase):
                          "插件实际注册工具数与文档声称的 20 不一致")
 
 
+class TestPluginSmokeScripts(unittest.TestCase):
+    """安装指南 §5.2 承诺的"仓库自带两个自检脚本"必须**真实存在且真实通过**。
+
+    历史背景：指南里写了 `tools/verify-plugin-offline.mjs` /
+    `tools/verify-plugin-e2e.mjs` 以及它们的预期输出，但两个脚本当时并不存在
+    （文档承诺了不存在的工具）。本类把该承诺变成可执行断言，防止再次漂移。
+    """
+
+    def _run_node(self, *args, extra_env=None):
+        env = dict(os.environ)
+        env["PYTHONPATH"] = os.path.join(_PROJ, "core")
+        # 自检脚本优先读大写名；两个都设，避免大小写口径差异
+        env["PAPER_AGENT_PYTHON"] = sys.executable
+        env["paper-agent_PYTHON"] = sys.executable
+        env["paper-agent_LIT_SOURCE"] = "local"
+        if extra_env:
+            env.update(extra_env)
+        return subprocess.run(["node", *args], capture_output=True,
+                              text=True, cwd=_PROJ, env=env)
+
+    def test_offline_script_exists_and_passes(self):
+        script = os.path.join(_PROJ, "tools", "verify-plugin-offline.mjs")
+        self.assertTrue(os.path.isfile(script),
+                        "安装指南 §5.2 引用的离线自检脚本不存在")
+        r = self._run_node(script, "--json")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        data = json.loads(r.stdout)
+        self.assertTrue(data["ok"], data)
+        self.assertEqual(data["registered_tools"], 20)
+
+    def test_offline_script_actually_detects_drift(self):
+        """负向：期望工具数被改错时必须 FAIL —— 否则这个自检是"永远绿"的摆设。"""
+        script = os.path.join(_PROJ, "tools", "verify-plugin-offline.mjs")
+        r = self._run_node(script, "--json", extra_env={"EXPECTED_TOOL_COUNT": "7"})
+        self.assertNotEqual(r.returncode, 0, "工具数对不上却仍返回成功，自检无效")
+        data = json.loads(r.stdout)
+        self.assertFalse(data["ok"])
+        self.assertIn("tools.count", [c["id"] for c in data["checks"] if not c["ok"]])
+
+    def test_e2e_script_exists_and_passes(self):
+        script = os.path.join(_PROJ, "tools", "verify-plugin-e2e.mjs")
+        self.assertTrue(os.path.isfile(script),
+                        "安装指南 §5.2 引用的端到端自检脚本不存在")
+        r = self._run_node(script, "--json", "--cleanup")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        data = json.loads(r.stdout)
+        self.assertTrue(data["ok"], data)
+        self.assertTrue(re.match(r"^run-[\w-]+$", str(data["run_id"])),
+                        f"未拿到合法 run_id：{data.get('run_id')!r}")
+
+
 class TestWorkflowSteps(unittest.TestCase):
     def test_docs_state_research_steps(self):
         txt = _read("docs/PRD-v0.3-需求实现映射.md")

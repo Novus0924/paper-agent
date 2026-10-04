@@ -201,7 +201,7 @@ paper-agent-tools@0.1.0 desired=enabled actual=running trusted=true
 
 先确认工作目录就是项目根，且 `PAPER_AGENT_PYTHON` 仍在当前 shell 里。
 
-### 5A 回归路线：验证既有 5 步流水线（7 个工具）
+### 5A 回归路线：验证既有 5 步流水线（当前插件 20 工具，其中 materials 路线用到 P1–P5）
 
 ```bash
 $AGH -p --cwd "$PWD" "请使用科研流水线工具完成任务：先用 sciret_plan 规划一个『硫化物固态电解质电导率排序』任务并返回 run_id；然后用 sciret_run_step 依次执行 P1 到 P5；再用 sciret_verify 做复现验证；用 sciret_report 生成报告；用 sciret_cite 回查任意一条证据；最后用 sciret_status 查看最终状态。全程用工具完成，并给出中文结论。"
@@ -258,7 +258,8 @@ grep -c '"tool/result"' evidence/session-*.jsonl
 ```
 
 【实测（历史记录）】2026-10-02 原作者的两次真实会话合计 **21 tool/call + 21
-tool/result**，7 个工具全覆盖；本次改造后插件为 10 工具，计数只会更高。
+tool/result**，7 个工具全覆盖（当时版本）；其后插件扩充为 10 工具，
+当前为 **20 工具**（科研全流程 17 + 可信增强 3），计数只会更高。
 
 ---
 

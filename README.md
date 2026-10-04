@@ -430,6 +430,8 @@ PYTHONPATH=core python -m paper_agent.cli resume --run <RUN_ID>   # 崩溃后断
 - [x] 单元测试全部通过（**200+ 项单测，零 skip**；单测默认 `paper-agent_LIT_SOURCE=local` 强制离线）
 - [x] AGH 联调：真实会话 21+21 条 tool/call / tool/result，7/7 工具覆盖，证据已导出；
       真实信封格式与 integrity 哈希链见 `evidence/AGH-真实会话落地报告.md`
+      （注：该次联调用的是当时 **7 工具**版插件；当前插件已扩展到 **20 工具**，
+      工具面自检见 `tools/verify-plugin-offline.mjs`，链路自检见 `tools/verify-plugin-e2e.mjs`）
 - [x] **PRD v0.3 科研全流程（research R1–R6）**：多源检索 → 精读 → 创新点/Gap → 事实验证 → 综述（强制引用）→ 自评审，端到端 DONE、degraded=false
 - [x] **量化验证（F-7.1~F-7.4）**：`cli eval` 输出检索/精读/创新点/引用四套指标 + 基线对比 + 混淆矩阵（demo 规模标注）
 - [x] **异常恢复三场景（F-4.8）**：`ss_timeout` 切源 / `scan_pdf` 低置信度降级 / `batch_fail_at` 失败跳过 / `kill_after_r3` 真实崩溃 + resume 续跑
@@ -504,4 +506,6 @@ $AGH -p --cwd . "用 sciret_* 完成硫化物电解质电导率排序流水线"
 ```
 
 > 首批真实 AGH 会话联调记录（在内置演示语料时期完成）：21 tool/call + 21 tool/result，
-> 7 个工具全覆盖，导出见 `evidence/`。
+> 7 个工具全覆盖（当时版本），导出见 `evidence/`。当前插件为 20 工具，
+> 用 `node tools/verify-plugin-offline.mjs`（离线、13 项）与
+> `node tools/verify-plugin-e2e.mjs`（真调 Python、6 项）可随时复验。
