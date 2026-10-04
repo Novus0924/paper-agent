@@ -35,6 +35,8 @@ import secrets
 import time
 from enum import Enum
 
+from .security_scan import validate_run_id, safe_runs_path
+
 
 class StepStatus(Enum):
     PENDING = "PENDING"
@@ -151,7 +153,10 @@ class PipelineState:
         wf = (workflow or DEFAULT_WORKFLOW).lower()
         self.workflow = wf if wf in WORKFLOWS else DEFAULT_WORKFLOW
         self.step_ids = list(steps) if steps else steps_for(self.workflow)
-        self.run_dir = os.path.join(root, "runs", run_id)
+        # 防御 H1：run_id 来自不可信输入（LLM 工具参数），构造期即强校验 +
+        # realpath 容器检查，阻断 ../../ 穿越写/读任意文件。
+        validate_run_id(run_id)
+        self.run_dir = safe_runs_path(root, run_id)
         self.state_path = os.path.join(self.run_dir, "state.json")
         self.events_path = os.path.join(self.run_dir, "events.jsonl")
 

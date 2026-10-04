@@ -39,6 +39,8 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 
+from .security_scan import detect_prompt_injection
+
 # ---- 公开检索端点（均无需 API Key；Semantic Scholar 匿名亦可访问）----
 ARXIV_API = "https://export.arxiv.org/api/query"
 SEMANTIC_SCHOLAR_API = "https://api.semanticscholar.org/graph/v1/paper/search"
@@ -240,7 +242,27 @@ def _fetch_arxiv(goal: str, max_results: int, timeout: float) -> tuple[list[dict
 def search_arxiv(goal: str, max_results: int = DEFAULT_MAX_RESULTS,
                  timeout: float = DEFAULT_TIMEOUT) -> tuple[list[dict], str]:
     """实时检索 arXiv，返回 ``(规范化文档列表, 实际使用的检索式)``。"""
-    return _fetch_arxiv(goal, max_results, timeout)
+    docs, query = _fetch_arxiv(goal, max_results, timeout)
+    # M1 检测能力：外部内容进入流水线前统一做注入启发式标记（additive 字段）
+    flag_prompt_injection(docs)
+    return docs, query
+
+
+def flag_prompt_injection(docs: list[dict]) -> int:
+    """对外部检索结果做提示注入启发式标记（M1 检测能力）。
+
+    对每篇文档的 title+abstract 扫描指令式短语/工具名提及；命中的文档附加
+    ``injection_flag``（命中标签列表）。**只增字段，不改既有字段与排序**，
+    供编排层在证据账本留痕并供人工闸门复核。返回命中条数。
+    """
+    flagged = 0
+    for d in docs:
+        text = f"{d.get('title', '')} {d.get('abstract', '')}"
+        hits = detect_prompt_injection(text)
+        if hits:
+            d["injection_flag"] = hits
+            flagged += 1
+    return flagged
 
 
 # =====================================================================
@@ -533,6 +555,9 @@ def search_papers(goal: str, sources: list[str] | None = None,
     ranked = rank_documents(deduped, goal)
     docs = ranked[:max_results] if max_results > 0 else ranked
 
+    # M1 检测能力：统一多源入口在返回前做注入启发式标记（additive 字段）
+    n_flagged = flag_prompt_injection(docs)
+
     # 无任何源可用 → 视为整体降级
     degraded = (len(srcs) > 0 and len(unavailable) == len(srcs))
     return {
@@ -544,6 +569,7 @@ def search_papers(goal: str, sources: list[str] | None = None,
         "queries": queries,
         "n_raw": len(raw),
         "n_documents": len(docs),
+        "n_injection_flagged": n_flagged,
         "documents": docs,
         "degraded": degraded,
     }

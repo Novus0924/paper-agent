@@ -62,6 +62,20 @@ def _sha256_file(path: str) -> str:
     return h.hexdigest()
 
 
+# ---- 账本哈希链（M3：防篡改检测）----
+# 每条记录携带 chain_hash = SHA-256(prev_chain_hash || 规范化记录体)，形成 append-only
+# 单向链。任意记录被篡改（未同步重算链）都会被 verify_chain() 检出。注意：哈希链用于
+# *检测*篡改并支持独立审计，不能抵御"完全控制文件系统、可整体重算链"的本地攻击者——
+# 其价值在于让伪造在可被比对的可信基线前无所遁形（配合 M2 验证完整性闸门）。
+_CHAIN_ZERO = "0" * 64
+
+
+def _chain_hash(prev: str, rec: dict) -> str:
+    payload = json.dumps(rec, ensure_ascii=False, sort_keys=True,
+                        separators=(",", ":"))
+    return hashlib.sha256((prev + "|" + payload).encode("utf-8")).hexdigest()
+
+
 class ProvenanceLedger:
     def __init__(self, run_dir: str, run_id: str = "", root: str = ""):
         self.run_dir = run_dir
@@ -70,6 +84,7 @@ class ProvenanceLedger:
         self.path = os.path.join(run_dir, "provenance.jsonl")
         self.conclusions_path = os.path.join(run_dir, "conclusions.jsonl")
         self._ev_index: dict[str, dict] = {}
+        self._chain_hash = _CHAIN_ZERO
         self._load_existing()
 
     def _load_existing(self) -> None:
@@ -82,6 +97,9 @@ class ProvenanceLedger:
                     continue
                 rec = json.loads(line)
                 self._ev_index[rec["ev_id"]] = rec
+                # 推进哈希链到已持久化记录的链尾（旧记录无 chain_hash 则不推进）
+                if rec.get("chain_hash"):
+                    self._chain_hash = rec["chain_hash"]
 
     @property
     def next_ev_num(self) -> int:
@@ -139,7 +157,7 @@ class ProvenanceLedger:
 
     def _append(self, tier: str, kind: str, ref: str, producer_step: str,
                 meta: dict | None, file_path: str | None) -> str:
-        """统一落盘：分配 ev_id、计算哈希、append-only 写入。"""
+        """统一落盘：分配 ev_id、计算文件哈希与链哈希、append-only 写入。"""
         sha = _sha256_file(file_path) if file_path else ""
         ev_id = f"EV-{self.next_ev_num:04d}"
         rec = {
@@ -151,8 +169,11 @@ class ProvenanceLedger:
             "producer_step": producer_step,
             "meta": meta or {},
         }
+        # 哈希链：链头 = SHA-256(前一条链哈希 || 规范化记录体)
+        rec["chain_hash"] = _chain_hash(self._chain_hash, rec)
         with open(self.path, "a", encoding="utf-8", newline="") as f:
             f.write(json.dumps(rec, ensure_ascii=False, sort_keys=True) + "\n")
+        self._chain_hash = rec["chain_hash"]
         self._ev_index[ev_id] = rec
         return ev_id
 
@@ -252,6 +273,41 @@ class ProvenanceLedger:
                     tier = self.tier_of(self._ev_index[ev])
                     if tier != TIER_FACT:
                         problems.append(f"{cid}: non-fact evidence {ev} (tier={tier})")
+        return problems
+
+    def verify_chain(self) -> list[str]:
+        """重放账本哈希链，检测记录篡改。返回问题列表，空列表 = 链完整。
+
+        防御 M3：账本原为无签名的明文 append-only 文件，任何有写权限者可改写。
+        现在每条记录携带 chain_hash = SHA-256(prev_chain_hash || 规范化记录体)，
+        修改任意记录而未同步重算全链即被检出。注意：哈希链是**检测**机制，
+        不能阻止完全控制文件系统者整体重算——其价值在于让篡改在独立审计
+        （配合 M2 验证完整性闸门）面前可被发现。
+        """
+        if not os.path.exists(self.path):
+            return []
+        problems: list[str] = []
+        prev = _CHAIN_ZERO
+        with open(self.path, "r", encoding="utf-8") as f:
+            for lineno, line in enumerate(f, start=1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError as e:
+                    problems.append(f"line {lineno}: not valid JSON ({e})")
+                    continue
+                stored = rec.get("chain_hash")
+                if not stored:
+                    # 旧版记录（无链字段）——跳过校验，保持向后兼容
+                    continue
+                body = {k: v for k, v in rec.items() if k != "chain_hash"}
+                expect = _chain_hash(prev, body)
+                if expect != stored:
+                    problems.append(f"line {lineno} ({rec.get('ev_id', '?')}): "
+                                    f"chain hash mismatch (record tampered)")
+                prev = stored
         return problems
 
     def _literature_lookup(self, doi: str) -> dict | None:

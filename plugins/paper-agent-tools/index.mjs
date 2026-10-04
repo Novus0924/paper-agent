@@ -99,6 +99,9 @@ const READONLY_META = {
   requiresApproval: "never",
 };
 // 写工具：产物只写本项目 runs/ 隔离目录，非破坏性；幂等性由状态机终态守卫保证。
+// 防御 M4：写类工具由 requiresApproval:"never" 收紧为 "destructive"——
+// 模型驱动路径下写操作需人工审批；注意若 AGH approvals.mode 被设为 off
+// 仍会被旁路（宿主配置责任，见 AGH security.md）。
 const writeMeta = (replay, wallMs) => ({
   isReadOnly: false,
   isDestructive: false,
@@ -107,8 +110,14 @@ const writeMeta = (replay, wallMs) => ({
   replay,
   costHint: { wallMs },
   deferLoading: false,
-  requiresApproval: "never",
+  requiresApproval: "destructive",
 });
+
+// 防御 H1（边界校验）：run_id 来自不可信输入（LLM 工具参数），在 spawn 前先做
+// 白名单校验，与 Python 侧 state.py 的强校验形成双保险。
+function validateRunId(runId) {
+  return typeof runId === "string" && /^run-[\w-]+$/.test(runId);
+}
 
 // ---------- spawn Python CLI（薄壳核心）----------
 function cliArgs(args, chaos) {
@@ -118,15 +127,29 @@ function cliArgs(args, chaos) {
   return out;
 }
 
+// 防御 M5（最小环境变量）：Python 核心为纯标准库实现，仅需项目约定变量与 PATH。
+// 原 `{ ...process.env }` 把整份环境（含 AGNES_* / LLM API key / 各类 secret）透传
+// 给子进程，提示注入一旦诱导出站请求即可外泄密钥。现改为显式白名单。
+const ENV_ALLOWLIST = [
+  "PATH", "PATHEXT", "SYSTEMROOT", "COMSPEC", "SYSTEMDRIVE", "WINDIR",
+  "LANG", "LC_ALL", "TMP", "TEMP", "TMPDIR",
+  "paper-agent_PYTHON", "paper-agent_ROOT", "paper-agent_LIT_SOURCE",
+];
+
+function curatedEnv(root) {
+  const env = {};
+  for (const k of ENV_ALLOWLIST) {
+    if (process.env[k] !== undefined) env[k] = process.env[k];
+  }
+  env["paper-agent_ROOT"] = root;
+  env["PYTHONPATH"] = path.join(root, "core");
+  return env;
+}
+
 /** 用单个解释器跑一次 CLI；spawn 失败（如解释器不存在）时 reject 并带 ENOENT。 */
 function runCliWith(py, argv, timeoutMs) {
   const root = projectRoot();
-  const env = {
-    ...process.env,
-    "paper-agent_ROOT": root,
-    PAPER_AGENT_ROOT: root,
-    PYTHONPATH: path.join(root, "core"),
-  };
+  const env = curatedEnv(root);
   return new Promise((resolve, reject) => {
     let proc;
     try {
@@ -190,6 +213,11 @@ async function runCli(argv, timeoutMs = 120_000) {
 /** 统一的工具执行器：调用 CLI，按 AGH 返回格式包装。 */
 function makeRunner(argsOf, timeoutMs) {
   return async function execute(ctx) {
+    // 防御 H1：run_id 边界白名单校验（与 Python 侧 state.py 双保险）
+    if (ctx.run_id !== undefined && !validateRunId(ctx.run_id)) {
+      return wrap({ ok: false,
+                    error: `invalid run_id ${String(ctx.run_id)}: must match ^run-[\\w-]+$` });
+    }
     const chaos = (ctx.chaos && String(ctx.chaos).trim()) || undefined;
     const argv = cliArgs(argsOf(ctx), chaos);
     const r = await runCli(argv, timeoutMs);
