@@ -15,6 +15,7 @@
  */
 
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -103,9 +104,50 @@ function curatedEnv(root) {
   return env;
 }
 
-function runCli(argv, timeoutMs = 120_000) {
+// ---------- 运行期配置自检（原先缺配置会静默退化成 ModuleNotFoundError）----------
+//
+// AGH 安装 file: 包时会把插件【拷贝】到
+//   <用户目录>/.agh/data/profiles/<profile>/packages/<pkg-id>/
+// 因此插件运行时已经【看不到】原项目目录，__dirname 指向拷贝点。
+// 项目根只能靠 daemon 注入的环境变量传进来；缺了它，原先会退化成
+// `python -m paper_agent.cli` → ModuleNotFoundError: No module named 'paper_agent'，
+// 表面看像是"组件没装"，实际是"daemon 没带环境变量"——极易误诊。
+// 这里改为在 spawn 之前就给出可执行的修复指引。
+const CONFIG_HINT = [
+  "运行期配置缺失：插件拿不到项目根。",
+  "原因：AGH 会把插件拷贝到 ~/.agh/data/profiles/<profile>/packages/ 下运行，",
+  "插件自身无法定位原项目目录，必须由 daemon 通过环境变量注入。",
+  "修复：先停 daemon，在【启动 daemon 的那个终端】里设好下面两个变量，再启动 daemon：",
+  '  paper-agent_PYTHON=<python 绝对路径，如 C:\\...\\Python312\\python.exe>',
+  '  paper-agent_ROOT=<paper-agent 项目绝对路径>',
+  "注意：daemon 若已在运行，必须 stop 后用带变量的环境重新 start，否则老 daemon 会复用旧环境。",
+].join("\n");
+
+/** 解析并校验运行期配置；不合法时返回带指引的错误对象。 */
+function resolveRuntime() {
   const py = process.env["paper-agent_PYTHON"] || "python";
-  const root = process.env["paper-agent_ROOT"] || __dirname;
+  const root = process.env["paper-agent_ROOT"];
+  if (!root || !String(root).trim()) {
+    return {
+      ok: false,
+      error: `${CONFIG_HINT}\n（当前 paper-agent_ROOT 未设置；插件实际运行于 ${__dirname}）`,
+    };
+  }
+  const core = path.join(root, "core");
+  if (!existsSync(path.join(core, "paper_agent"))) {
+    return {
+      ok: false,
+      error: `${CONFIG_HINT}\n（paper-agent_ROOT=${root}，但 ${path.join(core, "paper_agent")} 不存在）`,
+    };
+  }
+  return { ok: true, py, root };
+}
+
+function runCli(argv, timeoutMs = 120_000) {
+  const cfg = resolveRuntime();
+  if (!cfg.ok) return Promise.resolve({ ok: false, exitCode: -1, structured: { ok: false, error: cfg.error } });
+  const root = cfg.root;
+  const py = cfg.py;
   const env = curatedEnv(root);
   return new Promise((resolve) => {
     const proc = spawn(py, argv, { env, cwd: root, stdio: ["ignore", "pipe", "pipe"] });

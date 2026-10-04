@@ -66,6 +66,7 @@ paper-agent/
 ├── demo/
 │   ├── demo_e2e.sh             # 端到端正常流程 + 确定性核验
 │   └── demo_failure.sh         # 四大故障恢复验收用例自动化
+├── tools/                        # 无需 TTY 的插件自检脚本（offline / e2e，见 docs/AGH插件安装指南.md）
 ├── tests/                        # unittest/pytest 套件（9 文件，152 用例，默认离线）
 └── audit-pack-template/          # 审计交付包模板
 ```
@@ -112,6 +113,11 @@ bash demo/demo_trust.sh <RUN_ID>  # 信任机制现场演示：账本篡改与�
 （UTC 时间戳）在校验环节被排除，不参与哈希比对。
 
 ## AGH 联调（已真实跑通，2026-10-02）
+
+> 📦 **从零安装插件**：克隆本仓库后想快速把插件装进 AGH，请先看
+> [docs/AGH插件安装指南.md](docs/AGH插件安装指南.md)（含全部已知坑位与故障排查表；
+> 仓库 `tools/` 下另有两个无需 TTY 的插件自检脚本）。
+> 💬 **装好之后怎么用**：会话提示词模板见 [docs/使用提示词模板.md](docs/使用提示词模板.md)。
 
 实际链路（与 AGH 构建产物的真实 CLI 对齐）：
 
