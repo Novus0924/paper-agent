@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
+  <link rel="icon" type="image/svg+xml" href="./public/favicon.svg">
+  <title>paper-agent · 科研工作台</title>
+
+  <link rel="stylesheet" href="./src/styles/tokens.css">
+  <link rel="stylesheet" href="./src/styles/base.css">
+  <link rel="stylesheet" href="./src/styles/layout.css">
+
+  <!--
+    API 配置（联调时改这里）
+    mock: true  → 前端内联 mock，不发 HTTP 请求，零依赖直接双击打开即可
+    mock: false → 走真实后端（配合 base）
+    base: ''    → 同源；联调本机 mock server 时填 'http://127.0.0.1:8788'
+                 接真实后端（方案 §6 建议 8787）时填 'http://127.0.0.1:8787'
+  -->
+  <script>
+    window.__PAPER_API__ = { mock: true, base: '' };
+    // URL 覆盖：?mock=0&base=http://127.0.0.1:8788
+    (function () {
+      const q = new URLSearchParams(location.search);
+      if (q.has('mock')) window.__PAPER_API__.mock = q.get('mock') !== '0' && q.get('mock') !== 'false';
+      if (q.has('base')) window.__PAPER_API__.base = q.get('base');
+    })();
+  </script>
+</head>
+<body>
+  <div id="app">
+    <!-- 首屏骨架，避免 JS 加载期间白屏闪烁 -->
+    <div class="boot">
+      <div class="bootmark">PA</div>
+      <div class="boottx">正在加载工作台…</div>
+    </div>
+  </div>
+
+  <div id="toast-host"></div>
+
+  <style>
+    .boot {
+      height: 100vh; display: grid; place-items: center; align-content: center;
+      gap: var(--s4); background: var(--bg);
+    }
+    .bootmark {
+      width: 40px; height: 40px; border: 1.5px solid var(--amber); border-radius: 10px;
+      display: grid; place-items: center; font-family: var(--mono);
+      color: var(--amber); font-size: 15px;
+      animation: pulse 1.6s var(--ease) infinite;
+    }
+    .boottx { font-size: 11.5px; color: var(--ink-3); letter-spacing: .06em; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+    .boot.err .bootmark { border-color: var(--fail); color: var(--fail); animation: none; }
+    .boot.err .boottx { color: var(--ink-2); max-width: 460px; text-align: center; line-height: 1.7; }
+  </style>
+
+  <script type="module">
+    // 顶层兜底：ES module 加载失败（file:// CORS 或路径错误）时给出可读提示
+    window.__bootTimer = setTimeout(() => {
+      const b = document.querySelector('.boot');
+      if (!b) return;                       // 已正常启动
+      if (!b.classList.contains('err')) {
+        b.classList.add('err');
+        b.querySelector('.boottx').innerHTML =
+          '模块未在 3 秒内完成加载。<br>若你是用 <code>file://</code> 直接打开的，' +
+          '浏览器会因 CORS 拒绝 ES module —— 请改用项目自带的静态服务：<br>' +
+          '<code style="color:var(--amber)">node mock/serve.js</code> 然后访问 <code>http://127.0.0.1:5173</code>';
+      }
+    }, 3000);
+
+    import('./src/main.js')
+      .then((m) => { clearTimeout(window.__bootTimer); })
+      .catch((e) => {
+        clearTimeout(window.__bootTimer);
+        const b = document.querySelector('.boot');
+        if (b) {
+          b.classList.add('err');
+          b.querySelector('.boottx').innerHTML =
+            '启动失败：' + String(e && e.message || e) +
+            '<br><br>若为 CORS / file:// 限制，请运行 <code style="color:var(--amber)">node mock/serve.js</code>';
+        }
+        console.error(e);
+      });
+  </script>
+</body>
+</html>

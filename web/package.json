@@ -1,0 +1,14 @@
+{
+  "name": "paper-agent-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "paper-agent 科研工作台前端 —— 零第三方依赖，与 paper-agent 主仓库完全隔离",
+  "scripts": {
+    "dev": "node mock/serve.js",
+    "mock:api": "node mock/server.js",
+    "start": "node mock/serve.js & node mock/server.js"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

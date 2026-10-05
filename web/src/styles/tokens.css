@@ -1,0 +1,78 @@
+/* ============================================================
+   design-tokens.css —— 设计令牌（唯一颜色/间距真源）
+   ------------------------------------------------------------
+   风格：Swiss Modernism 2.0 × AI-Native UI
+   规则：
+     1. 唯一强调色 = 琥珀 #D9A441，其余为中性灰阶
+     2. 状态色低饱和，仅用于状态点/状态文字，不用于大面积填充
+     3. 间距走 4 的倍数阶梯 --s1..--s8
+     4. 所有前景/背景组合均已按 WCAG 相对亮度公式实测（见 README）
+   ============================================================ */
+
+:root {
+  /* ---- 底层与面 ---- */
+  --bg: #0B0B0C;          /* 页面底 */
+  --surface: #141416;     /* 卡片面 */
+  --surface-2: #1A1A1D;   /* 悬停/选中面 */
+  --raised: #202024;      /* 更高的面（图标底、chip 底） */
+  --line: #2E2E33;        /* 边框（装饰性，不承载信息边界） */
+  --line-soft: #232327;   /* 更弱的分隔线 */
+
+  /* ---- 前景 ---- */
+  --ink: #E8E8E6;         /* 正文  16.04:1 */
+  --ink-2: #B4B4B0;       /* 次要正文 */
+  --ink-3: #8A8A85;       /* 弱化/标签 5.67:1 —— AA */
+
+  /* ---- 唯一强调色 ---- */
+  --amber: #D9A441;       /* 8.75:1 on --bg / 8.18:1 on --surface */
+  --amber-soft: rgba(217, 164, 65, .12);
+  --amber-line: rgba(217, 164, 65, .32);
+
+  /* ---- 状态色（低饱和）---- */
+  --ok: #6BBF8A;          /* 8.85:1 */
+  --run: #7FA8D9;         /* 7.97:1 */
+  --fail: #E5646A;        /* 5.96:1 */
+  --warn: #D98A5A;        /* 7.25:1 —— degraded 用它，不用 fail */
+
+  --ok-soft: rgba(107, 191, 138, .10);
+  --ok-line: rgba(107, 191, 138, .30);
+  --run-soft: rgba(127, 168, 217, .10);
+  --run-line: rgba(127, 168, 217, .30);
+  --fail-soft: rgba(229, 100, 106, .10);
+  --fail-line: rgba(229, 100, 106, .30);
+  --warn-soft: rgba(217, 138, 90, .10);
+  --warn-line: rgba(217, 138, 90, .30);
+
+  /* ---- 间距阶梯 ---- */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+  --s8: 64px;
+
+  /* ---- 圆角 ---- */
+  --r: 10px;
+  --r-sm: 6px;
+  --r-pill: 20px;
+
+  /* ---- 字体 ---- */
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  --sans: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+          'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+
+  /* ---- 动效 ---- */
+  --ease: cubic-bezier(.4, 0, .2, 1);
+  --dur: 150ms;
+
+  /* ---- 尺寸 ---- */
+  --rail-w: 60px;
+  --tasks-w: 268px;
+  --stream-w: 820px;   /* 正文流限宽 */
+  --ev-w: 900px;       /* 证据页内容宽 */
+  --nt-w: 660px;       /* 新任务表单宽 */
+
+  --shadow-pop: 0 8px 28px rgba(0, 0, 0, .55);
+}
