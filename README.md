@@ -74,6 +74,11 @@ paper-agent/
 │   └── run_agh_install.cmd        # 纯 cmd 最小安装（需 agnes.mjs 路径参数）
 ├── tools/                        # 无需 TTY 的插件自检脚本（offline / e2e，见 docs/AGH插件安装指南.md）
 ├── tests/                        # unittest/pytest 套件（9 文件，152 用例，默认离线）
+├── web/                          # 科研工作台前端 + 真实后端（见 web/README.md）
+│   ├── index.html                  # 3 页面：工作台 / 证据溯源 / 新建任务
+│   ├── server/paper-agent-server.js # 真实后端：HTTP+SSE，spawn Python CLI
+│   └── src/                        # 前端（零依赖原生 ES Modules，无构建步骤）
+├── docs/                         # 文档（含对接方案、评审要点映射）
 └── audit-pack-template/          # 审计交付包模板
 ```
 
@@ -103,6 +108,21 @@ bash demo/demo_e2e.sh       # 正常路径 + 实验确定性 SHA-256 核验
 bash demo/demo_failure.sh   # 四大故障用例（A 重试 / B 降级 / C resume / D 复现 FAIL）
 bash demo/demo_trust.sh <RUN_ID>  # 信任机制现场演示：账本篡改与伪造验证双双被拦截
 ```
+
+### 图形界面（可选）
+
+`web/` 是同一套CLI 的图形前端 —— **后端直接 spawn Python，不经过 AGH**，
+所以不装插件也能用。两个终端分别起后端与静态服务：
+
+```bash
+cd paper-agent/web
+node server/paper-agent-server.js          # 后端 127.0.0.1:8787
+node mock/serve.js                         # 静态服务 127.0.0.1:5173
+# 浏览器打开 http://127.0.0.1:5173/?mock=0&base=http://127.0.0.1:8787
+```
+
+单步真实耗时 8–12 秒（含联网检索），进度经 SSE 实时推送。详见
+[web/README.md](web/README.md)。
 
 ## 数据来源声明
 

@@ -54,30 +54,30 @@ paper-agent/                    ← 仓库根（runs/ 在这）
     ├── README.md
     ├── public/
     │   └── favicon.svg         与页面 mark 呼应的琥珀色 PA 图标
-├── src/
-│   ├── main.js             hash 路由 + 页面装配 + 任务列表缓存
-│   │   ├── styles/
-│   │   │   ├── tokens.css      设计令牌：颜色/间距/字体/动效（唯一真源）
-│   │   │   ├── base.css        reset + 排版原子 + toast + 错误条
-│   │   │   └── layout.css      三段骨架 + 各页专有布局
-│   │   ├── lib/
-│   │   │   └── dom.js          h() / icon() / 时间格式化 / 复制 / toast
-│   │   ├── api/
-│   │   │   ├── client.js       ★ 接口客户端，逐条对应方案 §4
-│   │   │   ├── constants.js    步骤 id、工作流、来源、状态枚举、提示词模板
-│   │   │   ├── mock.js         内联 mock（拦截 fetch + EventSource）
-│   │   │   └── mock-data.js    mock 数据，字段取自真实 runs/ 产物
-│   │   ├── components/         6 个可复用组件
-│   │   │   ├── rail.js           左侧图标导航
-│   │   │   ├── task-list.js      任务列表 + 状态点语义
-│   │   │   ├── steps.js          步骤条
-│   │   │   ├── tool-card.js      工具调用卡（折叠）
-│   │   │   ├── conclusion-card.js 结论卡
-│   │   │   └── evidence-card.js  证据页组件（verdict / EV 卡 / 自审 / 绑定）
-│   │   └── pages/              3 个页面
-│   │       ├── workbench.js      界面一：主工作台
-│   │       ├── evidence.js       界面二：证据溯源
-│   │       └── new-task.js       界面三：新建任务
+    ├── src/
+    │   ├── main.js             hash 路由 + 页面装配 + 任务列表缓存
+    │   ├── styles/
+    │   │   ├── tokens.css      设计令牌：颜色/间距/字体/动效（唯一真源）
+    │   │   ├── base.css        reset + 排版原子 + toast + 错误条
+    │   │   └── layout.css      三段骨架 + 各页专有布局
+    │   ├── lib/
+    │   │   └── dom.js          h() / icon() / 时间格式化 / 复制 / toast
+    │   ├── api/
+    │   │   ├── client.js       ★ 接口客户端，逐条对应方案 §4
+    │   │   ├── constants.js    步骤 id、工作流、来源、状态枚举、提示词模板
+    │   │   ├── mock.js         内联 mock（拦截 fetch + EventSource）
+    │   │   └── mock-data.js    mock 数据，字段取自真实 runs/ 产物
+    │   ├── components/         6 个可复用组件
+    │   │   ├── rail.js           左侧图标导航
+    │   │   ├── task-list.js      任务列表 + 状态点语义
+    │   │   ├── steps.js          步骤条
+    │   │   ├── tool-card.js      工具调用卡（折叠）
+    │   │   ├── conclusion-card.js 结论卡
+    │   │   └── evidence-card.js  证据页组件（verdict / EV 卡 / 自审 / 绑定）
+    │   └── pages/              3 个页面
+    │       ├── workbench.js      界面一：主工作台
+    │       ├── evidence.js       界面二：证据溯源
+    │       └── new-task.js       界面三：新建任务
     ├── server/
     │   ├── paper-agent-server.js  ★ M1 真实后端（8787），spawn Python CLI
     │   ├── prompt.js               M3 系统提示词生成 + 落盘存档
@@ -133,6 +133,9 @@ paper-agent/                    ← 仓库根（runs/ 在这）
 §5.1 实测确认：ACP 的 `session/new` 只有 `cwd` / `additionalDirectories` / `mcpServers` / `_meta`，
 **没有 system prompt 字段**；AGH 的系统提示词是内置 section，不开放运行时注入。
 所以只能走 §5.2 的「首轮前缀 + 明示」。
+
+> 注：ACP 这条路现已因M4 关闭而不启用（§2.5）。此处保留结论，
+> 因为它解释了为什么提示词必须"明示"给用户看——用户无法从AGH 侧确认施加了什么。
 
 而在 Python 主干这条路上，**`goal` 是 `--goal` 参数直传 CLI 的**（比塞进提示词更干净，
 见 §5.2 末尾的注）。所以本实现里提示词的 `delivery` 记为 `cli-arg:goal`：
@@ -293,7 +296,7 @@ mock 字段**不是编的**，全部取自真实产物：
 | **鉴权/ 多用户** | 未做。方案 §6 已明确本轮不做 |
 | **报告正文** | 已加 `GET /api/runs/{id}/report` 返回 `report.md` 原文，但**前端未接入展示**（方案 §4.4 只定义了 evidence 接口）。需要时在证据页加一个导出按钮即可 |
 | **`sources_status` 的持久化** | 只存在于**本次后端进程内存**中（来自 `run-step` 的 stdout）。后端重启后历史 run 的来源状态会丢失，此时页面退化为「未知」而非报错——因为 `toolcalls/*.json` 本身就不存这个字段。若要持久化，需在 Python 侧补写 |
-| **M4 ACP 增强通道** | 未做，**且已降级**。实测发现 ACP 模式（`--mode acp`）走 `bootLocal` 自建 Host，**根本不装载第三方插件**（`boot/default.ts:25` + `assemble.ts:447`），详见 `../docs/对接方案.md` §2.5。所以 ACP 通道只剩"对已完成的 run 做问答/综述"，模型无法自己调工具查数据。**不影响本工程任何已实现功能**——流水线走 Python CLI，不经过 AGH |
+| **M4 ACP 增强通道** | ❌ **已关闭（不做）**。实测发现 ACP 模式（`--mode acp`）走 `bootLocal` 自建 Host，**根本不装载第三方插件**（`boot/default.ts:25` + `assemble.ts:447`），详见 `../docs/对接方案.md` §2.5与 §8 关闭说明。关闭理由是**收益不足**而非技术阻塞：通道最多只剩"问答/综述"，模型无法自己调工具查数据。**不影响本工程任何已实现功能**——流水线走 Python CLI，不经过 AGH |
 | **M5 修插件装载** | ✅ **已结项，无需修**。查清是诊断口径问题：`agh doctor extensions` 在 tree apply 前触发，grep 不到第三方属正常。daemon 侧 7 个工具每次启动都注册成功（审计日志 154 条 `extension.registered`） |
 
 ## 开发过程中踩到的坑（留给后续维护）
