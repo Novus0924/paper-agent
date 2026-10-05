@@ -8,7 +8,7 @@
 ## 0. 30 秒速览
 
 - **项目**：`paper-agent` —— 基于 **AGH（Agnes Harness）** 的可审计、可复现、可故障恢复的科研 Agent 流水线（JS 薄壳工具 + Python 核心业务 + 确定性实验），用于 2026 江苏省 AI+科学与工程创新实践黑客松。
-- **工程完成度**：阶段 1–6 **全部完成并通过自验证**（单测 **152/152**、端到端 demo、四大故障用例 + 真实进程崩溃/断点续跑用例 E2/E3 + P5 幂等复用 F + P5 幂等信任门禁 F2、审计不变量全 PASS）。
+- **工程完成度**：阶段 1–6 **全部完成并通过自验证**（单测 **164/164**（连跑 3 轮全绿）、端到端 demo、四大故障用例 + 真实进程崩溃/断点续跑用例 E2/E3 + P5 幂等复用 F + P5 幂等信任门禁 F2、审计不变量全 PASS）。
 - **AGH 联调已真实跑通**：插件经交互 TTY 确认安装 + trust + enable，`desired=enabled actual=running trusted=true`。真实导出证据见 `evidence/session-6139563e.jsonl`：**1364 行、71 次 tool/call + 71 次 tool/result 严格配对、7 个 `sciret_*` 工具全部出现**，research + materials 两条工作流都跑到，涉 3 个 run 目录（均真实存在于 `runs/` 且 DONE，各带 `provenance.jsonl` + `conclusions.jsonl` + `report.md`）。补充证据 `evidence/session-aa3929f6.jsonl`（270 行，13/13配对）。复核命令：`python evidence/verify_export.py evidence/session-6139563e.jsonl`。
   - ⚠️ **纠正一处历史误述**（2026-10-05）：旧版本本文称"含 `sciret_resume` 的 `kill_after_p2` 崩溃恢复演示"，并引用 `evidence/session.jsonl` / `session-full.jsonl`。**那两个文件与其引用的 run（`run-20261002-*`）在本机均已不存在**。真实情况是：`kill_after_p2` 的**代码实现真实存在**（`core/paper_agent/chaos.py:72` 真实 `os._exit(137)`，并由 `tests/test_recovery.py:128` 的 E2/E3 真实子进程测试覆盖），但**当前这份导出账本里没有该执行记录**——JSONL 中出现的 `kill_after_p2` 字符串来自 `tool_describe` 返回的 schema 枚举文本，不是执行痕迹。详见 `evidence/README.md`「已知瑕疵」。
 - **红线**：密钥只存 `.env`（gitignore）；所有交付物收敛在 `paper-agent/` 项目目录内；实验数据标注 `as-reported`，严禁伪造。
@@ -86,7 +86,7 @@ paper-agent/
 ```bash
 # <PA> = paper-agent 仓库根；下同（按你机器实际路径替换，无任何硬编码）
 cd <PA>
-# ① 单元测试（152/152 应全绿）
+# ① 单元测试（164/164 应全绿）
 set PYTHONPATH=<PA>\core
 python -m unittest discover -s tests -p "test_*.py"
 
@@ -102,7 +102,7 @@ node <PA>/plugins/paper-agent-tools/index.mjs   # 无语法错即通过（真实
 bash <PA>/demo/install_plugin.sh --check
 ```
 
-**预期结果**：单测 152/152 OK；demo_e2e 末行 `DEMO_E2E_OK`；demo_failure 末行 `DEMO_FAILURE_OK`（8 passed, 0 failed）；`demo/demo_trust.sh <RUN_ID>` 末行 `TRUST_DEMO_OK`（退出码 0，账本篡改与伪造验证双拦截）。
+**预期结果**：单测 164/164 OK；demo_e2e 末行 `DEMO_E2E_OK`；demo_failure 末行 `DEMO_FAILURE_OK`（8 passed, 0 failed）；`demo/demo_trust.sh <RUN_ID>` 末行 `TRUST_DEMO_OK`（退出码 0，账本篡改与伪造验证双拦截）。
 
 ---
 
@@ -133,7 +133,11 @@ bash <PA>/demo/install_plugin.sh --check
 ### 6.1 已确认的事实
 
 - **AGH 源码**：`<agnes-harness 仓库>`（已 `pnpm install` + 构建 `packages/cli/dist/local/agnes.mjs`，`node --version` ≥24 可用；本机路径经 `AGH_ENTRY` 传给各脚本，不再硬编码）。
-- **provider 已配且可用**：默认 AGH home（`~/.agh`）有预置 route `account-acct-60077bdf-…`（baseUrl `https://api.agnes-ai.cn/v1`，model `agnes-3.0-flash`，credential `secret://agnes-ai/…`）。`AGH doctor provider --probe` 返回 `✓ verified`。
+- **provider 已配且可用**：默认 AGH home（`~/.agh`）的 `local-dev` profile 有预置 route（baseUrl `https://api.agnes-ai.cn/v1`，model `agnes-3.0-flash`，credential `secret://agnes-ai/…`）。`AGH doctor provider --probe --profile local-dev` 实测返回 `✓ provider / selected provider route and model inference verified`。
+  - ⚠️ **route 的 `account-acct-…` 属账号级标识，会随环境变化**（本机当前是 `1a50785c`，历史上出现过 `d96ffe5a`）。
+    **不要把它写进对外材料**，也不要用它做环境一致性判据——换台机器就变了。
+    查当前值：`grep -o 'account-acct-[0-9a-f]*' ~/.agh/profiles/<profile>/configuration.json`；
+    验可用性用上面的 `--probe`。
 - **插件源校验已通过**：`AGH package inspect "file:./plugins/paper-agent-tools"` 从项目目录执行，返回合法 Preview（含 integrity）。**关键**：AGH `file:` 源 schema 是 `^file:\./...`，**必须相对 `./` 形式**；绝对路径 `file:C:\…` 会报 `ProtocolViolation: Expected union value`（这是之前踩的坑）。
 - **plugin manifest**：`package.json` 已对齐官方形态（`private`/`files`/`license`/`engines>=24`，`agnes.plugins[]` 的 `id: ext:paper-agent/tools`、`export: paperAgentTools`、`inject: [extension]`）。`package inspect` 校验通过即证明 manifest 合法。
 

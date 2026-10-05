@@ -147,37 +147,81 @@ PY
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py"
-# 期望：Ran 152 tests ... OK（含 test_security_scan.py 的 14 项安全防御专项用例，
-#       以及 test_recovery.py 的 P5 幂等门禁回归用例 test_case_F2）
+# 期望：Ran 164 tests ... OK
+#   含 test_security_scan.py 的 14 项安全防御专项用例
+#       test_recovery.py 的 P5 幂等门禁回归用例 test_case_F2
+#       test_plugin_tools.py 的 9 项插件薄壳安全用例（JS 侧用 node 实跑验证）
+#       test_test_isolation.py 的 3 项测试隔离元测试
 ```
 
 ---
 
 ## 6. AGH 联调（拿到 API Key 后）
 
-```bash
-pnpm install --frozen-lockfile
-pnpm --filter @agnes/cli build:local
-node packages/cli/dist/local/agnes.mjs serve
-agnes plugins install file:./plugins/paper-agent-tools
-agnes plugins trust ext:paper-agent/tools
-agnes plugins enable ext:paper-agent/tools
-agnes -p "你的科研目标 prompt"
-agnes export SESSION_ID --format agnes -o session.jsonl
-```
-
-**验收项**：`session.jsonl` 至少含 ≥6 条连续 `tool_use` / `tool_result` 交互记录：
+> 若插件已装好（`agh package status` 显示 `paper-agent-tools` 为
+> `desired=enabled actual=running trusted=true`），可**跳过安装直接看证据**——
+> `evidence/` 下已有真实导出的账本。
 
 ```bash
-# 统计 tool_use / tool_result 事件数
-grep -c '"tool_use"\|"tool_result"' session.jsonl   # 期望 >=6（连续结构化）
+# ① 确认插件就位
+<agnes.mjs> package status --profile <profile>
+
+# ② 找会话 id 并导出（★ 不需要 TTY，也不依赖 `agh sessions list`）
+#    会话 id 直接查 sqlite：
+#      ~/.agh/data/tables/_40agnes_2fdaemon.db
+#      表 session_workspaces → session_key / title / last_seq
+#    详细说明见 evidence/README.md「复现方法」。
+<agnes.mjs> export <SESSION_ID> --format agnes --profile <profile> \
+            -o evidence/session-<SESSION_ID>.jsonl
 ```
+
+### ★ 验收项：核对内容真实性（**别只确认文件存在**）
+
+```bash
+# 一键复核（强烈推荐）：逐行解析 + 核对 call/result 配对 + 工具覆盖率 + 涉及的 run
+python evidence/verify_export.py evidence/session-6139563e.jsonl
+```
+
+预期关键输出：
+
+```
+总行数 1364 | JSON 解析失败 0
+tool/call 71 | tool/result 71
+成功配对 71 | 孤立 call 0 | 孤立 result 0
+★ 插件工具覆盖: 7/7
+★ 插件调用合计: ok=32 fail=2
+```
+
+**赛事闸门要求 ≥6 条工具交互记录**，本证据单文件即有 71 条 `tool/call`。
+
+### ⚠️ 手工 grep 时的三个坑
+
+```bash
+# ✅ 正确的记录类型是tool/call 与 tool/result（**斜杠**，不是下划线）
+grep -c '"type":"tool/call"'   evidence/session-6139563e.jsonl   # → 71
+grep -c '"type":"tool/result"' evidence/session-6139563e.jsonl   # → 71
+
+# ❌ 下面这种 grep 永远返回 0 —— 记录类型里没有下划线形式
+# grep -c '"tool_use"\|"tool_result"' session.jsonl
+```
+
+1. **记录类型是 `tool/call` / `tool/result`（斜杠）**，不是 `tool_use` / `tool_result`。
+2. **工具名位置不统一**：`tool/call` 在 `data.name`；`tool/result` 在 **`origin`**
+   （形如 `"tool:sciret_plan"`），`data` 里没有名字字段。配对要靠 **`data.toolUseId`**。
+3. **账本里出现 `kill_after_p2` 不代表真的杀过进程**——那是 `tool_describe` 返回的
+   schema 枚举文本。真实容错证据在 `runs/*/state.json` 的 `attempts` 与
+   `events.jsonl` 的 `degrade` 事件里。
 
 ---
 
 ## 7. 审计交付包
 
-从完成的 run 收集以下文件打包（见 `audit-pack-template/` 结构）：
+一键生成（推荐，脚本已处理缺失文件与文件名通配）：
+
+```bash
+bash audit-pack-template/build_audit_pack.sh <RUN_ID>
+# → audit-pack/  +  AUDIT_PACK_OK
+```
 
 | 文件 | 来源 |
 | --- | --- |
@@ -185,19 +229,15 @@ grep -c '"tool_use"\|"tool_result"' session.jsonl   # 期望 >=6（连续结构�
 | `events.jsonl` | `runs/<run_id>/events.jsonl` |
 | `provenance.jsonl` | `runs/<run_id>/provenance.jsonl` |
 | `conclusions.jsonl` | `runs/<run_id>/conclusions.jsonl` |
-| `agh-session.jsonl` | 联调导出的 `session.jsonl` |
-| `verification.json` | `runs/<run_id>/verification/verification.json` |
+| `session-*.jsonl` | `evidence/session-*.jsonl`（通配拷贝，按会话 id 命名） |
+| `verify_export.py` | `evidence/verify_export.py`（复核工具，一并带走） |
+| `verification.json` | `runs/<run_id>/verification/verification.json` —— ⚠️ **仅 materials 工作流产出**；research 的 R4 结果在 `toolcalls/` 与 `events.jsonl` 里，脚本会 `(skip)` 属正常 |
 | `HOW-TO-VERIFY.md` | 本文件 |
 
 ```bash
-mkdir -p audit-pack && cp \
-  runs/$RUN_ID/state.json \
-  runs/$RUN_ID/events.jsonl \
-  runs/$RUN_ID/provenance.jsonl \
-  runs/$RUN_ID/conclusions.jsonl \
-  runs/$RUN_ID/verification/verification.json \
-  HOW-TO-VERIFY.md \
-  audit-pack/
-cp session.jsonl audit-pack/agh-session.jsonl 2>/dev/null || true
 tar -czf audit-pack.tar.gz audit-pack
 ```
+
+> 🔴 **打包前必做**：`*.jsonl` 含本机绝对路径（`C:\Users\...`、`D:\workBubbyStore\...`），
+> 开源发布前需人工审查/脱敏。
+

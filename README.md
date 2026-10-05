@@ -73,7 +73,7 @@ paper-agent/
 │   ├── reinstall_plugin.ps1       # Windows 自动化重装（参数化；需 -Agh <agnes.mjs>）
 │   └── run_agh_install.cmd        # 纯 cmd 最小安装（需 agnes.mjs 路径参数）
 ├── tools/                        # 无需 TTY 的插件自检脚本（offline / e2e，见 docs/AGH插件安装指南.md）
-├── tests/                        # unittest/pytest 套件（9 文件，152 用例，默认离线）
+├── tests/                        # unittest 套件（11 文件，164 用例，默认离线）
 ├── web/                          # 科研工作台前端 + 真实后端（见 web/README.md）
 │   ├── index.html                  # 3 页面：工作台 / 证据溯源 / 新建任务
 │   ├── server/paper-agent-server.js # 真实后端：HTTP+SSE，spawn Python CLI
@@ -186,7 +186,7 @@ $AGH export <SESSION_ID> --format agnes -o evidence/session-full.jsonl
 - [x] 用例 E2/E3 `kill_after_p2`：子进程真实被 `os._exit(137)` 杀死（run-all 与 run-step 双路径），账本完整，resume 续跑到 DONE
 - [x] P5 报告终态幂等复用（重复调用不抛 StateError）
 - [x] report.md 每条结论携带 `[EV-XXXX]` 证据标记；`sciret_cite` 可回查 DOI / SHA-256
-- [x] 单元测试全部通过（152/152，含 14 项安全防御专项测试与 1 项 P5 幂等门禁回归测试）
+- [x] 单元测试全部通过（164/164，含 14 项安全防御专项测试、9 项插件薄壳安全测试与 3 项测试隔离元测试）
 - [x] 信任机制现场演示脚本 `demo/demo_trust.sh`：账本篡改 → 报告拒绝；伪造 verification →
   P4 闸门拒绝（`TRUST_DEMO_OK`，退出码 0）
 - [x] AGH 工具面覆盖双工作流：`sciret_plan` 支持 `--workflow research`，
