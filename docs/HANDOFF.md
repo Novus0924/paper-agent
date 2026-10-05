@@ -9,7 +9,8 @@
 
 - **项目**：`paper-agent` —— 基于 **AGH（Agnes Harness）** 的可审计、可复现、可故障恢复的科研 Agent 流水线（JS 薄壳工具 + Python 核心业务 + 确定性实验），用于 2026 江苏省 AI+科学与工程创新实践黑客松。
 - **工程完成度**：阶段 1–6 **全部完成并通过自验证**（单测 **152/152**、端到端 demo、四大故障用例 + 真实进程崩溃/断点续跑用例 E2/E3 + P5 幂等复用 F + P5 幂等信任门禁 F2、审计不变量全 PASS）。
-- **AGH 联调已真实跑通**：插件经交互 TTY 确认安装 + trust + enable，`desired=enabled actual=running trusted=true`；两次真实 `-p` 会话共 21 次 tool/call + 21 次 tool/result，**7 个 sciret_* 工具全部出现**（含 `sciret_resume` 的 kill_after_p2 崩溃恢复演示）。历史导出文件 `evidence/session.jsonl` / `session-full.jsonl` **未随当前仓库快照交付**（`evidence/` 现仅含 README），可按 README「AGH 联调」节命令重新导出再生成。
+- **AGH 联调已真实跑通**：插件经交互 TTY 确认安装 + trust + enable，`desired=enabled actual=running trusted=true`。真实导出证据见 `evidence/session-6139563e.jsonl`：**1364 行、71 次 tool/call + 71 次 tool/result 严格配对、7 个 `sciret_*` 工具全部出现**，research + materials 两条工作流都跑到，涉 3 个 run 目录（均真实存在于 `runs/` 且 DONE，各带 `provenance.jsonl` + `conclusions.jsonl` + `report.md`）。补充证据 `evidence/session-aa3929f6.jsonl`（270 行，13/13配对）。复核命令：`python evidence/verify_export.py evidence/session-6139563e.jsonl`。
+  - ⚠️ **纠正一处历史误述**（2026-10-05）：旧版本本文称"含 `sciret_resume` 的 `kill_after_p2` 崩溃恢复演示"，并引用 `evidence/session.jsonl` / `session-full.jsonl`。**那两个文件与其引用的 run（`run-20261002-*`）在本机均已不存在**。真实情况是：`kill_after_p2` 的**代码实现真实存在**（`core/paper_agent/chaos.py:72` 真实 `os._exit(137)`，并由 `tests/test_recovery.py:128` 的 E2/E3 真实子进程测试覆盖），但**当前这份导出账本里没有该执行记录**——JSONL 中出现的 `kill_after_p2` 字符串来自 `tool_describe` 返回的 schema 枚举文本，不是执行痕迹。详见 `evidence/README.md`「已知瑕疵」。
 - **红线**：密钥只存 `.env`（gitignore）；所有交付物收敛在 `paper-agent/` 项目目录内；实验数据标注 `as-reported`，严禁伪造。
 
 ---
@@ -17,16 +18,20 @@
 ## 1. 当前提交历史（最新在上）
 
 ```
-d8af9d5  AGH 联调准备: 插件 manifest 对齐官方形态 + 会话联调脚本
-3d34092  stage6: Demo 脚本 + 文档 + 审计交付包（黑客松可提交产物就绪）
-750ecbd  stage5: AGH JS 插件薄壳编码（7 工具，暂不联调）
-caeb76c  stage4: 单元测试四套全绿（M0 工程里程碑，36/36）
-ff3d522  stage3: Python 核心业务完整实现（state/provenance/chaos/steps/verify/report/cli）
-b866694  stage1+2: 项目骨架 + 数据层 + 确定性实验脚本
-72b616a  chore: 仓库骨架与合规声明（继承）
+884e3c0  evidence: 导出真实 AGH 会话账本，纠正 README 失真描述
+4bb50db  docs: M4 关闭（ACP 增强通道不做），理由固化为「收益不足」
+6350aa0  feat(web): 前端工作台 + M1 真实后端 + M3 提示词注入，并修正 M4/M5 结论
+c2f934a  fix(install): 一键幂等安装脚本 + 清除全部安装阻断项
+645e5c2  docs+tools: AGH 插件安装指南与会话提示词模板，附可移植自检脚本
+1c349cb  评委视角优化：评审要点证据映射 + AGH 双工作流工具面 + 文档数字同步
+7e71110  信任门禁补漏：P5 幂等复用先过 verify_chain/绑定校验；新增篡改检测现场演示
+44c71ed  数据真实性修复：5 篇文献元数据修正为已验证真实信息
 ```
 
-分支：`leyon`。远端：`origin git@github.com:Novus0924/paper-agent.git`。
+分支：`leyon`。远端：`origin git@github-w:Novus0924/paper-agent.git`
+（`github-w` 是本机 `~/.ssh/config` 里的 Host 别名，指向 `github.com` + `id_gh_work` 密钥；
+**GitHub 只能走 SSH，HTTPS 在本机不通**，详见项目记忆）。
+**本地领先远端 5 个提交，按用户要求暂未推送。**
 
 ---
 
@@ -69,7 +74,7 @@ paper-agent/
 │   ├── ai_disclosure.md
 │   ├── sources.md
 │   └── HANDOFF.md                 # 本文档
-├── evidence/                      # AGH 会话导出 session.jsonl 落这里（gitignore *.jsonl）
+├── evidence/                      # AGH 会话导出（session-*.jsonl，gitignore *.jsonl）+ verify_export.py 复核脚本
 ├── runs/<run_id>/                 # 每 run 完全隔离的产物（gitignore runs/）
 └── .env                           # 模型 API key（gitignore，绝不入库）
 ```
@@ -140,7 +145,7 @@ AGH 的 `package add`（= install）在源码里走 `io.confirm(preview)`，**�
 
 ### 6.3 已交付的联调脚本
 
-`demo/demo_agh_session.sh` 覆盖完整链路（inspect→install→trust→enable→`AGH -p` 会话→`AGH export` 到 `evidence/session.jsonl`→`build_audit_pack.sh`）。它：
+`demo/demo_agh_session.sh` 覆盖完整链路（inspect→install→trust→enable→`AGH -p` 会话→`AGH export` 到 `evidence/session-*.jsonl`→`build_audit_pack.sh`）。它：
 - 插件用**项目相对路径** `file:./plugins/paper-agent-tools`，绝不外拷；
 - 会话导出与审计包全部落在 `paper-agent/` 项目内；
 - 设 `paper-agent_PYTHON` / `paper-agent_ROOT` 环境变量供插件 spawn Python；
@@ -150,14 +155,22 @@ AGH 的 `package add`（= install）在源码里走 `io.confirm(preview)`，**�
 
 - **项目内隔离 AGH home（`.agh-home`）失败**：AGH 的 home 是**活运行时状态机**（credential store / daemon 身份 / sqlite lock 均绑定原路径），手动 `Copy-Item` 整个 `~/.agh` 或只拷 config+secrets 都报 `provider host assembly failed` / `credential store is unavailable`。**不要再尝试搬 home**。AGH 框架就用它默认 home 运行（类比 node_modules，是框架自带运行时，不是 paper-agent 交付物）。
 
-### 6.5 联调闭环记录（2026-10-02 已完成）
+### 6.5 联调闭环记录
+
+>⚠️ **2026-10-05 修订**：本节原记录的两个会话（`session.jsonl` / `session-full.jsonl`）
+> 及其引用的 run `run-20261002-030119-61a0ec` / `run-20261002-033525-356ccf`
+> **在本机均已不存在**（`runs/` 下共 32 个 run，无此两个；`evidence/` 下也无这两个 jsonl）。
+> 下面是**当时的原始记录，保留作为历史线索，不可直接引用**；
+> **当前有效证据见 §0 与 `evidence/README.md`**（会话 `6139563e` + `aa3929f6`，71/13 次配对，7/7 工具）。
+> 另注：下文"崩溃恢复轮"的 `kill_after_p2` 机制**代码与测试都真实存在**
+> （`chaos.py:72` + `tests/test_recovery.py:128`），只是**那份已丢失的导出里没有留下执行痕迹**。
 
 - [x] 交互式 TTY 安装：`package add` 的人类确认无法 non-TTY 绕过（AGH 安全设计）。最终自动化方案：`demo/reinstall_plugin.ps1` 用 `Start-Process cmd` 开真实控制台 + `AttachConsole(pid)` + `WriteConsoleInput(CONIN$)` 注入命令行与 `y` 确认（等价真人键盘输入，走正常 TTY 确认路径）。
 - [x] 两次真实 `-p` 会话（同一 workspace 会话追加轮次，session id `agnes:local:local-dev:cli:workspace:05d7ffbf5caefe74`）：
-  - 首轮：plan→run_step P1..P5→verify→report→cite→status，10 次调用全成功，run `run-20261002-030119-61a0ec` DONE、verify PASS（SHA `a30bc79f…`）。
-  - 崩溃恢复轮：run_step P2 带 `chaos=kill_after_p2` → 子进程被 `os._exit(137)` 真实杀死 → status 显示 P3 PENDING → `sciret_resume` 断点续跑至 DONE → verify/report/cite 复核。run `run-20261002-033525-356ccf`。**7/7 工具全部出现**。
-- [x] 证据导出：`evidence/session.jsonl`（首轮）与 `evidence/session-full.jsonl`（21 tool/call + 21 tool/result，闸门 ≥6 通过）。`*.jsonl` 按红线 gitignore（含本机路径），提交包从磁盘归集。
-- [x] 审计包：`bash audit-pack-template/build_audit_pack.sh <RUN_ID>` 现自动把两份会话导出拷入 `audit-pack/`（`audit-pack/` 亦 gitignore，交付时随包生成）。
+  - 首轮：plan→run_step P1..P5→verify→report→cite→status，10 次调用全成功，run `run-20261002-030119-61a0ec` DONE、verify PASS（SHA `a30bc79f…`）。**〔该 run 现已不存在〕**
+  - 崩溃恢复轮：run_step P2 带 `chaos=kill_after_p2` → 子进程被 `os._exit(137)` 真实杀死 → status 显示 P3 PENDING → `sciret_resume` 断点续跑至 DONE → verify/report/cite 复核。run `run-20261002-033525-356ccf`。**7/7 工具全部出现**。**〔该 run 现已不存在〕**
+- [x] 证据导出：~~`evidence/session.jsonl`（首轮）与 `evidence/session-full.jsonl`（21 tool/call + 21 tool/result，闸门 ≥6 通过）~~ → **已重新导出为 `evidence/session-6139563e.jsonl`（71 配对）与 `session-aa3929f6.jsonl`（13 配对）**。`*.jsonl` 按红线 gitignore（含本机路径），提交包从磁盘归集。
+- [x] 审计包：`bash audit-pack-template/build_audit_pack.sh <RUN_ID>` 现自动把会话导出拷入 `audit-pack/`（`audit-pack/` 亦 gitignore，交付时随包生成）。
 - 期间修复的真实缺陷：① 插件入口改 Cordis 对象范式（`inject:['extension']`）；② tool meta 补全 8 必填键（replay/costHint/deferLoading/requiresApproval 等，`requiresApproval:'never'`）；③ `kill_after_p2` 从"文档声明"到真实实现（chaos.py + run_p2/run_all 双路径挂钩 + E2/E3 测试）；④ P5 报告 DONE 后重复调用抛 StateError → 改幂等复用（F 测试）。
 
 > 7 工具名（会话中已全部出现）：`sciret_plan / sciret_run_step / sciret_status / sciret_verify / sciret_report / sciret_cite / sciret_resume`。
