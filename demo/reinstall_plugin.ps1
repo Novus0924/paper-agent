@@ -1,5 +1,21 @@
-﻿$root = 'C:\Users\ASUS\Desktop\黑客松\paper-agent'
-$agh  = 'C:\Users\ASUS\Desktop\黑客松\agnes-harness\packages\cli\dist\local\agnes.mjs'
+# demo/reinstall_plugin.ps1 — Windows 自动化重装（真实控制台 + 键盘注入确认）
+#
+# 用法：
+#   .\reinstall_plugin.ps1 -Agh 'D:\agnes-harness\packages\cli\dist\local\agnes.mjs'
+#   （或先 $env:AGH_ENTRY='...' 再运行；Root 默认=本脚本上一级目录，可用 -Root 覆盖）
+#
+# 说明：capabilityHash 不再硬编码——自动从 AGH 审计日志提取
+#      （~/.agh/profiles/<profile>/.agnes-package-audit.jsonl 的 install 事件）。
+#      首选方案仍是 bash demo/install_plugin.sh（一条命令，无需本脚本的键盘注入技巧）。
+param(
+    [string]$Root = (Split-Path $PSScriptRoot -Parent),
+    [string]$Agh  = $env:AGH_ENTRY
+)
+if (-not $Agh) {
+    Write-Output '用法: .\reinstall_plugin.ps1 -Agh <agnes.mjs 绝对路径>（或先 $env:AGH_ENTRY=... ）'
+    Write-Output '推荐改用: bash demo/install_plugin.sh --reinstall'
+    exit 1
+}
 $ErrorActionPreference = 'Continue'
 
 $sig = @'
@@ -79,7 +95,19 @@ if (-not $installed) { Write-Output ("FINAL_STATUS=" + (AggStatus)); exit 2 }
 $prev = (node $agh package inspect "file:./plugins/paper-agent-tools" 2>&1 | Out-String)
 $integrity = ([regex]'integrity (sha256-[0-9a-f]+)').Match($prev).Groups[1].Value
 if (-not $integrity) { Write-Output ('INTEGRITY_NOT_FOUND; inspect=' + $prev); exit 3 }
-$cap = 'e3de4e5f2da4b8aa2650af5c4f822d397c2dadd7a6695e5071c0444d26a22b01'
+# 3) 从审计日志自动提取 capabilityHash（替代旧的硬编码值——那个随插件版本变化会过期）
+$cap = ''
+foreach ($f in (Get-ChildItem "$env:USERPROFILE\.agh\profiles\*\.agnes-package-audit.jsonl" -ErrorAction SilentlyContinue)) {
+    foreach ($line in (Get-Content $f.FullName -Encoding UTF8)) {
+        if ($line -match '"id":\s*"paper-agent-tools"' -and $line -match '"operation":\s*"install"') {
+            try {
+                $e = $line | ConvertFrom-Json
+                if ($e.capabilityDiff.next) { $cap = $e.capabilityDiff.next }
+            } catch { }
+        }
+    }
+}
+if (-not $cap) { Write-Output 'CAPABILITY_HASH_NOT_FOUND：审计日志里没有 paper-agent-tools 的 install 事件（先成功安装一次）'; exit 3 }
 node $agh package trust paper-agent-tools $integrity $cap 2>&1 | Out-Null
 node $agh package enable paper-agent-tools 2>&1 | Out-Null
 Start-Sleep -Seconds 3

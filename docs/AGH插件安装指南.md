@@ -51,15 +51,26 @@ daemon 是长驻进程，插件从 **daemon 进程的环境**里读这两个变�
 
 AGH 源码（`bin.ts` 的 `confirmPackageInstall`）写死：非 TTY 环境（管道 / 重定向 / 自动化脚本）**直接判定为取消**（`Installation cancelled.`），没有任何 `--yes` / `--force` 后门。这是安全设计——装插件 = 以本机权限执行 JS，必须人类确认。
 
-所以：**要么在真实终端里人工敲 `y`，要么走 Web 页面点确认**（推荐，见第 4 步路线 A）。
+所以：**要么在真实终端里人工敲 `y`，要么走 Web 页面点确认**（首选是第 4 步路线 A 的一键脚本，其次 Web 页面）。
 
 ---
 
 ## 2. 安装路线图
 
 ```
+★ 快速路径（推荐）：bash demo/install_plugin.sh
+   —— 一条命令自动完成下面全部步骤（路径探测/daemon 重启/两个哈希自动提取/
+      trust+enable/验证/冒烟），只有「安装确认」一步需要你在真实终端敲 y。
+
+手动展开（理解原理用 / 脚本失效时的兜底）：
 第1步 配置环境变量（持久化） → 第2步 重启 daemon → 第3步 只读预检
   → 第4步 安装+信任+启用【人工确认】 → 第5步 验证（status + 冒烟测试）
+```
+
+```bash
+bash demo/install_plugin.sh --check    # 先只读预检（不装）
+bash demo/install_plugin.sh           # 安装（幂等，可重复运行）
+bash demo/install_plugin.sh --reinstall  # 插件源码更新后强制重装
 ```
 
 ---
@@ -93,12 +104,27 @@ env "paper-agent_ROOT=/home/me/works/paper-agent" \
 # 最稳的持久化：用 printf 写成 env 调用行，或使用 zsh
 ```
 
-> 简化建议：bash 用户可以不持久化，直接在下文所有命令前加 `env` 前缀（见第 4 步路线 B 的写法）。
+> 简化建议：bash 用户可以不持久化，直接在下文所有命令前加 `env` 前缀（见第 4 步路线 C 的写法；或直接用路线 A 脚本，它自动处理）。
 > 取值时也要用 `printenv 'paper-agent_ROOT'`（bash 的 `${...}` 不认连字符名）。
 
 ---
 
 ## 4. 第 2–4 步：启动 daemon、预检、安装
+
+### 路线 A（首选）：一键脚本 `demo/install_plugin.sh`
+
+在仓库根目录、**真实终端**里运行：
+
+```bash
+bash demo/install_plugin.sh            # 或先 --check 做只读预检
+```
+
+它会自动完成：仓库根定位（按脚本位置，无硬编码）→ AGH 入口探测（参数 > `AGH_ENTRY` > 常见克隆位置）→ node ≥24 / python ≥3.10 校验 → **用正确环境变量在仓库根重启 daemon** → `inspect` 自动提取 integrity → 安装（提示你敲 `y`）→ **从审计日志自动提取 capabilityHash** → trust + enable → `package status` 三字段终验 → 插件链路冒烟测试。
+
+幂等性：已装好则直接跳到验证；`--reinstall` 强制重装（改了插件源码后用）。
+任何一步失败都会打印**指向根因的中文提示**与修复建议，不会静默。
+
+> 下面的手动路线仅供理解原理，或脚本在特殊环境失效时兜底。
 
 先在本机终端里定义三个公共变量（下面所有命令都用它们；**`AGH` 必须是绝对路径**，`node agnes.mjs` 这种相对路径写法会因为找不到模块而报错）：
 
@@ -150,7 +176,7 @@ warnings Package provenance has not been independently verified.
 
 ### 第 4 步：安装 + 信任 + 启用 —— **必须人工**
 
-#### 路线 A（推荐）：Web 页面，全程点选，不用记任何参数
+#### 路线 B：Web 页面，全程点选，不用记任何参数
 
 ```bash
 node "$AGH" serve          # 冷启动约 20–30 秒
@@ -164,7 +190,7 @@ node "$AGH" serve          # 冷启动约 20–30 秒
 3. 按页面引导完成 **trust**（信任）与 **enable**（启用）；
 4. 该窗口保持打开（serve 与 daemon 绑定生死，关掉 serve 端口就停了）。
 
-#### 路线 B：CLI 真实终端，`y` 确认
+#### 路线 C：CLI 真实终端，`y` 确认（= 路线 A 脚本的手动展开）
 
 ```bash
 # 必须在真实终端（Windows Terminal / PowerShell / Git Bash 窗口）里敲，管道/脚本不行
@@ -220,6 +246,8 @@ paper-agent-tools@0.1.0 desired=enabled actual=running trusted=true
 
 ### 5.2 冒烟测试：不经 AGH 直接验插件（无需 TTY，随时可跑）
 
+> 路线 A（`install_plugin.sh`）**结尾会自动跑 ①**；手动安装（路线 B/C）需要自己跑。
+
 仓库自带两个自检脚本（`tools/` 目录），它们绕过 AGH 直接加载插件、调 Python 核心，**安装前后都能用来区分"插件坏了"还是"AGH 配置问题"**：
 
 ```bash
@@ -248,15 +276,18 @@ env "paper-agent_PYTHON=$PY" "paper-agent_ROOT=$ROOT" node tools/verify-plugin-e
 
 ## 6. 故障排查表（全部真实踩过）
 
+> 用路线 A 脚本的话，下表 2/3/5/6/7 号坑它都会自动规避或当场报出根因。
+
 | # | 现象 | 根因 | 处置 |
 |---|---|---|---|
-| 1 | 会话里调 `sciret_*` 报 `ModuleNotFoundError: No module named 'paper_agent'` | daemon 启动时没带 `paper-agent_ROOT` / `paper-agent_PYTHON`（机制①②） | `daemon stop` → 按第 4 步带变量重启 → **新开会话**再试（旧会话可能还连着老 daemon） |
+| 0 | `install_plugin.sh` 报「AGH 入口无任何输出」 | 个别 Git Bash 的 `env→node` 静默失败（脚本自检步骤拦下） | 按报错里的 PowerShell 命令持久化两个变量 → **新开终端**重跑脚本 |
+| 1 | 会话里调 `sciret_*` 报 `ModuleNotFoundError: No module named 'paper_agent'` | daemon 启动时没带 `paper-agent_ROOT` / `paper-agent_PYTHON`（机制①②） | 重跑 `bash demo/install_plugin.sh`（会用正确环境重启 daemon）→ **新开会话**再试（旧会话可能还连着老 daemon） |
 | 2 | `Cannot find module '...\agnes.mjs'` | 用了相对路径 `node agnes.mjs` | `agnes.mjs` 在 AGH 安装目录里，**永远用绝对路径** |
 | 3 | `package inspect` 报 `The package source could not be accepted.` | daemon 启动时的工作目录不在仓库根（机制②的 `file:./` 解析） | `daemon stop` → `cd <仓库根>` → `daemon start` → 重试；期间别在别的目录跑 AGH 命令 |
 | 4 | `package add` 输出 `Installation cancelled.` | 非 TTY 环境（机制③），无 bypass | 换真实终端人工敲 `y`，或走 Web 页面 |
 | 5 | `export "paper-agent_PYTHON=..."` 报 `not a valid identifier` | bash 变量名不允许连字符 | 用 `env "name=value" cmd` 前缀，或持久化到用户账户；取值用 `printenv` |
 | 6 | AGH 命令**零输出**、退出码 0 | 个别 Git Bash 的 `env → node` 链路静默失败 | 变量持久化后新开终端，**直接** `node <AGH绝对路径> <子命令>`，不经 env |
-| 7 | `package status` 显示 `desired=enabled` 但工具还是不可用 | `actual` 不是 `running` 或 `trusted` 不是 `true` | 补做 trust（capabilityHash 从审计日志取，见第 4 步路线 B）和 enable |
+| 7 | `package status` 显示 `desired=enabled` 但工具还是不可用 | `actual` 不是 `running` 或 `trusted` 不是 `true` | 补做 trustcapabilityHash 从审计日志取，见第 4 步路线 C；或重跑路线 A 脚本自动补全）和 enable |
 | 8 | 改了插件源码，重装前行为不变 | AGH 跑的是**拷贝快照**（机制①） | 重新 `package add`；integrity 变了的话旧 trust 记录失效，需重做 trust → enable |
 | 9 | `serve` 后浏览器 `ERR_CONNECTION_REFUSED` | 冷启动 20–30 秒静默期 | 等 30 秒再刷新；仍不行看服务日志 |
 | 10 | `inspect` 显示 `contributions none` | **正常**，不是错误 | 不用处理 |
@@ -275,6 +306,9 @@ env "paper-agent_PYTHON=$PY" "paper-agent_ROOT=$ROOT" node tools/verify-plugin-e
 
 ## 8. 验收清单（装完逐项打勾）
 
+> 路线 A 脚本会自动完成并打印其中大部分项的结果。
+
+- [ ] `bash demo/install_plugin.sh` 全程绿（或 `--check` 预检通过后手动路线全绿）
 - [ ] `daemon status` → `running:true` 且 `socketReachable:true`
 - [ ] `package inspect` → `Preview paper-agent-tools@0.1.0`，integrity 已记录
 - [ ] 安装已人工确认（Web 页面或终端 `y`）

@@ -64,8 +64,14 @@ paper-agent/
 │   └── conductivity_raw.csv     # 带缺陷原始实验数据集（utf-8 BOM）
 ├── runs/<run_id>/               # 运行实例产物（gitignore 忽略；每个 run 完全隔离）
 ├── demo/
-│   ├── demo_e2e.sh             # 端到端正常流程 + 确定性核验
-│   └── demo_failure.sh         # 四大故障恢复验收用例自动化
+│   ├── install_plugin.sh          # ★ AGH 插件一键安装（幂等；首选入口）
+│   ├── README.md                  # demo 脚本索引
+│   ├── demo_e2e.sh               # 端到端正常流程 + 确定性核验
+│   ├── demo_failure.sh            # 四大故障恢复验收用例自动化
+│   ├── demo_trust.sh              # 信任机制现场演示（账本篡改/伪造验证双拦截）
+│   ├── demo_agh_session.sh        # AGH 真实会话联调（装好插件后用）
+│   ├── reinstall_plugin.ps1       # Windows 自动化重装（参数化；需 -Agh <agnes.mjs>）
+│   └── run_agh_install.cmd        # 纯 cmd 最小安装（需 agnes.mjs 路径参数）
 ├── tools/                        # 无需 TTY 的插件自检脚本（offline / e2e，见 docs/AGH插件安装指南.md）
 ├── tests/                        # unittest/pytest 套件（9 文件，152 用例，默认离线）
 └── audit-pack-template/          # 审计交付包模板
@@ -74,7 +80,7 @@ paper-agent/
 ## 环境要求
 
 - **Python 核心层**：Python 3.10+，**零第三方依赖**（仅标准库），保障跨机器可复现。
-- **AGH 插件层**：Node 18+；AGH 源码构建与真实会话联调需要比赛发放的模型 API Key。
+- **AGH 插件层**：Node **≥ 24**（AGH 运行底座硬要求，与插件 `package.json` 的 `engines` 一致）；AGH 源码构建与真实会话联调需要比赛发放的模型 API Key。
 - **Demo 脚本**：`bash` + `sha256sum`（Windows 用 Git Bash / WSL；注意 npm shim 拉起
   wsl.exe 可能被安全策略拦截，构建后直接 `node <入口.js>` 调用）。
 
@@ -122,13 +128,20 @@ bash demo/demo_trust.sh <RUN_ID>  # 信任机制现场演示：账本篡改与�
 实际链路（与 AGH 构建产物的真实 CLI 对齐）：
 
 ```bash
-AGH="node C:/…/agnes-harness/packages/cli/dist/local/agnes.mjs"
-$AGH package inspect "file:./plugins/paper-agent-tools"   # 需从项目根、相对 ./ 形式
-# package add 需交互式 TTY 人类确认（AGH 安全设计，无 bypass）：
-#   自动等价方案 = demo/reinstall_plugin.ps1（真实控制台 + WriteConsoleInput 注入）
+# ★ 首选：一键安装（幂等，可重复运行；自动探测路径/重启 daemon/提取两个哈希，
+#   仅「安装确认」一步需要你在真实终端里敲 y）：
+bash demo/install_plugin.sh [agnes.mjs 绝对路径]
+bash demo/install_plugin.sh --check      # 只做只读预检
+
+# 等价手动链路（install_plugin.sh 内部即此流程）：
+AGH="node <agnes-harness>/packages/cli/dist/local/agnes.mjs"  # 必须从项目根、相对 ./ 形式
+$AGH package inspect "file:./plugins/paper-agent-tools"
+# package add 需交互式 TTY 人类确认（AGH 安全设计，无 bypass）
+$AGH package add "file:./plugins/paper-agent-tools"
+# capabilityHash 不在 inspect 输出里，从审计日志取：~/.agh/profiles/*/.agnes-package-audit.jsonl
 $AGH package trust paper-agent-tools <integrity> <capabilityHash>
 $AGH package enable paper-agent-tools                     # desired=enabled actual=running
-$AGH -p --cwd "$PWD" "用 sciret_* 完成…流水线"             # 打印模式会话，无需 TTY
+$AGH -p --cwd "$PWD" "用 sciret_* 完成…流水线"             # 需真实终端（无头环境会挂起）
 $AGH export <SESSION_ID> --format agnes -o evidence/session-full.jsonl
 ```
 

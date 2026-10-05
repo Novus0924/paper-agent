@@ -79,19 +79,22 @@ paper-agent/
 ## 3. 如何验证现状（新工具接手第一步）
 
 ```bash
-cd C:/Users/ASUS/Desktop/黑客松/paper-agent
+# <PA> = paper-agent 仓库根；下同（按你机器实际路径替换，无任何硬编码）
+cd <PA>
 # ① 单元测试（152/152 应全绿）
-set PYTHONPATH=C:\Users\ASUS\Desktop\黑客松\paper-agent\core
+set PYTHONPATH=<PA>\core
 python -m unittest discover -s tests -p "test_*.py"
 
 # ② 端到端正常路径（需要 bash + sha256sum；Windows 用 Git Bash）
-"C:\Program Files\Git\bin\bash.exe" "C:/Users/ASUS/Desktop/黑客松/paper-agent/demo/demo_e2e.sh"
+bash <PA>/demo/demo_e2e.sh
 
 # ③ 四大故障用例（8/8 应全 PASS）
-"C:\Program Files\Git\bin\bash.exe" "C:/Users/ASUS/Desktop/黑客松/paper-agent/demo/demo_failure.sh"
+bash <PA>/demo/demo_failure.sh
 
 # ④ 插件 7 工具注册自检
-node plugins/paper-agent-tools/index.mjs   # 无语法错即通过（真实注册在 AGH 运行时）
+node <PA>/plugins/paper-agent-tools/index.mjs   # 无语法错即通过（真实注册在 AGH 运行时）
+# ⑤ AGH 插件一键安装/预检（新增）
+bash <PA>/demo/install_plugin.sh --check
 ```
 
 **预期结果**：单测 152/152 OK；demo_e2e 末行 `DEMO_E2E_OK`；demo_failure 末行 `DEMO_FAILURE_OK`（8 passed, 0 failed）；`demo/demo_trust.sh <RUN_ID>` 末行 `TRUST_DEMO_OK`（退出码 0，账本篡改与伪造验证双拦截）。
@@ -115,7 +118,7 @@ node plugins/paper-agent-tools/index.mjs   # 无语法错即通过（真实注�
 
 - 正常路径 `results.csv` SHA-256 前缀：`a30bc79f…`
 - 实验确定性双跑：两次 `results.csv` SHA-256 必须完全相同。
-- 插件 `file:./plugins/paper-agent-tools` 的 inspect integrity：`sha256-789fd334517aaaf7546157cf05d2d1b7ca51abd5016b861e0e42462d293d8202`（当前已安装版本，含 Cordis 对象导出 + meta 8 键修复；随 index.mjs/package.json 变化而变，以 `AGH package inspect` 实际输出为准）。
+- 插件 `file:./plugins/paper-agent-tools` 的 inspect integrity：**随 index.mjs/package.json 内容变化而变，以 `AGH package inspect` 实际输出为准**（`bash demo/install_plugin.sh` 会自动提取并使用；不要在任何文档/脚本里固定该值）。
 - 5 项复现校验：`results_csv_sha256 / n_rows / top3_material_id_set / top3_scores_positional / family_mean_log10_cond`。
 
 ---
@@ -124,7 +127,7 @@ node plugins/paper-agent-tools/index.mjs   # 无语法错即通过（真实注�
 
 ### 6.1 已确认的事实
 
-- **AGH 源码**：`C:\Users\ASUS\Desktop\黑客松\agnes-harness`（已 `pnpm install` + 构建 `packages/cli/dist/local/agnes.mjs`，`node --version` 24.15 可用）。
+- **AGH 源码**：`<agnes-harness 仓库>`（已 `pnpm install` + 构建 `packages/cli/dist/local/agnes.mjs`，`node --version` ≥24 可用；本机路径经 `AGH_ENTRY` 传给各脚本，不再硬编码）。
 - **provider 已配且可用**：默认 AGH home（`~/.agh`）有预置 route `account-acct-60077bdf-…`（baseUrl `https://api.agnes-ai.cn/v1`，model `agnes-3.0-flash`，credential `secret://agnes-ai/…`）。`AGH doctor provider --probe` 返回 `✓ verified`。
 - **插件源校验已通过**：`AGH package inspect "file:./plugins/paper-agent-tools"` 从项目目录执行，返回合法 Preview（含 integrity）。**关键**：AGH `file:` 源 schema 是 `^file:\./...`，**必须相对 `./` 形式**；绝对路径 `file:C:\…` 会报 `ProtocolViolation: Expected union value`（这是之前踩的坑）。
 - **plugin manifest**：`package.json` 已对齐官方形态（`private`/`files`/`license`/`engines>=24`，`agnes.plugins[]` 的 `id: ext:paper-agent/tools`、`export: paperAgentTools`、`inject: [extension]`）。`package inspect` 校验通过即证明 manifest 合法。
@@ -168,8 +171,8 @@ AGH 的 `package add`（= install）在源码里走 `io.confirm(preview)`，**�
 | Python | 3.10+，零第三方依赖 | 3.11 |
 | Node | ≥18（AGH 需 ≥24） | 24.15 |
 | pnpm | 10.34.5（AGH 构建） | 10.34.5 |
-| bash + sha256sum | demo 脚本 | Git Bash（`C:\Program Files\Git\bin\bash.exe`）|
-| AGH 源码 | 已构建 | `C:\Users\ASUS\Desktop\黑客松\agnes-harness` |
+| bash + sha256sum | demo 脚本 | Git Bash（`C:\Program Files\Git\bin\bash.exe`，标准安装位置）|
+| AGH 源码 | 已构建 | `<agnes-harness 仓库>`（路径经 `AGH_ENTRY` / 脚本参数传入） |
 
 ### 踩坑备忘（Windows 特有）
 - **WSL shim 拦截**：`bash -c "…"` 或带引号路径调 Git Bash 会被 `wsl.exe` 拦截报 `No such file or directory`。**解法**：`& 'C:\Program Files\Git\bin\bash.exe' '绝对路径.sh'`（PowerShell 直接调脚本，不嵌套 `-c`）。

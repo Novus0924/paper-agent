@@ -18,14 +18,38 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-# AGH 入口（源码构建产物；可用 AGH_ENTRY 覆盖）
-AGH_ENTRY="${AGH_ENTRY:-C:\Users\ASUS\Desktop\黑客松\agnes-harness\packages\cli\dist\local\agnes.mjs}"
+# AGH 入口：优先 AGH_ENTRY 环境变量，其次常见克隆位置自动探测（无硬编码路径）
+AGH_ENTRY="${AGH_ENTRY:-}"
+if [ -z "$AGH_ENTRY" ]; then
+  _self_dir="$(cd "$(dirname "$0")/.." && pwd)"
+  for _c in "$_self_dir/../agnes-harness/packages/cli/dist/local/agnes.mjs" \
+            "$HOME/agnes-harness/packages/cli/dist/local/agnes.mjs" \
+            "$HOME/agnes-harness-main/packages/cli/dist/local/agnes.mjs"; do
+    [ -f "$_c" ] && AGH_ENTRY="$_c" && break
+  done
+fi
+if [ -z "$AGH_ENTRY" ]; then
+  echo "错误：找不到 AGH 入口 agnes.mjs。" >&2
+  echo "  给法：export AGH_ENTRY=<agnes.mjs 绝对路径> 后重跑，或把 agnes-harness 克隆到本仓库旁边。" >&2
+  echo "  （提示：只是想装插件的话，直接 bash demo/install_plugin.sh 更省事）" >&2
+  exit 1
+fi
 AGH_ENTRY="${AGH_ENTRY//\\//}"   # Windows 反斜杠 → 正斜杠
-AGH() { node "$AGH_ENTRY" "$@"; }
 
-# 工具调用时插件 spawn Python 用的环境变量（paper-agent 核心在项目内）
-export "paper-agent_PYTHON=python"
-export "paper-agent_ROOT=$PWD"
+# 工具调用时插件 spawn Python 需要两个带连字符的环境变量。
+# ⚠️ bash 的 export 写不了带连字符的变量名（旧版第 27-28 行的 export 会静默失效），
+#    改为：变量已继承则直接调 node；否则用 env 前缀注入。
+HAVE_ROOT="$(printenv 'paper-agent_ROOT' 2>/dev/null || true)"
+HAVE_PY="$(printenv 'paper-agent_PYTHON' 2>/dev/null || true)"
+AGH() {
+  if [ -n "$HAVE_ROOT" ] && [ -n "$HAVE_PY" ]; then
+    node "$AGH_ENTRY" "$@"
+  else
+    env "paper-agent_PYTHON=${AGH_PYTHON:-python3}" \
+        "paper-agent_ROOT=$(pwd)" \
+        node "$AGH_ENTRY" "$@"
+  fi
+}
 
 echo "==> [1/6] inspect 插件源（只读校验，验证 file:./ 源合法并取 integrity）"
 AGH package inspect "file:./plugins/paper-agent-tools"
@@ -62,10 +86,11 @@ AGH export "$SESSION_ID" --format agnes -o "$PWD/evidence/session.jsonl"
 RUN_ID="$(ls -1 "$PWD/runs" 2>/dev/null | sort | tail -1)"
 [ -n "${RUN_ID:-}" ] && bash audit-pack-template/build_audit_pack.sh "$RUN_ID" || echo "  (无 run 产物，跳过审计包)"
 
-# 验收：session.jsonl 至少 6 条 tool_use / tool_result
+# 验收：session.jsonl 至少 6 条 tool/call / tool/result
+# （⚠️ 旧版数的是 "tool_use"/"tool_result"——那不是导出格式里的字段名，永远数出 0）
 echo "--- 验收 ---"
-COUNT=$(grep -c '"tool_use"\|"tool_result"' "$PWD/evidence/session.jsonl" 2>/dev/null || echo 0)
-echo "tool_use/tool_result 记录数: $COUNT  (验收要求 >=6)"
+COUNT=$(grep -c '"tool/call"\|"tool/result"' "$PWD/evidence/session.jsonl" 2>/dev/null || echo 0)
+echo "tool/call+tool/result 记录数: $COUNT  (验收要求 >=6)"
 [ "$COUNT" -ge 6 ] && echo "AGH_SESSION_OK" || echo "AGH_SESSION_BELOW_THRESHOLD"
 
 # ---------------------------------------------------------------------------
