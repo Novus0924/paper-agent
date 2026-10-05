@@ -8,7 +8,7 @@ import unittest
 _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(_TESTS_DIR, "..", "core"))
 sys.path.insert(0, _TESTS_DIR)
-from _util import build_temp_root  # noqa: E402
+from _util import isolate_temp_root  # noqa: E402
 
 from paper_agent.provenance import ProvenanceLedger, EvidenceError  # noqa: E402
 
@@ -23,15 +23,10 @@ def _sample_file(tmp: str, name: str, content: str) -> str:
 
 class TestProvenance(unittest.TestCase):
     def setUp(self):
-        self._tmp = tempfile.mkdtemp(prefix="pa_prov_")
-        self.root = build_temp_root(self._tmp)
+        self.root = isolate_temp_root(self, "pa_prov_")
         self.run_dir = os.path.join(self.root, "runs", "run-test")
         os.makedirs(self.run_dir, exist_ok=True)
         self.prov = ProvenanceLedger(self.run_dir, "run-test")
-
-    def tearDown(self):
-        import shutil
-        shutil.rmtree(self._tmp, ignore_errors=True)
 
     def test_ev_ids_increment(self):
         e1 = self.prov.append_evidence("literature", "10.1038/nmat3066",
@@ -117,15 +112,10 @@ class TestThreeTierTrust(unittest.TestCase):
     """三级信任模型：fact 可进结论，judgment 不得进结论（redesign D5 / 判据 4）。"""
 
     def setUp(self):
-        self._tmp = tempfile.mkdtemp(prefix="pa_tier_")
-        self.root = build_temp_root(self._tmp)
+        self.root = isolate_temp_root(self, "pa_tier_")
         self.run_dir = os.path.join(self.root, "runs", "run-tier")
         os.makedirs(self.run_dir, exist_ok=True)
         self.prov = ProvenanceLedger(self.run_dir, "run-tier")
-
-    def tearDown(self):
-        import shutil
-        shutil.rmtree(self._tmp, ignore_errors=True)
 
     def test_fact_evidence_is_tiered_fact(self):
         ev = self.prov.append_evidence("data", "x.csv", "P2_clean_data",

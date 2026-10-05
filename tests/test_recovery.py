@@ -15,7 +15,7 @@ import unittest
 _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(_TESTS_DIR, "..", "core"))
 sys.path.insert(0, _TESTS_DIR)
-from _util import build_temp_root  # noqa: E402
+from _util import isolate_temp_root  # noqa: E402
 
 from paper_agent.state import create_state, load_state, new_run_id, RunStatus  # noqa: E402
 from paper_agent.steps import Pipeline  # noqa: E402
@@ -31,13 +31,11 @@ def _run_events(root: str, run_id: str) -> list:
 class TestRecovery(unittest.TestCase):
     def setUp(self):
         clear_chaos_mode()
-        self._tmp = tempfile.mkdtemp(prefix="pa_rec_")
-        self.root = build_temp_root(self._tmp)
+        self.root = isolate_temp_root(self, "pa_rec_")
 
     def tearDown(self):
         clear_chaos_mode()
-        import shutil
-        shutil.rmtree(self._tmp, ignore_errors=True)
+        # 临时目录与全局量的清理由 isolate_temp_root 的 addCleanup 负责
 
     def _plan(self, chaos=""):
         rid = new_run_id()

@@ -15,7 +15,7 @@ import unittest
 _TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(_TEST_DIR, "..", "core"))
 sys.path.insert(0, _TEST_DIR)
-from _util import build_temp_root  # noqa: E402
+from _util import isolate_temp_root  # noqa: E402
 
 from paper_agent import security_scan  # noqa: E402
 from paper_agent.provenance import ProvenanceLedger  # noqa: E402
@@ -43,12 +43,7 @@ class TestValidateRunId(unittest.TestCase):
 
 class TestSafeRunsPath(unittest.TestCase):
     def setUp(self):
-        self._tmp = tempfile.mkdtemp(prefix="pa_scan_")
-        self.root = build_temp_root(self._tmp)
-
-    def tearDown(self):
-        import shutil
-        shutil.rmtree(self._tmp, ignore_errors=True)
+        self.root = isolate_temp_root(self, "pa_scan_")
 
     def test_valid_id_stays_inside_runs(self):
         p = security_scan.safe_runs_path(self.root, "run-abc123")
@@ -94,15 +89,10 @@ class TestDetectPromptInjection(unittest.TestCase):
 
 class TestProvenanceChain(unittest.TestCase):
     def setUp(self):
-        self._tmp = tempfile.mkdtemp(prefix="pa_chain_")
-        self.root = build_temp_root(self._tmp)
+        self.root = isolate_temp_root(self, "pa_chain_")
         self.run_dir = os.path.join(self.root, "runs", "run-chain")
         os.makedirs(self.run_dir, exist_ok=True)
         self.prov = ProvenanceLedger(self.run_dir, "run-chain")
-
-    def tearDown(self):
-        import shutil
-        shutil.rmtree(self._tmp, ignore_errors=True)
 
     def test_fresh_chain_verifies_clean(self):
         self.prov.append_evidence("literature", "10.1038/nmat3066", "P1_lit_search")
@@ -135,12 +125,7 @@ class TestProvenanceChain(unittest.TestCase):
 
 class TestStateRunIdGate(unittest.TestCase):
     def setUp(self):
-        self._tmp = tempfile.mkdtemp(prefix="pa_state_")
-        self.root = build_temp_root(self._tmp)
-
-    def tearDown(self):
-        import shutil
-        shutil.rmtree(self._tmp, ignore_errors=True)
+        self.root = isolate_temp_root(self, "pa_state_")
 
     def test_create_state_rejects_traversal(self):
         for bad in ("../escape", "/abs", "run-x/../../y"):

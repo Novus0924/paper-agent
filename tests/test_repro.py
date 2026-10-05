@@ -15,7 +15,7 @@ import unittest
 _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(_TESTS_DIR, "..", "core"))
 sys.path.insert(0, _TESTS_DIR)
-from _util import build_temp_root, make_clean_csv  # noqa: E402
+from _util import isolate_temp_root, make_clean_csv  # noqa: E402
 
 from paper_agent import verify as V  # noqa: E402
 
@@ -42,13 +42,8 @@ def _spawn(root: str, clean_csv: str, outdir: str, mutate: bool = False) -> int:
 
 class TestRepro(unittest.TestCase):
     def setUp(self):
-        self._tmp = tempfile.mkdtemp(prefix="pa_repro_")
-        self.root = build_temp_root(self._tmp)
+        self.root = isolate_temp_root(self, "pa_repro_")
         self.clean_csv = make_clean_csv(self._tmp)
-
-    def tearDown(self):
-        import shutil
-        shutil.rmtree(self._tmp, ignore_errors=True)
 
     def test_deterministic_two_runs(self):
         out1 = os.path.join(self._tmp, "o1")

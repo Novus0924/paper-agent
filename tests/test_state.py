@@ -7,7 +7,7 @@ import unittest
 _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(_TESTS_DIR, "..", "core"))
 sys.path.insert(0, _TESTS_DIR)
-from _util import build_temp_root  # noqa: E402
+from _util import isolate_temp_root  # noqa: E402
 
 from paper_agent.state import (  # noqa: E402
     PipelineState, StepStatus, RunStatus, StateError,
@@ -17,12 +17,7 @@ from paper_agent.state import (  # noqa: E402
 
 class TestStateMachine(unittest.TestCase):
     def setUp(self):
-        self._tmp = tempfile.mkdtemp(prefix="pa_state_")
-        self.root = build_temp_root(self._tmp)
-
-    def tearDown(self):
-        import shutil
-        shutil.rmtree(self._tmp, ignore_errors=True)
+        self.root = isolate_temp_root(self, "pa_state_")
 
     def test_plan_creates_run_and_events(self):
         rid = new_run_id()

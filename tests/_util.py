@@ -1,13 +1,24 @@
-"""tests 共享工具：构建隔离的临时项目根（含 data/ 与 experiments/）。
+"""tests 共享工具：构建隔离的临时项目根（含 data/ 与experiments/）。
 
 单元测试绝不写项目真实 runs/，全部在临时目录内完成，
 并通过设置 paper-agent_ROOT 环境变量指向临时根，保证可复现、互不污染。
+
+⚠️ 隔离的关键：``build_temp_root()`` 会改**四个进程级全局量**
+（``os.environ["paper-agent_ROOT"]`` + ``paper_agent`` 的
+``PAPER_AGENT_ROOT`` / ``DATA_DIR`` / ``EXPERIMENTS_DIR`` / ``RUNS_DIR``）。
+只设不还原会造成**测试间污染**：后跑的用例会读到上一个用例留下的临时根，
+而那个目录可能已被 ``tearDown`` 删掉→ 表现为**偶发**的
+``AssertionError: True is not false`` 之类断言失败（flaky）。
+
+因此**请一律用** ``isolate_temp_root()``（自动还原，推荐），
+或手动调 ``build_temp_root()`` 后紧跟 ``restore_globals()``。
 """
 from __future__ import annotations
 
 import os
 import shutil
 import sys
+import tempfile
 
 # 让测试能 import paper_agent（core 目录加入 sys.path）
 _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -16,13 +27,41 @@ _CORE = os.path.join(_PROJECT_ROOT, "core")
 if _CORE not in sys.path:
     sys.path.insert(0, _CORE)
 
+# 被 build_temp_root 改动的全局量名字（用于保存/还原）
+_ENV_KEY = "paper-agent_ROOT"
+_GLOBALS = ("PAPER_AGENT_ROOT", "DATA_DIR", "EXPERIMENTS_DIR", "RUNS_DIR")
+
 
 def project_root() -> str:
     return _PROJECT_ROOT
 
 
+def _snapshot_globals():
+    """记录当前全局量取值（只在该变量已存在时记，缺失则记None）。"""
+    import paper_agent
+    env = os.environ.get(_ENV_KEY)
+    saved = {name: getattr(paper_agent, name, None) for name in _GLOBALS}
+    return env, saved
+
+
+def _restore_globals(env, saved):
+    """把全局量还原到快照状态。"""
+    import paper_agent
+    if env is None:
+        os.environ.pop(_ENV_KEY, None)
+    else:
+        os.environ[_ENV_KEY] = env
+    for name, value in saved.items():
+        if value is not None:
+            setattr(paper_agent, name, value)
+
+
 def build_temp_root(tmp: str) -> str:
-    """把项目的 data/ 与 experiments/ 拷入 tmp，作为隔离根。"""
+    """把项目的 data/ 与 experiments/ 拷入 tmp，作为隔离根。
+
+    ⚠️ 调用方**必须**还原全局量，否则污染同进程内的后续测试。
+    优先改用 :func:`isolate_temp_root`。
+    """
     import paper_agent
     src_data = os.path.join(_PROJECT_ROOT, "data")
     src_exp = os.path.join(_PROJECT_ROOT, "experiments")
@@ -38,12 +77,62 @@ def build_temp_root(tmp: str) -> str:
         os.makedirs(dst_exp, exist_ok=True)
     os.makedirs(os.path.join(tmp, "runs"), exist_ok=True)
     # 指向临时根
-    os.environ["paper-agent_ROOT"] = tmp
+    os.environ[_ENV_KEY] = tmp
     paper_agent.PAPER_AGENT_ROOT = tmp
     paper_agent.DATA_DIR = dst_data
     paper_agent.EXPERIMENTS_DIR = dst_exp
     paper_agent.RUNS_DIR = os.path.join(tmp, "runs")
     return tmp
+
+
+def restore_globals() -> None:
+    """还原到**项目真实根**。
+
+    供 tearDown 兜底调用：把全局量指回仓库真实路径与真实 data/，
+    避免"上一个临时目录已被删、后续用例还在往里写"的情况。
+    """
+    import paper_agent
+    os.environ[_ENV_KEY] = _PROJECT_ROOT
+    paper_agent.PAPER_AGENT_ROOT = _PROJECT_ROOT
+    paper_agent.DATA_DIR = os.path.join(_PROJECT_ROOT, "data")
+    paper_agent.EXPERIMENTS_DIR = os.path.join(_PROJECT_ROOT, "experiments")
+    paper_agent.RUNS_DIR = os.path.join(_PROJECT_ROOT, "runs")
+
+
+def isolate_temp_root(case, prefix: str = "pa_") -> str:
+    """给 unittest 用例建隔离临时根，并**自动注册清理**。
+
+    这是推荐入口：既建目录，又保证 tearDown 时
+    ①还原全局量 ②删除临时目录 —— 即使用例中途抛异常也不会留下污染。
+
+    ⚠️ ``addCleanup`` 是 **LIFO**（后进先出）执行，所以注册顺序要讲究：
+    先注册"删目录"、再注册"还原全局量"→ 实际执行时
+    **先还原全局量、后删目录**。这个顺序才对：还原时若还要读目录也不受影响，
+    且万一删目录失败，全局量也已经回到安全状态。
+
+    兼容性：仍会设置 ``case._tmp``，因为多个测试用 ``self._tmp`` 拼装
+    自己的样本文件路径（历史写法，保留以免大面积改动）。
+
+    用法::
+
+        def setUp(self):
+            self.root = isolate_temp_root(self, "pa_prov_")
+    """
+    # ⚠️ 快照必须在 build_temp_root 改写全局量**之前**取
+    env, saved = _snapshot_globals()
+    tmp = tempfile.mkdtemp(prefix=prefix)
+    try:
+        root = build_temp_root(tmp)
+    except Exception:
+        # 建根失败也别留下半改的状态
+        _restore_globals(env, saved)
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise
+    case._tmp = tmp          # 兼容历史写法：self._tmp 拼样本文件路径
+    case.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+    case.addCleanup(_restore_globals, env, saved)
+    return root
+
 
 
 def make_clean_csv(tmp: str) -> str:
