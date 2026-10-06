@@ -246,10 +246,12 @@ def generate_research_report(root: str, run_id: str, state: PipelineState,
         raise EvidenceError(
             "binding invariants violated, report refused: "
             + "; ".join(binding_problems))
-    # 判据4 硬前置（judgment 缺失即报告失败）：当前整合版未把 judge 接入
-    # research 主线（novus freeze 子系统独立、OBELiX 数据未随包），无条件启用
-    # 会误伤合法 run；故以环境变量显式开启，judge 接线后置 1 即生效。
-    if os.environ.get("PAPER_AGENT_ENFORCE_JUDGMENT", "").strip() == "1":
+    # 判据4 硬前置（judgment 缺失即报告失败）：judge 已接入 research 主线
+    # （R1 登记 query_generation 判断、R2 逐篇登记精读选择 relevance 判断，
+    # 任何正常完成的 run 账本中必有判断记录），故默认启用：
+    # 账本无判断记录 → 拒绝出报告。对历史 run（接线前的账本）出报告时，
+    # 可显式置 PAPER_AGENT_ENFORCE_JUDGMENT=0 旁路（仅建议调试用途）。
+    if os.environ.get("PAPER_AGENT_ENFORCE_JUDGMENT", "1").strip() != "0":
         prov.require_judgment_batch()
 
     hits = read_json_or(os.path.join(run_dir, "literature", "research_hits.json"))
