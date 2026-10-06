@@ -21,10 +21,12 @@
  *  【plan 不回显 goal】plan 的 stdout JSON 里没有 goal 字段，
  *     必须读 runs/<id>/state.json 才有。
  *
- *  【sources_status 不在 toolcalls 文件里】
- *     toolcalls/*.json 的实际 keys 只有 input / invoked_at / output / step / tool。
- *     四源状态在 **run-step 命令的 stdout JSON** 里（swe 实测已见）。
- *     → 所以每次 run-step 后把 stdout 存进内存，作为该步骤的 tool 事件数据源。
+ *  【sources_status 有两个持久来源，内存只是实时缓存】
+ *     ① run-step 命令的 stdout JSON（实时，含 elapsed 计时）；
+ *     ② toolcalls/*.json 的 **output 子对象**（R1_search 落盘含 sources_status，
+ *        实证：runs/<id>/toolcalls/<ts>_R1_search.json → output.sources_status）。
+ *     → run-step 后把 stdout 存内存（stepOutputs）供 SSE 实时用；
+ *       装配 evidence 时内存 miss 则回读 toolcalls 文件，**重启不丢**。
  *
  *  【conclusions.jsonl 可能不存在】
  *     R1..R3 跑完时该文件还没生成，R4/R5 之后才有。
@@ -62,22 +64,13 @@ const AGENT_ROOT = process.env.PAPER_AGENT_ROOT
   || path.resolve(WEB_ROOT, '..');
 
 /**
- * Python 解释器。优先读环境变量，再试常见位置。
- * ⚠️ 下面第一项是本机开发环境的绝对路径，**换机器必然不存在**——
- *existsSync 判定会跳过它，最终回退到 `python`（走系统 PATH）。
- *    别人部署时只需设PAPER_AGENT_PYTHON，不必改代码。
+ * Python 解释器。优先读环境变量 PAPER_AGENT_PYTHON，再回退系统 PATH 的 python。
+ * 不保留任何机器特定绝对路径——历史版本硬编码过旧开发机的 python.exe，
+ * 对新部署毫无意义且易误导（existsSync 虽会跳过，但属于死配置）。
+ *    部署时只需设 PAPER_AGENT_PYTHON（可选），否则走 PATH。
  */
 function resolvePython() {
   if (process.env.PAPER_AGENT_PYTHON) return process.env.PAPER_AGENT_PYTHON;
-  const cands = [
-    // 本机开发路径（不存在时自动跳过）
-    'C:/Users/lenovo/AppData/Local/Programs/Python/Python312/python.exe',
-    'python', 'python3',
-  ];
-  for (const c of cands) {
-    if (c === 'python' || c === 'python3') return c;
-    if (fs.existsSync(c)) return c;
-  }
   return 'python';
 }
 const PYTHON = resolvePython();
@@ -111,7 +104,15 @@ function runCli(args, { timeoutMs = 180000 } = {}) {
   return new Promise((resolve) => {
     const child = spawn(PYTHON, ['-m', 'paper_agent.cli', ...args], {
       cwd: AGENT_ROOT,
-      env: { ...process.env, PYTHONPATH: path.join(AGENT_ROOT, 'core') },
+      env: {
+        ...process.env,
+        PYTHONPATH: path.join(AGENT_ROOT, 'core'),
+        // 强制对齐 Python 侧根目录（Python core 认 paper-agent_ROOT / PAPER_AGENT_ROOT）。
+        // 不注入的话，宿主环境残留的 paper-agent_ROOT 会让 CLI 把产物
+        // 写到别的仓库（实测：runs 静默分裂，GET /api/runs/{id} 404）。
+        'paper-agent_ROOT': AGENT_ROOT,
+        PAPER_AGENT_ROOT: AGENT_ROOT,
+      },
       windowsHide: true,
     });
 
@@ -209,7 +210,8 @@ function toolNameOf(step) {
  * 装配 toolcalls 数组（对应前端的 tool 卡）。
  * 数据来源：
  *   - toolcalls/*.json → step / tool / invoked_at / input / output
- *   - 内存中的 stepOutputs → 该步骤 run-step 的 stdout JSON（含 sources_status ★）
+ *     （output.sources_status = R1_search 落盘的四源状态，重启后仍可回读）
+ *   - 内存中的 stepOutputs → 该步骤 run-step 的 stdout JSON（实时优先）
  */
 async function readToolcalls(runId, stepOutputs) {
   const dir = path.join(runDir(runId), 'toolcalls');
@@ -232,8 +234,10 @@ async function readToolcalls(runId, stepOutputs) {
       status: 'completed',
       elapsed_ms: so.elapsed_ms ?? null,
       input: d.input || {},
-      // ★ sources_status 只存在于 run-step 的 stdout，文件里没有
-      sources_status: so.sources_status || d.sources_status || null,
+      // sources_status：内存（实时 stdout）优先；重启后从 toolcalls 文件的
+      // output 子对象回读（R1_search 落盘含四源状态，P1 为单源无此字段 → null）
+      sources_status: so.sources_status || d.output?.sources_status
+        || d.sources_status || null,
       output: d.output ?? null,
       invoked_at: d.invoked_at ?? null,
     });
