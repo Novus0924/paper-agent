@@ -12,6 +12,10 @@ packages/
 # Run instances (per-run artifacts, never committed)
 runs/
 
+# Frozen snapshots: the shipped ones are tracked, pending ones are not
+snapshots/.pending/
+snapshots/snap-*/pending/
+
 # Generated audit pack (deliverable output; template stays tracked)
 audit-pack/
 audit-pack.tar.gz
