@@ -12,9 +12,11 @@ from __future__ import annotations
 import os
 
 # 核心包位于 <root>/core/paper_agent/，故根目录为两个层级之上。
-# 允许通过环境变量 paper-agent_ROOT 覆盖（AGH 插件层注入项目根路径）。
+# 允许通过环境变量覆盖：优先 PAPER_AGENT_ROOT（标准命名，bash 可直接操作），
+# 其次 paper-agent_ROOT（AGH 插件层历史注入名，保留兼容；含连字符，
+# 在 bash 中无法 unset/引用，仅可由宿主进程注入）。
 def _detect_root() -> str:
-    override = os.environ.get("paper-agent_ROOT")
+    override = os.environ.get("PAPER_AGENT_ROOT") or os.environ.get("paper-agent_ROOT")
     if override:
         return os.path.abspath(override)
     return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))

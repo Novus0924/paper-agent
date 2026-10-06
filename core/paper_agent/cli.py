@@ -64,7 +64,9 @@ def _emit_fail(obj: dict, code: int) -> int:
 
 def _add_global_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--chaos", default="", dest="chaos",
-                  help="chaos mode: p1_fail_first|p1_fail_all|mutate_summary|""")
+                  help="chaos mode: p1_fail_first|p1_fail_all|mutate_summary|"
+                       "kill_after_p2|kill_after_r3|ss_timeout|scan_pdf|"
+                       "batch_fail_at=N|")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -189,7 +191,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _root() -> str:
-    return os.environ.get("paper-agent_ROOT") or PAPER_AGENT_ROOT
+    # 与 __init__._detect_root 同序：PAPER_AGENT_ROOT 优先，paper-agent_ROOT 兼容
+    return (os.environ.get("PAPER_AGENT_ROOT")
+            or os.environ.get("paper-agent_ROOT")
+            or PAPER_AGENT_ROOT)
 
 
 # ---------- handlers ----------
@@ -646,10 +651,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.chaos:
         from .chaos import set_chaos_mode
         set_chaos_mode(args.chaos)
+    handler = _HANDLERS.get(args.cmd)
+    if handler is None:
+        return _emit_fail({"ok": False, "error": f"unknown cmd: {args.cmd}"}, 2)
     try:
-        return _HANDLERS[args.cmd](args)
-    except KeyError as e:
-        return _emit_fail({"ok": False, "error": f"unknown step: {e}"}, 2)
+        return handler(args)
     except Exception as e:  # 业务异常 → 非 0 退出码
         return _emit_fail({"ok": False, "cmd": args.cmd,
                           "error": f"{type(e).__name__}: {e}"}, 1)
