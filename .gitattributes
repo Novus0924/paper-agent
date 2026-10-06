@@ -1,0 +1,40 @@
+# 文本与数据文件一律按 LF 存储，避免跨平台换行改写破坏完整性校验。
+#
+# 为什么需要：OBELiX 数据集与冻结快照的manifest.json 记录了逐文件
+# SHA-256 强校验。若 Windows 开发者本机 core.autocrlf=true，检出时
+# LF 会被改写成 CRLF，字节变化 → 校验失败、数据不可复现。
+# 这不是假设：本仓库开发时该配置即为 true，git 提交时就发出过
+# "LF will be replaced by CRLF" 警告。
+#
+# 规则：
+#   * 默认按 LF 存储与检出，不做平台转换
+#   * Windows 批处理明确用 CRLF（它们靠CRLF 才能正常运行）
+#   * 标记为 binary 的类型不参与任何换行转换
+#   -text -diff 标 binary，保证 CSV/JSONL 逐字节可比对
+
+# 默认：不转换
+* text=auto eol=lf
+
+# 数据与证据文件：逐字节可比对，必须关掉转换
+*.csv    text eol=lf
+*.jsonl  text eol=lf
+*.json   text eol=lf
+*.svg    text eol=lf
+*.md     text eol=lf
+*.py     text eol=lf
+*.mjs    text eol=lf
+*.js     text eol=lf
+*.css    text eol=lf
+*.html   text eol=lf
+
+# Windows 批处理需要 CRLF
+*.bat    text eol=crlf
+*.cmd    text eol=crlf
+
+# 二进制：绝不转换
+*.png    binary
+*.jpg    binary
+*.ico    binary
+*.pdf    binary
+*.zip    binary
+*.gz     binary
