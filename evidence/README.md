@@ -6,10 +6,19 @@
 
 ## 文件清单
 
-| 文件 | 会话 ID | 行数 | 工具调用 | 覆盖 |
+| 文件 | 会话 ID | 状态 | 工具调用 | 覆盖 |
 |---|---|---|---|---|
-| `session-6139563e.jsonl` | `6139563e-3160-4da5-b227-4ad287f0b01a` | 1364 | 71次 call / 71 次 result（严格配对） | **7/7 `sciret_*` 工具全覆盖** |
-| `session-aa3929f6.jsonl` | `aa3929f6-e7e6-48f8-aedc-f3e1c0614f25` | 270 | 13 次 call / 13 次 result（严格配对） | 2/7（`plan` + `run_step`） |
+| `session-6139563e.jsonl` | `6139563e-...b01a` | ⚠️ **本机缺文件**（见下方迁移说明） | 71次 call / 71 次 result（严格配对） | **7/7 `sciret_*` 工具全覆盖** |
+| `session-aa3929f6.jsonl` | `aa3929f6-...4f25` | ⚠️ **本机缺文件**（同上） | 13 次 call / 13 次 result（严格配对） | 2/7（`plan` + `run_step`） |
+| `session-bcc6541d.jsonl` | `bcc6541d-...df68` | ✅ **本机在档**（2026-10-06 导出） | 4 次 call / 4 次 result（ok=4 fail=0） | 3/7（`plan` + `run_step` + `cite`） |
+
+> **迁移状态说明（2026-10-06 如实标注）**：`6139563e` / `aa3929f6` 是旧开发环境
+> （`D:\workBubbyStore\hkx-v3`，lenovo 机器）daemon 库中的会话，**daemon 库未随迁移**——
+> 本机 `~/.agh/data/tables/_40agnes_2fdaemon.db` 的 `session_workspaces` 表查无此二 id，
+> `agnes export` 报 `CAPABILITY_DENIED`，文件无法重导出。下文对这两个文件的分析保留作
+> 历史参考。**本机当前在档的唯一 sciret 工具会话证据为 `session-bcc6541d.jsonl`**
+> （2026-10-05「使用sciret工具规划并执行LLM幻觉缓解研究」，关联 run-20261005-074025-249766，
+> 复核输出：插件工具覆盖 3/7、调用合计 ok=4 fail=0）。
 
 ### `session-6139563e.jsonl`（主证据）
 

@@ -36,3 +36,4 @@ Thumbs.db
 workdir/
 workdir_*.json  
 workdir_*.err  
+evidence/**/*.jsonl

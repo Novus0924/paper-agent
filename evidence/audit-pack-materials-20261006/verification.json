@@ -1,0 +1,94 @@
+{
+  "checks": [
+    {
+      "actual": "e17a61b7ef27ee36b11c6e31e6759850606bc77b530c4541f0a694ff00a88bef",
+      "expected": "e17a61b7ef27ee36b11c6e31e6759850606bc77b530c4541f0a694ff00a88bef",
+      "name": "results_csv_sha256",
+      "pass": true
+    },
+    {
+      "actual": 6,
+      "expected": 6,
+      "name": "n_rows",
+      "pass": true
+    },
+    {
+      "actual": [
+        "M001",
+        "M002",
+        "M003"
+      ],
+      "expected": [
+        "M001",
+        "M002",
+        "M003"
+      ],
+      "name": "top3_material_id_set",
+      "pass": true
+    },
+    {
+      "actual": [
+        {
+          "formula": "Li9.54Si1.74P1.44S11.7Cl0.3",
+          "material_id": "M002",
+          "rank": 1,
+          "score": 0.9
+        },
+        {
+          "formula": "LGPS",
+          "material_id": "M001",
+          "rank": 2,
+          "score": 0.822067193
+        },
+        {
+          "formula": "LLZO",
+          "material_id": "M003",
+          "rank": 3,
+          "score": 0.637442564
+        }
+      ],
+      "expected": [
+        {
+          "formula": "Li9.54Si1.74P1.44S11.7Cl0.3",
+          "material_id": "M002",
+          "rank": 1,
+          "score": 0.9
+        },
+        {
+          "formula": "LGPS",
+          "material_id": "M001",
+          "rank": 2,
+          "score": 0.822067193
+        },
+        {
+          "formula": "LLZO",
+          "material_id": "M003",
+          "rank": 3,
+          "score": 0.637442564
+        }
+      ],
+      "mismatch_paths": [],
+      "name": "top3_scores_positional",
+      "pass": true
+    },
+    {
+      "actual": {
+        "argyrodite": -3.3565473235138126,
+        "garnet": -3.610924374808178,
+        "sulfide": -1.7614393726401687,
+        "thin_film": -5.698970004336019
+      },
+      "expected": {
+        "argyrodite": -3.3565473235138126,
+        "garnet": -3.610924374808178,
+        "sulfide": -1.7614393726401687,
+        "thin_film": -5.698970004336019
+      },
+      "mismatch_paths": [],
+      "name": "family_mean_log10_cond",
+      "pass": true
+    }
+  ],
+  "rerun_results_sha256": "e17a61b7ef27ee36b11c6e31e6759850606bc77b530c4541f0a694ff00a88bef",
+  "status": "PASS"
+}
