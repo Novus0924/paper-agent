@@ -60,8 +60,12 @@ paper-agent/
 ├── experiments/
 │   └── arrhenius_rank.py        # 零依赖确定性实验脚本（电导率打分排序；自包含不经 util）
 ├── data/
-│   ├── literature.json          # 内置真实 DOI 文献语料库（5 篇）
-│   └── conductivity_raw.csv     # 带缺陷原始实验数据集（utf-8 BOM）
+│   ├── literature.json          # 内置真实 DOI 文献语料库（5篇）
+│   ├── conductivity_raw.csv     # 带缺陷原始实验数据集（utf-8 BOM）
+│   └── external/obelix/
+│       ├── all.csv              # OBELiX 锂固态电解质实测电导率数据集（599 条）
+│       └── README.md            # 来源、许可（CC-BY-4.0）与引用要求
+├── snapshots/                   # 冻结输入快照（复现契约载体；SHA-256 强校验，见其README）
 ├── runs/<run_id>/               # 运行实例产物（gitignore 忽略；每个 run 完全隔离）
 ├── demo/
 │   ├── install_plugin.sh          # ★ AGH 插件一键安装（幂等；首选入口）
@@ -73,7 +77,7 @@ paper-agent/
 │   ├── reinstall_plugin.ps1       # Windows 自动化重装（参数化；需 -Agh <agnes.mjs>）
 │   └── run_agh_install.cmd        # 纯 cmd 最小安装（需 agnes.mjs 路径参数）
 ├── tools/                        # 无需 TTY 的插件自检脚本（offline / e2e，见 docs/AGH插件安装指南.md）
-├── tests/                        # unittest 套件（11 文件，164 用例，默认离线）
+├── tests/                        # unittest 套件（15 文件，242 用例，默认离线）
 ├── web/                          # 科研工作台前端 + 真实后端（见 web/README.md）
 │   ├── index.html                  # 3 页面：工作台 / 证据溯源 / 新建任务
 │   ├── server/paper-agent-server.js # 真实后端：HTTP+SSE，spawn Python CLI
@@ -191,7 +195,7 @@ $AGH export <SESSION_ID> --format agnes -o evidence/session-full.jsonl
 - [x] 用例 E2/E3 `kill_after_p2`：子进程真实被 `os._exit(137)` 杀死（run-all 与 run-step 双路径），账本完整，resume 续跑到 DONE
 - [x] P5 报告终态幂等复用（重复调用不抛 StateError）
 - [x] report.md 每条结论携带 `[EV-XXXX]` 证据标记；`sciret_cite` 可回查 DOI / SHA-256
-- [x] 单元测试全部通过（164/164，含 14 项安全防御专项测试、9 项插件薄壳安全测试与 3 项测试隔离元测试）
+- [x] 单元测试全部通过（242/242，含 14 项安全防御专项测试、9 项插件薄壳安全测试与 3 项测试隔离元测试）
 - [x] 信任机制现场演示脚本 `demo/demo_trust.sh`：账本篡改 → 报告拒绝；伪造 verification →
   P4 闸门拒绝（`TRUST_DEMO_OK`，退出码 0）
 - [x] AGH 工具面覆盖双工作流：`sciret_plan` 支持 `--workflow research`，
