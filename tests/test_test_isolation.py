@@ -83,7 +83,20 @@ class TestIsolateTempRootRestores(unittest.TestCase):
                          "临时目录未被清理")
 
     def test_second_case_sees_clean_root(self):
-        """关键回归：前一个用例污染过之后，后一个必须看到仓库真实根。"""
+        """关键回归：前一个用例污染过之后，后一个必须看到"干净"状态。
+
+        ⚠️ 这里断言的是「**还原到进入时的值**」，**不是**「等于仓库根」。
+        两者在别人的机器上会分叉：本机用户级环境变量里有
+        `paper-agent_ROOT=D:\\workBubbyStore\\hkx-v3\\paper-agent`（AGH 插件注入的），
+        所以进入时那个值 ≠ `project_root()`。
+        早前版本把断言写成 `assertEqual(..., project_root())`，
+        在本机全绿、在净化环境的克隆体里失败——**是测试自身的错误假设，不是产品缺陷**。
+        正确语义：隔离只负责"用完还原"，不负责"还原成仓库根"。
+        """
+        # 快照本用例进入时的值
+        entry_env = os.environ.get(_ENV_KEY)
+        entry_root = paper_agent.PAPER_AGENT_ROOT
+
         class _Polluter(unittest.TestCase):
             def runTest(self):  # noqa: N802
                 isolate_temp_root(self, "pa_iso_pollute_")
@@ -91,12 +104,26 @@ class TestIsolateTempRootRestores(unittest.TestCase):
         import unittest as _ut
         _Polluter("runTest").run(_ut.TestResult())
 
-        # 不做任何隔离，直接断言看到的是仓库真实根
-        self.assertEqual(os.environ.get(_ENV_KEY), project_root())
-        self.assertEqual(paper_agent.PAPER_AGENT_ROOT, project_root())
-        self.assertEqual(paper_agent.DATA_DIR, os.path.join(project_root(), "data"))
+        # 断言：已还原到进入时的值（而非仓库根）
+        self.assertEqual(os.environ.get(_ENV_KEY), entry_env)
+        self.assertEqual(paper_agent.PAPER_AGENT_ROOT, entry_root)
+
+        # 且无论初始值是什么，真实 data/ 目录必须可用（隔离没把它搞坏）
         self.assertTrue(os.path.isdir(paper_agent.DATA_DIR),
-                        "真实 data/ 目录应存在")
+                        f"data/ 目录应存在，实际 {paper_agent.DATA_DIR}")
+        self.assertTrue(os.path.isdir(paper_agent.EXPERIMENTS_DIR),
+                        f"experiments/ 目录应存在，实际 {paper_agent.EXPERIMENTS_DIR}")
+        # 临时目录必须已消失
+        self.assertNotIn("pa_iso_pollute_", str(paper_agent.PAPER_AGENT_ROOT),
+                         "污染用的临时根未被清除")
+        # 仓库自带的两个资源目录在克隆体里也必须真实存在
+        # （这正是"别人拉下来能不能跑"的最小充分条件）
+        for sub in ("data", "experiments"):
+            self.assertTrue(
+                os.path.isdir(os.path.join(project_root(), sub)),
+                f"仓库缺少 {sub}/ —— 拉取后无法运行")
+
+
 
 
 if __name__ == "__main__":
