@@ -39,3 +39,9 @@ workdir_*.err
 
 # demo-kit 运行时（pid / 日志 / 自检产物）
 demo-kit/.run/
+
+# 演示原型：验收截图目录（_终审截图/ _自测截图/ …）不入库
+演示原型/_*/
+
+# B3 像素级比对截图（大体积二进制，不入库；脚本 _verify_scratch/b3/shoot.py 可复现）
+_verify_scratch/b3/
