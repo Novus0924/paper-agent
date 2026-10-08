@@ -77,6 +77,64 @@ const PYTHON = resolvePython();
 const RUNS_DIR = path.join(AGENT_ROOT, 'runs');
 
 /* ══════════════════════════════════════════════════════════
+   SEC-3：spawn 环境变量白名单
+   （对齐 plugins/paper-agent-tools/index.mjs 的 ENV_ALLOWLIST / curatedEnv 原则）
+   ══════════════════════════════════════════════════════════ */
+/**
+ * 原 `{ ...process.env }` 把整份宿主环境透传给 Python 子进程——与插件侧
+ * curatedEnv 的最小环境原则冲突（防"提示注入诱导出站请求外泄密钥"：
+ * CLI 子进程一旦被诱导出站，整包 env 里的 AGNES_* 与各类 secret 全部可读）。
+ *
+ * 白名单来源 = 对 core/paper_agent/ 全部 os.environ 读取点的依赖调查
+ * （逐个 grep 取证，行号基于 HEAD）：
+ *   - __init__.py:33 / cli.py:232   PAPER_AGENT_ROOT、paper-agent_ROOT（双根，
+ *                                   由 buildChildEnv 钉死 AGENT_ROOT，不透传宿主值）
+ *   - state.py:130                  paper-agent_LIT_SOURCE   （P1 检索来源默认值）
+ *   - research.py:51                paper-agent_READ_LIMIT   （R2 精读篇数上限）
+ *   - chaos.py:37                   paper-agent_CHAOS        （故障注入模式；
+ *                                   CLI --chaos 经 set_chaos_mode 在子进程内自写，
+ *                                   此处保留透传仅为兼容环境注入方式）
+ *   - litsearch.py:830              PAPER_AGENT_MAILTO       （arXiv API 礼貌联络邮箱）
+ *   - llm.py:132/133/138            PAPER_AGENT_LLM_BASE_URL / _MODEL / _API_KEY
+ *                                   （LLM 网关；密钥只透传给 CLI 子进程，
+ *                                   不再随整包 env 暴露给任意代码路径）
+ *   - report.py:254                 PAPER_AGENT_ENFORCE_JUDGMENT（judgment 硬前置旁路）
+ *   - materials_snapshot.py:156     PAPER_AGENT_SNAPSHOT / paper-agent_SNAPSHOT（快照选择，双名）
+ *   - cli.py:842/843                paper-agent_PYTHON（doctor 自检回显）
+ *   - cli.py:748                    AGH_ENTRY（doctor 的 AGH 入口线索，可选探测）
+ *   - steps.py:389 / materials_snapshot.py:572 内部再 spawn 子进程时
+ *     dict(os.environ) 继承本 CLI 进程环境 → Windows spawn 必需项必须在此
+ */
+const ENV_ALLOWLIST = [
+  // ---- Windows 进程 / spawn 运行必需 ----
+  'PATH', 'SYSTEMROOT', 'SYSTEMDRIVE', 'COMSPEC', 'PATHEXT', 'WINDIR',
+  'TEMP', 'TMP', 'TMPDIR', 'LANG', 'LC_ALL',
+  // ---- Python core 显式读取的功能变量（用途见上方调查注释）----
+  'PAPER_AGENT_PYTHON', 'paper-agent_PYTHON',
+  'paper-agent_LIT_SOURCE', 'paper-agent_READ_LIMIT', 'paper-agent_CHAOS',
+  'PAPER_AGENT_MAILTO', 'PAPER_AGENT_ENFORCE_JUDGMENT',
+  'PAPER_AGENT_LLM_BASE_URL', 'PAPER_AGENT_LLM_MODEL', 'PAPER_AGENT_LLM_API_KEY',
+  'PAPER_AGENT_SNAPSHOT', 'paper-agent_SNAPSHOT',
+  'AGH_ENTRY',
+  // ---- 出站代理：urllib 按 getproxies() 读取，在线检索 / LLM 走代理的环境必需 ----
+  'HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY',
+  'http_proxy', 'https_proxy', 'no_proxy',
+];
+
+/** 构建子进程环境：白名单挑选 + 双根变量/PYTHONPATH 钉死（保留原钉死语义）。 */
+function buildChildEnv() {
+  const env = {};
+  for (const k of ENV_ALLOWLIST) {
+    if (process.env[k] !== undefined) env[k] = process.env[k];
+  }
+  // 双根变量钉死 AGENT_ROOT（保留 merge 融合逻辑，消除任何根探测歧义）
+  env['paper-agent_ROOT'] = AGENT_ROOT;
+  env['PAPER_AGENT_ROOT'] = AGENT_ROOT;
+  env.PYTHONPATH = path.join(AGENT_ROOT, 'core');
+  return env;
+}
+
+/* ══════════════════════════════════════════════════════════
    CLI 调用
    ══════════════════════════════════════════════════════════ */
 
@@ -104,20 +162,13 @@ function runCli(args, { timeoutMs = 180000 } = {}) {
   return new Promise((resolve) => {
     const child = spawn(PYTHON, ['-m', 'paper_agent.cli', ...args], {
       cwd: AGENT_ROOT,
-      // ★ 关键：显式把子进程的根环境变量钉死为 AGENT_ROOT（merge 融合：双名都注入），
-      //   保证「服务读的目录」与「Python 写的目录」永远一致——Python core 认
+      // ★ 关键：子进程环境走白名单（SEC-3，见 buildChildEnv 注释）。
+      //   双根变量钉死 AGENT_ROOT（merge 融合：双名都注入），保证「服务读的
+      //   目录」与「Python 写的目录」永远一致——Python core 认
       //   paper-agent_ROOT / PAPER_AGENT_ROOT 双名，双名都钉死以消除任何探测歧义。
-      //   - 不再盲传 process.env：宿主环境残留的失效根变量会让 CLI 把产物写到别的
-      //     仓库（实测：runs 静默分裂，GET /api/runs/{id} 404），或被 P0-2 校验拒绝。
-      //   - 覆盖掉（而非删除）该变量是安全的：当它本来为空/正确时，值与 Python 的
-      //     __file__ 自动探测结果完全相同。
-      env: {
-        ...process.env,
-        PYTHONPATH: path.join(AGENT_ROOT, 'core'),
-        'paper-agent_ROOT': AGENT_ROOT,
-        PAPER_AGENT_ROOT: AGENT_ROOT,
-
-      },
+      //   - 不再整包透传 process.env：宿主环境残留的失效根变量会让 CLI 把产物
+      //     写到别的仓库（实测：runs 静默分裂），且 secret 全量暴露给子进程。
+      env: buildChildEnv(),
       windowsHide: true,
     });
 
@@ -489,12 +540,52 @@ async function execAll(runId) {
    HTTP 层
    ══════════════════════════════════════════════════════════ */
 
+/* ══════════════════════════════════════════════════════════
+   SEC-1：CORS 白名单
+   ══════════════════════════════════════════════════════════ */
+/**
+ * 默认白名单：
+ *   - http://127.0.0.1:5173 / http://localhost:5173 —— 前端 dev server；
+ *   - 'null' —— 演示原型（演示原型/index.html）是 file:// 双击打开的，无构建、
+ *     无 dev server，其 live 模式直接 fetch 本服务；file:// 页面的 Origin 头
+ *     是字符串 "null"，必须放行，否则 live 全旅程演示不可用。
+ *     ★ 决策与残余风险：'null' 意味着本机任意本地 HTML（也是 null origin）
+ *     同样能读到响应——但本服务的威胁模型定位是"第三方网页 drive-by-
+ *     localhost"（公网网站里的 JS 探测用户本机服务），本地文件属用户信任域，
+ *     且服务只绑 127.0.0.1，公网侧无法直接触达。
+ * 可用环境变量 PAPER_AGENT_CORS_ORIGIN（逗号分隔）整体覆盖默认白名单。
+ */
+const CORS_ALLOW_ORIGINS = (process.env.PAPER_AGENT_CORS_ORIGIN || '')
+  .split(',').map((s) => s.trim()).filter(Boolean);
+if (!CORS_ALLOW_ORIGINS.length) {
+  CORS_ALLOW_ORIGINS.push('http://127.0.0.1:5173', 'http://localhost:5173', 'null');
+}
+
+/**
+ * 按请求 Origin 计算 CORS 响应头：
+ *   - 请求带 Origin 且在白名单 → 返回 ACAO=<该 Origin>（回显而非 *，
+ *     未来如需 credentials 可安全开启）+ Vary: Origin（多 origin 缓存正确性）；
+ *   - Origin 不在白名单 → 不发 ACAO 头（由浏览器同源策略自行拦截；
+ *     服务端不做 403——CORS 只是响应头层面的控制）；
+ *   - 无 Origin（curl / CLI / 健康检查等非浏览器客户端）→ 不发任何 CORS 头，
+ *     正常处理请求（这些客户端没有 CORS 概念，绝不能因无 Origin 而拒绝）。
+ */
+function corsHeaders(req) {
+  const origin = req.headers.origin;
+  if (origin === undefined) return {};
+  if (CORS_ALLOW_ORIGINS.includes(origin)) {
+    return { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' };
+  }
+  return { Vary: 'Origin' };
+}
+
 const json = (res, code, body) => {
   const s = JSON.stringify(body);
   res.writeHead(code, {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(s),
-    'Access-Control-Allow-Origin': '*',
+    // res.req 是当前请求对象（Node http.ServerResponse 内置属性）
+    ...corsHeaders(res.req),
   });
   res.end(s);
 };
@@ -518,7 +609,7 @@ const server = http.createServer(async (req, res) => {
 
   if (m === 'OPTIONS') {
     res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
+      ...corsHeaders(req),
       'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     });
@@ -548,7 +639,9 @@ const server = http.createServer(async (req, res) => {
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
       Connection: 'keep-alive',
-      'Access-Control-Allow-Origin': '*',
+      // SEC-1：SSE 同样是数据返回端点（规格三处清单之外发现的第四处硬编码
+      // ACAO:*，不收紧则整条 CORS 白名单形同虚设），统一走 corsHeaders。
+      ...corsHeaders(req),
       'X-Accel-Buffering': 'no',
     });
     res.write('retry: 2000\n\n');
@@ -590,6 +683,13 @@ const server = http.createServer(async (req, res) => {
     const body = await readBody(req);
     const goal = String(body.goal || '').trim();
     if (!goal) return err(res, 400, 'goal 不能为空', 'BAD_GOAL');
+    // SEC-5：goal 直传 argv，Windows 命令行长度限制约 32K——超大 goal 会让
+    // spawn 直接失败且报错难懂。8192 字符上限既远离系统限制，也远超任何
+    // 合法研究目标的长度。
+    if (goal.length > 8192) {
+      return err(res, 400,
+        `goal 过长（${goal.length} 字符），上限 8192 字符`, 'GOAL_TOO_LONG');
+    }
 
     const workflow = WORKFLOWS[body.workflow] ? body.workflow : 'research';
     const litSource = resolveLitSource(body.lit_source);
@@ -756,7 +856,13 @@ const server = http.createServer(async (req, res) => {
       const md = await fsp.readFile(path.join(runDir(runId), 'report.md'), 'utf8');
       res.writeHead(200, {
         'Content-Type': 'text/markdown; charset=utf-8',
-        'Access-Control-Allow-Origin': '*',
+        ...corsHeaders(res.req),
+        // SEC-4：report.md 含 LLM/文献衍生产物，加低成本防御头——
+        // nosniff 阻止浏览器把正文嗅探成可执行类型；
+        // Content-Disposition 明确 inline + 固定文件名，防借附件名做钓鱼伪装。
+        // 正文渲染消毒（HTML 化时的 XSS 处理）归前端评审范围。
+        'X-Content-Type-Options': 'nosniff',
+        'Content-Disposition': 'inline; filename="report.md"',
       });
       return res.end(md);
     } catch {
