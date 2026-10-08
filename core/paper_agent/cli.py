@@ -15,6 +15,9 @@
 **可信框架**：
   verify --run RUN_ID / report --run RUN_ID / cite --run RUN_ID [--ev EV-XXXX]
 
+**环境自检（B2-0）**：
+  doctor                             # 单行 JSON：Python/项目根/runs/环境变量/端口/AGH 线索
+
 约定:
 - stdout 严格只输出单个 JSON 对象（UTF-8）
 - 业务异常 → 非 0 退出码
@@ -127,6 +130,10 @@ def build_parser() -> argparse.ArgumentParser:
     p = mk("cite")
     p.add_argument("--run", required=True)
     p.add_argument("--ev", default="", help="EV-XXXX; omit to list all evidence")
+
+    # 环境自检（B2-0）：stdout 输出单行 JSON，供 demo-kit/health-check.sh 复用，
+    # 避免"自检逻辑散落 Bash 与 Python 两处"。
+    mk("doctor")
 
     # ---- 科研全流程单点工具（research 工作流的能力入口）----
     p = mk("search-papers")
@@ -637,6 +644,195 @@ def _freeze_dispatch(args, root: str, srcs: tuple, freezing) -> int:
 
 
 _HANDLERS["freeze"] = cmd_freeze
+
+
+# ---------- doctor：环境自检（B2-0，供 demo-kit/health-check.sh 复用）----------
+#
+# 设计：一次把"环境体检"跑完，输出**单行 JSON**；每项失败都带 human-readable
+# 的 fix 字段（人话修复指引）。health-check.sh 直接解析本输出做展示，避免自检
+# 逻辑在 Bash 与 Python 两处各写一份而漂移。退出码：0=健康 / 2=有警告 / 1=阻断。
+
+_PY_MIN = (3, 10)
+
+
+def _port_in_use(port: int) -> bool:
+    """本机 127.0.0.1:<port> 是否已被占用（纯 stdlib，跨平台，不依赖 netstat/lsof）。"""
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(("127.0.0.1", port))
+        return False          # bind 成功 → 端口空闲
+    except OSError:
+        return True           # bind 失败 → 已被占用
+    finally:
+        try:
+            s.close()
+        except OSError:
+            pass
+
+
+def _is_valid_root(path: str) -> bool:
+    """路径是否为合法项目根（含 core/paper_agent/ 子目录）。"""
+    if not path:
+        return False
+    return os.path.isdir(os.path.join(os.path.abspath(path), "core", "paper_agent"))
+
+
+def _find_agh_entry(root: str) -> str:
+    """探测 AGH 入口 agnes.mjs（只做线索发现，不保证可用；找不到返回 ""）。"""
+    cands = []
+    env = os.environ.get("AGH_ENTRY")
+    if env:
+        cands.append(env)
+    bases = [
+        os.path.join(root, os.pardir, "agnes-harness"),
+        os.path.join(os.path.expanduser("~"), "agnes-harness"),
+        os.path.join(os.path.expanduser("~"), "agnes-harness-main"),
+        "/c/agnes-harness-main", "/d/agnes-harness-main",
+    ]
+    cands += [os.path.join(b, "packages", "cli", "dist", "local", "agnes.mjs") for b in bases]
+    for c in cands:
+        if c and os.path.isfile(c):
+            return os.path.abspath(c)
+    # 兜底：构建产物目录名可能是 local / local-dev-verify / 其它 → 直接 glob dist/*/agnes.mjs
+    import glob
+    for b in bases:
+        for hit in sorted(glob.glob(os.path.join(b, "packages", "cli", "dist", "*", "agnes.mjs"))):
+            if os.path.isfile(hit):
+                return os.path.abspath(hit)
+    return ""
+
+
+def _has_agh_audit() -> bool:
+    """是否已存在 AGH 安装审计日志（plugin 曾装过的线索）。"""
+    import glob
+    pat = os.path.join(os.path.expanduser("~"), ".agh", "profiles", "*",
+                       ".agnes-package-audit.jsonl")
+    return bool(glob.glob(pat))
+
+
+def _runs_status(root: str) -> dict:
+    """检查 runs/ 是否存在、是否可写（真写一个探针文件再删）。"""
+    runs = os.path.join(root, "runs")
+    info = {"dir": runs, "exists": os.path.isdir(runs), "writable": False}
+    try:
+        os.makedirs(runs, exist_ok=True)
+        probe = os.path.join(runs, ".doctor-write-probe")
+        with open(probe, "w", encoding="utf-8") as f:
+            f.write("ok")
+        os.remove(probe)
+        info["writable"] = True
+    except OSError:
+        info["writable"] = False
+    return info
+
+
+def cmd_doctor(args) -> int:
+    """环境自检（B2-0）：Python / 项目根 / runs 可写 / 环境变量 / 端口 / AGH 线索。
+
+    stdout 只输出单个 JSON 对象（沿用 CLI 约定）。退出码 0=健康 / 2=有警告 / 1=阻断。
+    """
+    root = _root()
+    fails = 0
+    warns = 0
+    hints: list[str] = []
+
+    # 1) Python 解释器（>= 3.10）
+    ver = "%d.%d.%d" % sys.version_info[:3]
+    py_ok = sys.version_info >= _PY_MIN
+    python_ck = {
+        "value": ver, "path": sys.executable, "need": ">=%d.%d" % _PY_MIN, "ok": py_ok,
+        "fix": "" if py_ok else
+        ("需 Python >= %d.%d（当前 %s）。安装后设 paper-agent_PYTHON=<python 绝对路径>，"
+         "并在启动 daemon 的终端里重启 daemon。" % (_PY_MIN + (ver,))),
+    }
+    if not py_ok:
+        fails += 1
+        hints.append(python_ck["fix"])
+
+    # 2) 项目根（存在 + 含 core/paper_agent）
+    root_ok = _is_valid_root(root)
+    root_ck = {
+        "value": root, "marker": os.path.join("core", "paper_agent"), "ok": root_ok,
+        "fix": "" if root_ok else
+        ("项目根非法：该目录下应存在 core/paper_agent/。若用 paper-agent_ROOT 指定，"
+         "请改指真正的仓库根后重启 daemon。"),
+    }
+    if not root_ok:
+        fails += 1
+        hints.append(root_ck["fix"])
+
+    # 3) runs/ 可写
+    rs = _runs_status(root)
+    runs_ok = bool(rs["writable"])
+    runs_ck = {
+        "dir": rs["dir"], "exists": rs["exists"], "writable": rs["writable"], "ok": runs_ok,
+        "fix": "" if runs_ok else
+        "runs/ 不可写：检查目录权限，或把 paper-agent_ROOT 指向有写权限的仓库根。",
+    }
+    if not runs_ok:
+        fails += 1
+        hints.append(runs_ck["fix"])
+
+    # 4) 环境变量契约（本进程实际看到的值）
+    raw_root = os.environ.get("paper-agent_ROOT", "")
+    raw_py = os.environ.get("paper-agent_PYTHON", "")
+    root_var_valid = (raw_root == "") or _is_valid_root(raw_root)
+    env_ck = {
+        "paper-agent_ROOT": {"set": bool(raw_root), "value": raw_root,
+                             "valid": root_var_valid},
+        "paper-agent_PYTHON": {"set": bool(raw_py), "value": raw_py},
+        "ok": root_var_valid,
+        "fix": "" if root_var_valid else
+        ('paper-agent_ROOT 指向非法目录：请在启动 daemon 的终端里重新注入正确路径'
+         '（env "paper-agent_ROOT=<仓库绝对路径>" ...）后重启 daemon。'),
+    }
+    if not root_var_valid:
+        warns += 1
+        hints.append(env_ck["fix"])
+
+    # 5) 端口 8787 / 5173（占用属警告，可顺延，不阻断）
+    ports_detail = {}
+    ports_ok = True
+    for port in (8787, 5173):
+        free = not _port_in_use(port)
+        ports_detail[str(port)] = {"free": free}
+        if not free:
+            ports_ok = False
+    ports_ck = {
+        "checked": [8787, 5173], "detail": ports_detail, "ok": ports_ok,
+        "fix": "" if ports_ok else
+        "端口被占用：Git Bash 下 taskkill //PID <pid> //F，或设 PORT 顺延到空闲端口。",
+    }
+    if not ports_ok:
+        warns += 1
+        hints.append(ports_ck["fix"])
+
+    # 6) AGH 插件线索（可选；缺失降级为警告，不让 demo-kit 强依赖 AGH）
+    agh_entry = _find_agh_entry(root)
+    agh_ck = {
+        "entry": agh_entry, "audit_log": _has_agh_audit(), "optional": True,
+        "ok": bool(agh_entry),
+        "fix": "" if agh_entry else
+        "未检测到 AGH（可选）：demo-kit 不依赖 AGH；如需集成见 docs/AGH插件安装指南.md。",
+    }
+    if not agh_entry:
+        warns += 1
+
+    level = "fail" if fails else ("warn" if warns else "ok")
+    code = 1 if fails else (2 if warns else 0)
+    out = {
+        "ok": fails == 0, "cmd": "doctor", "level": level,
+        "python": python_ck, "project_root": root_ck, "runs": runs_ck,
+        "env": env_ck, "ports": ports_ck, "agh": agh_ck,
+        "summary": {"fail": fails, "warn": warns, "level": level},
+        "hints": hints,
+    }
+    return _emit_fail(out, code)
+
+
+_HANDLERS["doctor"] = cmd_doctor
 
 
 def main(argv: list[str] | None = None) -> int:
