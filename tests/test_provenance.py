@@ -1,4 +1,6 @@
-"""test_provenance.py — 证据账本、结论绑定、引文渲染。"""
+"""test_provenance.py — 证据账本、结论绑定、引文渲染、尾部崩溃残留自愈。"""
+import contextlib
+import io
 import json
 import os
 import sys
@@ -106,6 +108,87 @@ class TestProvenance(unittest.TestCase):
         prov2 = ProvenanceLedger(self.run_dir, "run-test")
         self.assertTrue(prov2.has(ev))
         self.assertEqual(prov2.next_ev_num, 2)
+
+
+class TestLedgerTailRecovery(unittest.TestCase):
+    """MAINT-9：账本尾部崩溃残留自愈（中间坏行仍响亮失败）。
+
+    进程崩溃于 append 中途会在 provenance.jsonl 尾部留下半行 JSON：
+    - 尾部残留 → 截断自愈（stderr 告警），load/verify_chain/append 恢复一致；
+    - 中间坏行 → 抛 EvidenceError（疑似篡改或磁盘问题，拒绝加载）。
+    """
+
+    def setUp(self):
+        self.root = isolate_temp_root(self, "pa_prov9_")
+        self.run_dir = os.path.join(self.root, "runs", "run-tail")
+        os.makedirs(self.run_dir, exist_ok=True)
+        # 建有效账本：两条合法记录（带 chain_hash 链）
+        prov = ProvenanceLedger(self.run_dir, "run-tail")
+        prov.append_evidence("literature", "10.1038/nmat3066", "P1_lit_search")
+        prov.append_evidence("data", "clean/x.csv", "P2_clean_data")
+        self.path = os.path.join(self.run_dir, "provenance.jsonl")
+
+    def _raw(self) -> str:
+        with open(self.path, "r", encoding="utf-8", newline="") as f:
+            return f.read()
+
+    def _load_with_stderr(self) -> tuple[ProvenanceLedger, str]:
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            prov = ProvenanceLedger(self.run_dir, "run-tail")
+        return prov, err.getvalue()
+
+    def test_tail_half_line_self_heals_and_append_continues(self):
+        """尾部半行：load 成功 + stderr 告警 + 截断回有效态 + append 接续正常。"""
+        # 模拟进程崩溃于 append 中途：残留半行 JSON（无换行）
+        with open(self.path, "a", encoding="utf-8", newline="") as f:
+            f.write('{"ev_id": "EV-99", "chain_hash": "abc')
+        prov, warning = self._load_with_stderr()
+
+        # ① load 成功，只有崩溃前两条有效记录，残留未混入索引
+        self.assertTrue(prov.has("EV-0001"))
+        self.assertTrue(prov.has("EV-0002"))
+        self.assertFalse(prov.has("EV-99"))
+        self.assertEqual(prov.next_ev_num, 3)
+        # ② stderr 恰有告警（含文件路径与截断字节数），不污染 stdout
+        self.assertIn("截断", warning)
+        self.assertIn(self.path, warning)
+        # ③ 文件被截断回有效态：全行可解析、以换行结尾
+        raw = self._raw()
+        self.assertTrue(raw.endswith("\n"))
+        for line in raw.splitlines():
+            json.loads(line)
+        self.assertEqual(len(raw.splitlines()), 2)
+        # ④ 自愈后链完整
+        self.assertEqual(prov.verify_chain(), [])
+        # ⑤ 后续 append 正常：ev_id 序号接续、chain_hash 接续、从新行开始
+        ev = prov.append_evidence("experiment", "exp/r.csv", "P3_run_experiment")
+        self.assertEqual(ev, "EV-0003")
+        self.assertEqual(prov.verify_chain(), [])
+        lines = self._raw().splitlines()
+        self.assertEqual(len(lines), 3)
+        self.assertEqual(json.loads(lines[-1])["ev_id"], "EV-0003")
+        self.assertTrue(json.loads(lines[-1])["chain_hash"])
+        self.assertEqual(json.loads(lines[-2])["ev_id"], "EV-0002")
+
+    def test_mid_corrupt_line_fails_loud_with_lineno(self):
+        """中间坏行（其后仍有有效行）→ 抛 EvidenceError 且错误消息含行号。"""
+        lines = self._raw().splitlines()
+        corrupted = lines[:1] + ['{"ev_id": "EV-77", "brok'] + lines[1:]
+        with open(self.path, "w", encoding="utf-8", newline="") as f:
+            f.write("\n".join(corrupted) + "\n")
+        with self.assertRaises(EvidenceError) as cm:
+            ProvenanceLedger(self.run_dir, "run-tail")
+        msg = str(cm.exception)
+        self.assertIn("第 2 行", msg)
+        self.assertIn("拒绝加载", msg)
+
+    def test_verify_chain_clean_after_self_heal(self):
+        """自愈后 verify_chain() 返回空（链完整）。"""
+        with open(self.path, "a", encoding="utf-8", newline="") as f:
+            f.write('{"ev_id": "EV-98", "chain_hash": "xyz", "kind"')
+        prov, _ = self._load_with_stderr()
+        self.assertEqual(prov.verify_chain(), [])
 
 
 if __name__ == "__main__":

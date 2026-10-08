@@ -20,6 +20,7 @@ import hashlib
 import json
 import os
 import re
+import sys
 
 from .util import sha256_file
 
@@ -83,18 +84,75 @@ class ProvenanceLedger:
         self._load_existing()
 
     def _load_existing(self) -> None:
+        """加载已持久化账本（MAINT-9：尾部崩溃残留自愈 + 中间坏行响亮失败）。
+
+        进程崩溃于 append 中途会在文件尾部留下半行 JSON，此前直接让
+        ``json.loads`` 抛错——cite/status/append 全部不可用。现按方案 C：
+
+        - **尾部残留自愈**：坏行之后无任何有效记录 → 视为 append 中断残留
+          （残留不是账本记录，丢弃等价自愈），把文件截断到残留行起点，
+          保留之前的全部有效记录；stderr 一行告警（不污染 stdout 的机器
+          可读 JSON）。自愈后文件回到"全行有效"，load / verify_chain /
+          append 三方语义一致，且消除"下次 append 拼接到半行上"的隐患。
+        - **中间坏行响亮失败**：坏行之后仍有有效记录 → 抛 EvidenceError，
+          与 ``verify_chain`` 的防篡改哲学一致（疑似篡改或磁盘问题）。
+        """
         if not os.path.exists(self.path):
             return
-        with open(self.path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                rec = json.loads(line)
-                self._ev_index[rec["ev_id"]] = rec
-                # 推进哈希链到已持久化记录的链尾（旧记录无 chain_hash 则不推进）
-                if rec.get("chain_hash"):
-                    self._chain_hash = rec["chain_hash"]
+        # 一次读入全部字节并逐行记录（起始字节偏移, 原始行）。账本行数有限；
+        # 用字节偏移而非文本偏移，避免 UTF-8 多字节字符上截断点错位。
+        with open(self.path, "rb") as f:
+            data = f.read()
+        entries: list[tuple[int, bytes]] = []
+        offset = 0
+        for chunk in data.splitlines(keepends=True):
+            entries.append((offset, chunk))
+            offset += len(chunk)
+
+        records: list[tuple[int, dict]] = []       # (lineno, rec)
+        bad_lines: list[tuple[int, int, str]] = []  # (lineno, byte_offset, err)
+        last_valid_idx = -1                         # 最后一个有效行的条目下标
+        for idx, (line_off, chunk) in enumerate(entries):
+            lineno = idx + 1
+            text = chunk.decode("utf-8", errors="replace").strip()
+            if not text:
+                continue
+            try:
+                rec = json.loads(text)
+                if not isinstance(rec, dict) or "ev_id" not in rec:
+                    raise ValueError("record is not an object with ev_id")
+            except (json.JSONDecodeError, ValueError) as e:
+                bad_lines.append((lineno, line_off, str(e)))
+                continue
+            records.append((lineno, rec))
+            last_valid_idx = idx
+
+        # 尾部坏行 = 位置在最后一个有效行之后的坏行（其后无有效记录跟随）
+        tail_bad = [b for b in bad_lines if b[0] > last_valid_idx + 1]
+        if bad_lines:
+            if tail_bad:
+                cut = tail_bad[0][1]  # 首个尾部坏行的字节偏移（= 有效记录终点）
+                truncated = len(data) - cut
+                # 自愈截断：同一文件以 'r+b' 重开 truncate（读句柄已关闭，
+                # Windows 下无句柄竞争）；截断点之前的有效记录原样保留。
+                with open(self.path, "r+b") as f:
+                    f.truncate(cut)
+                    f.flush()
+                print(f"[paper-agent] 警告：证据账本尾部发现崩溃残留"
+                      f"（append 中断的半行 JSON），已截断自愈 {truncated} 字节"
+                      f"（自第 {tail_bad[0][0]} 行起）：{self.path}",
+                      file=sys.stderr)
+            else:
+                lineno = bad_lines[0][0]
+                raise EvidenceError(
+                    f"证据账本第 {lineno} 行损坏且其后仍有有效记录"
+                    f"（疑似篡改或磁盘问题，拒绝加载）: {self.path}")
+
+        for _lineno, rec in records:
+            self._ev_index[rec["ev_id"]] = rec
+            # 推进哈希链到已持久化记录的链尾（旧记录无 chain_hash 则不推进）
+            if rec.get("chain_hash"):
+                self._chain_hash = rec["chain_hash"]
         self._next_num = self._recompute_next_num()
 
     def _recompute_next_num(self) -> int:
