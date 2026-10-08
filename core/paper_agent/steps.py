@@ -826,14 +826,15 @@ class Pipeline:
                 break
         # 收尾仅对 RUNNING 生效：终态守卫要求 RUNNING→DONE/FAILED；
         # 正常路径 run_status 必为 RUNNING（_ensure_running 已保证）。
+        # MAINT-8：删除旧版"else 分支再判 P4_verify==FAILED"的不可达分支——
+        # P4 失败只会经由 run_p4 返回 {"failed": True} → failed=True → break
+        # → 走上面 finish_run(FAILED)；failed=False 时循环内没有任何路径把
+        # 步骤置为 FAILED，故 else 分支里 P4_verify 必非 FAILED。
         if self.state.run_status is RunStatus.RUNNING:
             if failed:
                 self.state.finish_run(RunStatus.FAILED)
             else:
-                if self.state.step_status["P4_verify"] is StepStatus.FAILED:
-                    self.state.finish_run(RunStatus.FAILED)
-                else:
-                    self.state.finish_run(RunStatus.DONE)
+                self.state.finish_run(RunStatus.DONE)
         return {"results": results,
                 "run_status": self.state.run_status.value,
                 "degraded": self.state.degraded}

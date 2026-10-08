@@ -225,10 +225,6 @@ class PipelineState:
             self.goal = snap["goal"]
         self._loaded = True
 
-    @property
-    def run_id_name(self) -> str:
-        return self.run_id
-
     # ---------- 事件账本 ----------
 
     def _append_event(self, etype: str, payload: dict) -> None:
