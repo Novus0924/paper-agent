@@ -421,7 +421,63 @@
     var activeEv = ctx.params && ctx.params[0];
     if (activeEv) setTimeout(function () { flash(activeEv); }, 60);
 
+    /* ── B4-4 · 跨任务检索折叠面板（顶部；live 走 /api/evidence/query，mock 诚实提示）── */
+    var crossOpen = false;
+    var crossBody = h('div', { class: 'hidden' });
+    var crossKw = h('input', { id: 'cross-kw', type: 'text', placeholder: '关键词 / DOI，如：sulfide', style: { maxWidth: '260px' } });
+    var crossResult = h('div', {});
+    var crossToggle = h('button', { class: 'btn sm', onclick: function () {
+      crossOpen = !crossOpen;
+      crossBody.classList.toggle('hidden', !crossOpen);
+      crossToggle.textContent = crossOpen ? '收起' : '展开';
+    } }, '展开');
+    function renderCrossResult(rows) {
+      UI.clear(crossResult);
+      if (!rows || !rows.length) { crossResult.appendChild(UI.emptyState('无匹配证据', 'search')); return; }
+      crossResult.appendChild(UI.dataTable([
+        { label: 'run_id', render: function (r) {
+          return h('a', { class: 'mono', href: '#/evidence/' + r.run_id + '/' + r.ev_id,
+            onclick: function (e) { e.preventDefault(); ctx.app.go('#/evidence/' + r.run_id + '/' + r.ev_id); } },
+            r.run_id.replace('run-', ''));
+        } },
+        { label: 'ev_id', key: 'ev_id' },
+        { label: 'kind', key: 'kind' },
+        { label: '标题', render: function (r) { return h('span', {}, (r.meta && r.meta.title) || r.ref); } },
+        { label: 'ref', render: function (r) { return h('span', { class: 'mono', title: r.ref }, String(r.ref).slice(0, 32)); } },
+      ], rows));
+    }
+    function crossSearch() {
+      var kw = crossKw.value.trim();
+      if (!kw) { renderCrossResult([]); return; }
+      UI.clear(crossResult);
+      crossResult.appendChild(h('div', { class: 'muted', style: { fontSize: '12px' } }, '检索中…'));
+      window.PA_API.queryEvidence({ kw: kw, limit: 50 }).then(function (res) {
+        renderCrossResult(res.items || []);
+      }).catch(function (e) {
+        UI.clear(crossResult);
+        crossResult.appendChild(h('div', { class: 'help' }, '检索失败：' + e.message));
+      });
+    }
+    crossKw.addEventListener('keydown', function (e) { if (e.key === 'Enter') crossSearch(); });
+    var crossPanel;
+    if (window.PA_API && window.PA_API.isLive && window.PA_API.isLive()) {
+      crossBody.appendChild(h('div', { class: 'row wrap gap3', style: { marginBottom: '10px' } }, [
+        crossKw,
+        h('button', { id: 'cross-go', class: 'btn solid sm', onclick: crossSearch }, [icon('search'), '跨任务检索']),
+      ]));
+      crossBody.appendChild(crossResult);
+      crossPanel = UI.card([crossBody], { title: '跨任务检索（跨 run 证据查询）', actions: crossToggle,
+        sub: 'live 能力：跨全部 run 检索证据台账（kw / doi / tier / kind / source）' });
+    } else {
+      crossBody.appendChild(h('div', { class: 'help' },
+        '跨任务检索为 live 能力（读取真实 runs/ 证据台账）；mock 模式不提供假查询。请用 '
+        + '?mode=live&base=http://127.0.0.1:8787 打开真后端后使用（demo-kit: bootstrap.sh --mode live）。'));
+      crossPanel = UI.card([crossBody], { title: '跨任务检索（跨 run 证据查询）', actions: crossToggle,
+        sub: 'live 能力 · mock 模式不可用' });
+    }
+
     return h('div', { class: 'grid gap4' }, [
+      crossPanel,
       verdicts,
       UI.card([UI.degradedBar(run)], {}),
       h('div', { class: 'grid g-2-1' }, [

@@ -424,6 +424,19 @@
     stopAuto: function (id) { return isLive() ? liveStop(id) : stopAuto(id); },
     resetRun: function (id) { return isLive() ? liveReset(id) : resetRun(id); },
     ensureRunning: function (id) { return isLive() ? liveEnsureRunning(id) : ensureRunning(id); },
+    /** B4-4：跨任务证据检索（/api/evidence/query → CLI query → query.py）。
+     *  live 唯一可用；mock 显式拒绝——查询层必须读真实台账，不允许用假数据冒充。 */
+    queryEvidence: function (params) {
+      if (!isLive()) {
+        return Promise.reject(new Error('跨任务检索为 live 能力，请用 ?mode=live 启动真后端后使用'));
+      }
+      var sp = new URLSearchParams();
+      Object.keys(params || {}).forEach(function (k) {
+        var v = params[k];
+        if (v !== undefined && v !== null && v !== '') sp.set(k, v);
+      });
+      return lf('/api/evidence/query?' + sp.toString());
+    },
   };
 
   window.PA_API = api;
