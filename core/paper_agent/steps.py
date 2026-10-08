@@ -672,10 +672,14 @@ class Pipeline:
             "failed_steps": failed,
         }
 
-        # 把"可调用的下一步工具"明确列出来，降低模型跑偏概率
+        # 把"可调用的下一步工具"明确列出来，降低模型跑偏概率。
+        # MAINT-3：B1 起对 FAILED run 整体 resume 会幂等早退，重试失败步骤
+        # 的正确工具是 sciret_run_step（FAILED→RUNNING 是合法转移）。
         candidates = [f"sciret_run_step(step='{s}')" for s in plan]
         if failed:
-            candidates.append("sciret_resume(run_id=...)  # 重试/续跑失败步骤")
+            candidates.append(
+                "sciret_run_step(step='<failed_step>')  # 重试失败步骤"
+                "（FAILED→RUNNING 合法；FAILED run 整体 resume 会幂等早退）")
         if not plan and not failed:
             candidates.append("sciret_verify(run_id=...)  # 复现验证（若尚未验证）")
             candidates.append("sciret_report(run_id=...)  # 生成报告收尾")
@@ -685,8 +689,10 @@ class Pipeline:
         if failed:
             ctx["requires_decision"] = True
             ctx["decision_reason"] = (
-                f"步骤 {failed} 处于 FAILED。你必须判断：调用 sciret_resume 重试，"
-                f"还是终止并说明失败原因。禁止忽略失败继续下一步。"
+                f"步骤 {failed} 处于 FAILED。你必须判断：调用 sciret_run_step"
+                f" 重试该步骤（FAILED→RUNNING 是合法转移），"
+                f"还是终止并说明失败原因。注意：FAILED run 整体调用"
+                f" sciret_resume 只会幂等早退，不会重试。禁止忽略失败继续下一步。"
             )
         elif self.state.degraded:
             ctx["requires_decision"] = False
@@ -840,7 +846,13 @@ class Pipeline:
                 "degraded": self.state.degraded}
 
     def resume(self) -> dict:
-        """断点续跑：只跑 PENDING/FAILED，DONE/SKIPPED 直接复用。"""
+        """断点续跑（= run_all，B1 起带终态幂等守卫）。
+
+        - RUNNING run：续跑 PENDING/FAILED 步骤，DONE/SKIPPED 直接复用；
+        - DONE/FAILED run：幂等早退——复用既有产物（idempotent_reuse 标记），
+          FAILED run 额外列 failed_steps 并提示改用 run-step 单步重试
+          （FAILED→RUNNING 是合法转移），不会重复执行任何步骤。
+        """
         return self.run_all()
 
 

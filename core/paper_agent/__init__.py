@@ -66,21 +66,17 @@ def _detect_root() -> str:
       最底层依赖，导入期崩溃会让 ``cli doctor``、``health-check`` 这类
       "带病也要能跑"的诊断入口一并失效（表现为一大段 traceback）。
     现策略：override 合法则采用；**非法则回退到基于本包位置的自动探测根**，
-    并让 ``ROOT_ENV_PROBLEM`` 承载问题 + 向 stderr 播报一行警告。
-    既不静默指向错误的 ``RUNS_DIR``（回退到的一定是"代码实际所在的那个仓库"，
-    即真正正确的根），又保证任何命令在污染环境下都能运行并给出人话诊断。
+    问题由 ``ROOT_ENV_PROBLEM`` 承载 + 模块级（本文件下方）向 stderr 播报
+    **一次**警告。既不静默指向错误的 ``RUNS_DIR``（回退到的一定是"代码实际
+    所在的那个仓库"，即真正正确的根），又保证任何命令在污染环境下都能运行
+    并给出人话诊断。
     """
     override = _root_override()
     if override and _is_valid_root(override):
         return os.path.abspath(override)
-    if override:
-        # 非法覆盖：不静默采用（会指向错误的 RUNS_DIR），也不崩溃（诊断入口要能跑），
-        # 回退到"代码实际所在仓库"；问题由 ROOT_ENV_PROBLEM / stderr 承载。
-        print(
-            "[paper-agent] 警告：根环境变量指向非法目录，已回退到自动探测根"
-            "（命令可继续运行）。运行 `python -m paper_agent.cli doctor` 查看修复指引。",
-            file=sys.stderr,
-        )
+    # 非法覆盖：不静默采用（会指向错误的 RUNS_DIR），也不崩溃（诊断入口要能跑），
+    # 回退到"代码实际所在仓库"；警告由模块级 ROOT_ENV_PROBLEM 分支统一播报
+    # （MAINT 收官：删除本函数内的一次重复 print，避免同一问题警告两遍）。
     return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 

@@ -293,7 +293,9 @@ const TOOLS = [
   },
   {
     name: "sciret_resume",
-    description: "Resume a run (breakpoint continue): only PENDING/FAILED steps execute; DONE/SKIPPED reused.",
+    // MAINT-3：对齐 B1 后真实语义——FAILED run 整体 resume 幂等早退，
+    // 重试失败步骤应改用 sciret_run_step（FAILED→RUNNING 合法转移）。
+    description: "Resume a run (breakpoint continue). RUNNING run: executes PENDING/FAILED steps, DONE/SKIPPED reused. Terminal run (DONE/FAILED): idempotent early-return reusing artifacts (FAILED runs list failed_steps — retry individual failed steps via sciret_run_step instead).",
     parameters: objectSchema(
       { run_id: str("run instance id"), chaos: optStr(CHAOS_DESC) },
       ["run_id"],

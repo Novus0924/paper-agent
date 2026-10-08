@@ -748,16 +748,22 @@ class ResearchPipeline:
             "remaining_steps": plan,
             "failed_steps": failed,
         }
+        # MAINT-3：B1 起对 FAILED run 整体 resume 会幂等早退，重试失败步骤
+        # 的正确工具是 sciret_run_step（FAILED→RUNNING 是合法转移）。
         candidates = [f"sciret_run_step(step='{s}')" for s in plan]
         if failed:
-            candidates.append("sciret_resume(run_id=...)  # 重试/续跑失败步骤")
+            candidates.append(
+                "sciret_run_step(step='<failed_step>')  # 重试失败步骤"
+                "（FAILED→RUNNING 合法；FAILED run 整体 resume 会幂等早退）")
         if not plan and not failed:
             candidates.append("sciret_report(run_id=...)  # 生成科研报告收尾")
         ctx["next_tool_candidates"] = candidates
         if failed:
             ctx["requires_decision"] = True
             ctx["decision_reason"] = (
-                f"步骤 {failed} 处于 FAILED。必须判断：重试（sciret_resume）还是终止并说明原因。")
+                f"步骤 {failed} 处于 FAILED。必须判断：调用 sciret_run_step"
+                f" 重试该步骤（FAILED→RUNNING 是合法转移），还是终止并说明原因。"
+                f"注意：FAILED run 整体调用 sciret_resume 只会幂等早退，不会重试。")
         elif self.state.degraded:
             ctx["requires_decision"] = False
             ctx["decision_reason"] = "本 run 发生降级（degraded=true），报告中必须显式声明。"
