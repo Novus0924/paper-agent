@@ -216,12 +216,13 @@ async function latestToolName(runId, step) {
   let files = [];
   try { files = (await fsp.readdir(dir)).filter((f) => f.endsWith('.json')).sort(); }
   catch { return 'sciret_run_step'; }
-  let found = null;
-  for (const f of files) {
-    const d = await readJson(path.join(dir, f), null);
-    if (d && d.step === step && d.tool) found = d.tool;
+  // PERF-1：文件名含时间戳、已升序排序（字典序=时间序），从尾部反向扫，
+  // 命中该 step 即返回——避免此前的 O(n) 全量读盘解析。
+  for (let i = files.length - 1; i >= 0; i--) {
+    const d = await readJson(path.join(dir, files[i]), null);
+    if (d && d.step === step && d.tool) return d.tool;
   }
-  return found || 'sciret_run_step';
+  return 'sciret_run_step';
 }
 
 /**
@@ -230,19 +231,40 @@ async function latestToolName(runId, step) {
  *   - toolcalls/*.json → step / tool / invoked_at / input / output
  *     （output.sources_status = R1_search 落盘的四源状态，重启后仍可回读）
  *   - 内存中的 stepOutputs → 该步骤 run-step 的 stdout JSON（实时优先）
+ *
+ * PERF-1：per-run 读盘缓存（文件名列表 + 各文件 mtime）。目录内容未变
+ * （文件集合与 mtime 逐一对得上）则复用上一次解析结果，避免 evidence /
+ * SSE 快照等热路径每次全量读盘解析全部 toolcalls 文件。
  */
 async function readToolcalls(runId, stepOutputs) {
   const dir = path.join(runDir(runId), 'toolcalls');
-  let files = [];
+  let names = [];
   try {
-    files = (await fsp.readdir(dir)).filter((f) => f.endsWith('.json')).sort();
+    names = (await fsp.readdir(dir)).filter((f) => f.endsWith('.json')).sort();
   } catch { return []; }
+
+  // 取当前各文件的 mtime 作为"内容未变"指纹（mtime 变了才重新解析）
+  const mtimes = await Promise.all(names.map(async (f) => {
+    try { return (await fsp.stat(path.join(dir, f))).mtimeMs; }
+    catch { return -1; }
+  }));
+  const cached = toolcallCache.get(runId);
+  let parsed;
+  if (cached && cached.names.length === names.length
+      && cached.names.every((n, i) => n === names[i] && cached.mtimes[i] === mtimes[i])) {
+    parsed = cached.parsed;
+  } else {
+    parsed = [];
+    for (const f of names) {
+      const d = await readJson(path.join(dir, f), null);
+      if (d && d.step) parsed.push(d);
+    }
+    toolcallCache.set(runId, { names, mtimes, parsed });
+  }
 
   const order = (await readState(runId))?.steps_order || [];
   const out = [];
-  for (const f of files) {
-    const d = await readJson(path.join(dir, f), null);
-    if (!d || !d.step) continue;
+  for (const d of parsed) {
     const so = stepOutputs.get(d.step) || {};
     const idx = order.indexOf(d.step);
     out.push({
@@ -285,8 +307,16 @@ async function readEvidence(runId) {
 const stepOutputs = new Map();
 /** runId → Set<SSE res> */
 const subscribers = new Map();
-/** runId → Set<child> 正在跑的进程，用于终止 */
+/**
+ * runId → true：per-run 互斥标记（LOGIC-4）。
+ * /step 与 /run-all 执行期间置位，防止并发双 POST 同时 spawn 两个进程操作
+ * 同一 run（state.json last-writer-wins、双份账本追加）。
+ * 释放路径：/step 校验失败的同步释放、执行结束的 .finally、
+ * 以及 PERF-5 的终态清理兜底。
+ */
 const running = new Map();
+/** runId → { names, mtimes, parsed }：toolcalls 目录读盘缓存（PERF-1） */
+const toolcallCache = new Map();
 
 function getOutMap(runId) {
   if (!stepOutputs.has(runId)) stepOutputs.set(runId, new Map());
@@ -296,7 +326,15 @@ function getOutMap(runId) {
 function subscribe(runId, res) {
   if (!subscribers.has(runId)) subscribers.set(runId, new Set());
   subscribers.get(runId).add(res);
-  res.on('close', () => subscribers.get(runId)?.delete(res));
+  // PERF-5：30s 心跳，输出 SSE 注释帧（不会触发前端事件回调），
+  // 防代理/浏览器把空闲连接掐断。连接关闭时必须清掉定时器。
+  const hb = setInterval(() => {
+    try { res.write(': ping\n\n'); } catch { /* 客户端已断开 */ }
+  }, 30000);
+  res.on('close', () => {
+    clearInterval(hb);
+    subscribers.get(runId)?.delete(res);
+  });
 }
 
 function emit(runId, event, data) {
@@ -308,14 +346,38 @@ function emit(runId, event, data) {
   }
 }
 
+/**
+ * PERF-5：广播终态 done 并做内存清理。
+ * 顺序红线：subscribers 的清理必须放在 done 帧写完之后——emit() 内部是
+ * 同步 res.write，本函数返回时终态帧已落socket；若先清订阅者，客户端将
+ * 永远收不到终态帧。
+ * 清理内容：stepOutputs（含 __cids）、per-run 互斥标记、toolcalls 读盘缓存、
+ * subscribers 集合（终态后不再有事件；用户重试时客户端会重建 SSE 连接）。
+ */
+function emitDoneAndCleanup(runId, runStatus, extra = {}) {
+  emit(runId, 'done', { run_status: runStatus, ...extra });
+  stepOutputs.delete(runId);
+  toolcallCache.delete(runId);
+  running.delete(runId);
+  subscribers.delete(runId);
+}
+
 /* ══════════════════════════════════════════════════════════
    核心动作：推进一个步骤
    ══════════════════════════════════════════════════════════ */
 
-/** 返回下一个可执行的步骤 id；无可执行返回 null */
+/**
+ * 返回下一个可执行的步骤 id；无可执行返回 null。
+ * LOGIC-6：对齐 CLI 的 pending_or_failed 语义——除 PENDING 外也挑 FAILED
+ * （FAILED→RUNNING 是 state.py 步骤级合法转移），web 端失败后可重试，
+ * 不再"一次失败即死局"。
+ */
 function nextPending(state) {
   const order = state?.steps_order || [];
-  return order.find((s) => state.steps?.[s] === 'PENDING') || null;
+  return order.find((s) => {
+    const v = state.steps?.[s];
+    return v === 'PENDING' || v === 'FAILED';
+  }) || null;
 }
 
 /**
@@ -332,11 +394,18 @@ async function execStep(runId, step) {
     const msg = json?.error || json?.reason
       || (stderr || '').trim().split(/\r?\n/).slice(-1)[0]
       || `退出码 ${code}`;
-    // 失败时也要把状态写回去，否则前端会一直转
-    const st = await readState(runId);
-    if (st) st.steps[step] = 'FAILED';
+    // LOGIC-3：失败路径修正。此前两处错误：
+    //   ① "读 state 只改内存对象"从未写盘——Python 侧 _fail_running_step 已把
+    //      步骤落盘为 FAILED，那段是死代码，已删除（注释与实际不符）；
+    //   ② 无条件 emit done:{run_status:'FAILED'}——单步失败后 run 多数仍是
+    //      RUNNING（Python 单步路径不收敛），前端会收到虚假终态。
+    // 现与成功路径对齐：回读 state.json 取真实 run_status，仅当真实状态为
+    // 终态（DONE/FAILED）才发 done，否则只发 step FAILED。
     emit(runId, 'step', { step, status: 'FAILED', error: msg });
-    emit(runId, 'done', { run_status: 'FAILED' });
+    const stFail = await readState(runId);
+    if (stFail && (stFail.run_status === 'DONE' || stFail.run_status === 'FAILED')) {
+      emitDoneAndCleanup(runId, stFail.run_status);
+    }
     return false;
   }
 
@@ -349,9 +418,14 @@ async function execStep(runId, step) {
   });
 
   emit(runId, 'step', { step, status: 'DONE', elapsed_ms: elapsed });
+
+  // PERF-1：本步只读一次 state.json，供 tool 的 step_index 与末尾的终态判断
+  // 共享（此前 execStep 内 readState 被重复调用两次）。
+  const stAfter = await readState(runId);
+
   emit(runId, 'tool', {
     step,
-    step_index: (await readState(runId))?.steps_order?.indexOf(step) + 1,
+    step_index: stAfter?.steps_order?.indexOf(step) + 1,
     tool: await latestToolName(runId, step),
     status: 'completed',
     elapsed_ms: elapsed,
@@ -380,12 +454,12 @@ async function execStep(runId, step) {
 
   // 若这恰好是最后一步，run_status 已由 Python 侧自动收敛为 DONE（P2-3），
   // 这里只读取真实状态并广播，不再做后端补丁式 finish。
-  const stAfter = await readState(runId);
+  // PERF-5：终态帧发完即清理内存（emitDoneAndCleanup 保证 done 帧先写完）。
   if (stAfter) {
     const allDone = Object.values(stAfter.steps || {})
       .every((s) => s === 'DONE' || s === 'SKIPPED');
     if (allDone && stAfter.run_status !== 'RUNNING') {
-      emit(runId, 'done', { run_status: stAfter.run_status });
+      emitDoneAndCleanup(runId, stAfter.run_status);
     }
   }
 
@@ -405,9 +479,10 @@ async function execAll(runId) {
 
   // P2-3：run_status 已由 Python 侧在最后一步完成时自动收敛
   // （模型驱动逐步 run-step 路径现会自动 finish，无需后端补丁）。
-  // 这里只读取真实状态并广播。
+  // 这里只读取真实状态并广播。PERF-5：终态帧发完即清理内存。
+  // 注：若 execStep 已在最后一步做过终态清理，此处 emit 无订阅者、静默空转。
   const st = await readState(runId);
-  emit(runId, 'done', { run_status: st?.run_status || 'DONE' });
+  emitDoneAndCleanup(runId, st?.run_status || 'DONE');
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -558,12 +633,10 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/runs' && m === 'GET') {
     let names = [];
     try { names = (await fsp.readdir(RUNS_DIR)).filter((n) => /^run-/.test(n)); } catch { /* 无 runs 目录 */ }
-    const runs = [];
-    for (const n of names) {
-      const st = await readState(n);
-      if (st) runs.push(st);
-    }
-    runs.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+    // PERF-2：并行读取全部 state.json（此前串行 await，runs 一多延迟线性放大）
+    const states = await Promise.all(names.map((n) => readState(n)));
+    const runs = states.filter(Boolean)
+      .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
     return json(res, 200, { runs });
   }
 
@@ -584,20 +657,39 @@ const server = http.createServer(async (req, res) => {
     const st = await readState(runId);
     if (!st) return err(res, 404, 'run 不存在', 'NOT_FOUND');
 
-    const body = await readBody(req);
+    // LOGIC-4：per-run 互斥。检查+占位必须同处一个同步块（中间不能有 await），
+    // 否则两个并发请求会在对方置位前双双通过检查（Node 单线程下 await 是
+    // 切换点）。占位后任何提前 return 都必须释放。
+    if (running.get(runId)) {
+      return err(res, 409, '该 run 已有步骤在执行，请等待完成后再试', 'BUSY');
+    }
+    running.set(runId, true);
+
+    let body;
+    try { body = await readBody(req); }
+    catch { running.delete(runId); return err(res, 400, '请求体解析失败', 'BAD_BODY'); }
     const step = body.step;
     if (!step || !(st.steps_order || []).includes(step)) {
+      running.delete(runId);
       return err(res, 400, `未知步骤：${step}`, 'BAD_STEP');
     }
-    if (st.steps[step] !== 'PENDING') {
-      return err(res, 409, `步骤 ${step} 当前为 ${st.steps[step]}，无法推进`, 'BAD_STATE');
+    // LOGIC-6：对齐 CLI pending_or_failed 语义——放行 PENDING 与 FAILED
+    //（FAILED→RUNNING 是状态机合法转移，失败可重试）；其余状态仍 409。
+    const cur = st.steps[step];
+    if (cur !== 'PENDING' && cur !== 'FAILED') {
+      running.delete(runId);
+      return err(res, 409,
+        `步骤 ${step} 当前为 ${cur}，无法推进（仅 PENDING/FAILED 可执行）`, 'BAD_STATE');
     }
 
-    // 异步执行，HTTP 立刻返回；进度走 SSE
+    // 异步执行，HTTP 立刻返回；进度走 SSE。
+    // 互斥释放：无论执行成败（含 catch 路径）都走 .finally；
+    // PERF-5 的终态清理也会兜底删除。
     // 注意：done 事件由 execStep / execAll 自己发（它们才知道 finish 后的真实 run_status），
     // 这里不要再补发，否则会与 execStep 里的重复且状态可能写错。
     execStep(runId, step)
-      .catch((e) => emit(runId, 'step', { step, status: 'FAILED', error: e.message }));
+      .catch((e) => emit(runId, 'step', { step, status: 'FAILED', error: e.message }))
+      .finally(() => { running.delete(runId); });
 
     return json(res, 200, { ok: true, state: st });
   }
@@ -610,7 +702,26 @@ const server = http.createServer(async (req, res) => {
     const st = await readState(runId);
     if (!st) return err(res, 404, 'run 不存在', 'NOT_FOUND');
 
-    execAll(runId).catch((e) => emit(runId, 'done', { run_status: 'FAILED', error: e.message }));
+    // LOGIC-4：per-run 互斥（检查+占位同处一个同步块，防 await 切换点竞态）
+    if (running.get(runId)) {
+      return err(res, 409, '该 run 已有步骤在执行，请等待完成后再试', 'BUSY');
+    }
+    running.set(runId, true);
+
+    execAll(runId)
+      .catch(async (e) => {
+        // LOGIC-3：异常兜底也回读真实状态再广播，不臆断 FAILED
+        //（run 内各步骤的失败已由 execStep 各自广播 step FAILED）。
+        const stCur = await readState(runId).catch(() => null);
+        const rs = stCur?.run_status;
+        if (rs === 'DONE' || rs === 'FAILED') {
+          emitDoneAndCleanup(runId, rs, { error: e.message });
+        } else {
+          emit(runId, 'step', { status: 'FAILED', error: e.message });
+        }
+      })
+      .finally(() => { running.delete(runId); });
+
     return json(res, 200, { ok: true, state: st });
   }
 
