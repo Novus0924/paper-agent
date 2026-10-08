@@ -53,7 +53,7 @@ paper-agent/
 │   ├── judge.py                 #   可插拔判断器（RuleJudge / ModelJudge + 反判据对比）
 │   ├── freezing.py / snapshot.py / sources.py / anomaly.py / llm.py
 │   │                            #   冻结快照三段式 / 快照留证 / 检索源 / 领域异常 / LLM 传输
-│   ├── materials_snapshot.py    #   novus 冻结快照版 materials 流水线（可切换保留）
+│   ├── materials_snapshot.py    #   novus 冻结快照版 materials 流水线（预留模块：暂未接线，无显式开关前不会在主链路运行）
 │   ├── verify.py                #   P4 复现验证器（递归容差比对）
 │   ├── report.py                #   P5 报告生成（账本完整性运行时门禁 + 双工作流章节）
 │   └── cli.py                   #   命令行统一入口（19 子命令），JSON 标准化输出

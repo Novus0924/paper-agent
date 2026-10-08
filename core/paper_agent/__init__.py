@@ -13,8 +13,12 @@ import os
 import sys
 
 # 核心包位于 <root>/core/paper_agent/，故根目录为两个层级之上。
-# 允许通过环境变量 paper-agent_ROOT 覆盖（AGH 插件层注入项目根路径）。
+# 项目根可通过环境变量覆盖（merge 融合：双名兼容 + 合法性校验 + 回退不崩溃）：
+#   - PAPER_AGENT_ROOT（标准命名，bash 可直接 export/unset）——优先级更高；
+#   - paper-agent_ROOT（AGH 插件层历史注入名，保留兼容；含连字符，
+#     bash 无法 export/unset，仅可由宿主进程以 env 前缀注入）。
 _ROOT_ENV = "paper-agent_ROOT"
+_ROOT_ENV_STD = "PAPER_AGENT_ROOT"
 # 校验标记：一个合法的项目根必须包含该子目录（core/paper_agent）。
 _ROOT_MARKER = os.path.join("core", "paper_agent")
 
@@ -24,16 +28,21 @@ def _is_valid_root(path: str) -> bool:
     return bool(path) and os.path.isdir(os.path.join(os.path.abspath(path), _ROOT_MARKER))
 
 
+def _root_override() -> str:
+    """读环境变量覆盖（双名兼容）：标准名优先，历史名兜底；未设置返回 ""。"""
+    return os.environ.get(_ROOT_ENV_STD) or os.environ.get(_ROOT_ENV, "")
+
+
 def _root_env_problem() -> str:
-    """若 ``paper-agent_ROOT`` 被设成一个非法目录，返回人话说明；否则返回 ""。
+    """若任一根环境变量被设成非法目录，返回人话说明；否则返回 ""。
 
     仅在"变量已设置但指向非法目录"时非空。用于把环境变量契约问题**显式**承载出来，
     供 ``cli doctor`` / ``demo-kit/health-check`` 展示（不静默、不误导）。
     """
-    raw = os.environ.get(_ROOT_ENV, "")
+    raw = _root_override()
     if raw and not _is_valid_root(raw):
         return (
-            f"paper-agent_ROOT 指向的目录不存在或不是合法的项目根：{raw}\n"
+            f"项目根环境变量指向的目录不存在或不是合法的项目根：{raw}\n"
             "  期望：该目录下存在 core/paper_agent/ 子目录。\n"
             "  当前已自动回退到探测到的项目根，命令仍可运行；\n"
             "  但 daemon 侧的环境变量仍需修正：在启动 daemon 的终端里重新注入 "
@@ -50,19 +59,28 @@ ROOT_ENV_PROBLEM = _root_env_problem()
 def _detect_root() -> str:
     """解析项目根。
 
-    P0-2 修订（Batch 2 复验）：读到自定义根时**不再**在导入期抛异常——
-    ``paper-agent`` 是诸多诊断/演示工具的最底层依赖，导入期崩溃会让
-    ``cli doctor``、``health-check`` 这类"带病也要能跑"的诊断入口一并失效
-    （表现为一大段 traceback）。
-
+    融合（Batch 4 merge）：
+    - **双名兼容**（origin/leyon）：标准名 ``PAPER_AGENT_ROOT`` 优先、
+      历史名 ``paper-agent_ROOT`` 兜底；
+    - **导入期不抛异常**（HEAD 修订）：``paper-agent`` 是诸多诊断/演示工具的
+      最底层依赖，导入期崩溃会让 ``cli doctor``、``health-check`` 这类
+      "带病也要能跑"的诊断入口一并失效（表现为一大段 traceback）。
     现策略：override 合法则采用；**非法则回退到基于本包位置的自动探测根**，
     并让 ``ROOT_ENV_PROBLEM`` 承载问题 + 向 stderr 播报一行警告。
     既不静默指向错误的 ``RUNS_DIR``（回退到的一定是"代码实际所在的那个仓库"，
     即真正正确的根），又保证任何命令在污染环境下都能运行并给出人话诊断。
     """
-    override = os.environ.get(_ROOT_ENV)
+    override = _root_override()
     if override and _is_valid_root(override):
         return os.path.abspath(override)
+    if override:
+        # 非法覆盖：不静默采用（会指向错误的 RUNS_DIR），也不崩溃（诊断入口要能跑），
+        # 回退到"代码实际所在仓库"；问题由 ROOT_ENV_PROBLEM / stderr 承载。
+        print(
+            "[paper-agent] 警告：根环境变量指向非法目录，已回退到自动探测根"
+            "（命令可继续运行）。运行 `python -m paper_agent.cli doctor` 查看修复指引。",
+            file=sys.stderr,
+        )
     return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 
@@ -74,9 +92,17 @@ RUNS_DIR = os.path.join(PAPER_AGENT_ROOT, "runs")
 if ROOT_ENV_PROBLEM:
     # 一行警告到 stderr（stdout 仍只给机器可读的 JSON，互不干扰）。
     print(
-        "[paper-agent] 警告：paper-agent_ROOT 指向非法目录，已回退到自动探测根"
-        "（命令可继续运行）。运行 `python -m paper_agent.cli doctor` 查看修复指引。",
+        "[paper-agent] 警告：根环境变量（PAPER_AGENT_ROOT / paper-agent_ROOT）指向非法目录，"
+        "已回退到自动探测根（命令可继续运行）。运行 `python -m paper_agent.cli doctor` 查看修复指引。",
         file=sys.stderr,
     )
 
-__all__ = ["PAPER_AGENT_ROOT", "DATA_DIR", "EXPERIMENTS_DIR", "RUNS_DIR", "ROOT_ENV_PROBLEM"]
+__all__ = [
+    "PAPER_AGENT_ROOT",
+    "DATA_DIR",
+    "EXPERIMENTS_DIR",
+    "RUNS_DIR",
+    "ROOT_ENV_PROBLEM",
+    "_is_valid_root",
+    "_root_override",
+]

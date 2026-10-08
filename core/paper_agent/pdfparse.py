@@ -179,6 +179,12 @@ def _content_text(data: bytes) -> str:
         j = i
         while j < n and data[j] not in b" \t\r\n/[]<>()":
             j += 1
+        if j == i:
+            # 当前字节是本循环未处理的无-owner 定界符（孤立的 ')' '>' 或 '<<' 的
+            # '<'）——若不强制推进，i 永不前进，损坏文件会在此死循环挂死 CPU。
+            i += 1
+            operands = []
+            continue
         token = data[i:j].decode("latin-1")
         i = j
         if token in ("Tj", "TJ", "'", '"'):

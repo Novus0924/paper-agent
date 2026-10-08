@@ -71,7 +71,9 @@ def _emit_fail(obj: dict, code: int) -> int:
 
 def _add_global_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--chaos", default="", dest="chaos",
-                  help="chaos mode: p1_fail_first|p1_fail_all|mutate_summary|""")
+                  help="chaos mode: p1_fail_first|p1_fail_all|mutate_summary|"
+                       "kill_after_p2|kill_after_r3|ss_timeout|scan_pdf|"
+                       "batch_fail_at=N|")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -222,10 +224,12 @@ def build_parser() -> argparse.ArgumentParser:
 def _root() -> str:
     """解析项目根：override 仅在合法时采用，否则用（已回退的）PAPER_AGENT_ROOT。
 
-    与 ``paper_agent._detect_root`` 同一口径，保证命令用的根**永远合法**；
-    环境变量失效时不会把操作导向错误目录（只会在别处显式播报该问题）。
+    双名兼容（merge 融合）：标准名 ``PAPER_AGENT_ROOT`` 优先，历史名
+    ``paper-agent_ROOT``（AGH 注入）兜底；与 ``paper_agent._detect_root`` 同口径，
+    保证命令用的根**永远合法**；环境变量失效时不会把操作导向错误目录
+    （只会在别处显式播报该问题）。
     """
-    override = os.environ.get("paper-agent_ROOT")
+    override = os.environ.get("PAPER_AGENT_ROOT") or os.environ.get("paper-agent_ROOT")
     if override and _is_valid_root(override):
         return os.path.abspath(override)
     return PAPER_AGENT_ROOT
@@ -908,10 +912,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.chaos:
         from .chaos import set_chaos_mode
         set_chaos_mode(args.chaos)
+    handler = _HANDLERS.get(args.cmd)
+    if handler is None:
+        return _emit_fail({"ok": False, "error": f"unknown cmd: {args.cmd}"}, 2)
     try:
-        return _HANDLERS[args.cmd](args)
-    except KeyError as e:
-        return _emit_fail({"ok": False, "error": f"unknown step: {e}"}, 2)
+        return handler(args)
     except Exception as e:  # 业务异常 → 非 0 退出码
         return _emit_fail({"ok": False, "cmd": args.cmd,
                           "error": f"{type(e).__name__}: {e}"}, 1)

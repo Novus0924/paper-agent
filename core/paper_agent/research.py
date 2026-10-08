@@ -325,6 +325,21 @@ class ResearchPipeline:
             producer_step=sid, file_path=out_path,
             meta={"n_hits": len(docs), "unavailable_sources": unavailable})
 
+        # 判据4 硬前置：检索式生成 = query_generation 判断，入账本留痕
+        # （「生成了什么检索式、为何这样生成」必须可复核）。R1 的检索式取自
+        # 研究目标原样；这里**无条件登记**（含快照复用与 0 命中路径）——
+        # 快照复用补登一条审计冗余无伤（append-only 账本允许重复），
+        # 而 0 命中路径漏登会让下游报告的 judgment 门禁失守。
+        self.prov.append_judgment(
+            "query_generation", sid,
+            subject=goal,
+            verdict="generated",
+            rationale=(f"search query taken verbatim from research goal "
+                       f"(note={note})"),
+            meta={"query": query_used, "source": source, "n_hits": len(docs),
+                  "unavailable_sources": unavailable},
+        )
+
         if unavailable:
             self.state.mark_degraded(
                 sid, note=f"检索源不可用已自动切换：{unavailable}（任务未中断）")
@@ -376,6 +391,29 @@ class ResearchPipeline:
         pdf_dir = self._out("reading", "pdfs")
         notes_dir = self._out("reading", "notes")
         os.makedirs(notes_dir, exist_ok=True)
+
+        # 判据4 硬前置：精读选择 = relevance 判断，逐篇入账本。
+        # 选中 → relevant；排名超出精读上限 → excluded（被排除项必须全额
+        # 留痕——「为什么没读这篇」必须可复核、可反驳，这是 judgment 红线）。
+        # 本方法仅在步骤实际执行时走到（已 DONE 直接复用，不会重复登记）；
+        # 失败重试产生的重复记录是 append-only 账本允许的审计冗余。
+        for rank, doc in enumerate(hits, 1):
+            if rank <= limit:
+                verdict, rationale = "relevant", (
+                    f"selected for close reading: rank {rank} "
+                    f"within max_reads={limit}")
+            else:
+                verdict, rationale = "excluded", (
+                    f"excluded from close reading: rank {rank} "
+                    f"exceeds max_reads={limit}")
+            self.prov.append_judgment(
+                "relevance", sid,
+                subject=litsearch.ref_of(doc),
+                verdict=verdict,
+                rationale=rationale,
+                meta={"doc_id": doc.get("doc_id", ""), "rank": rank,
+                      "max_reads": limit, "axis": "paper_selection"},
+            )
 
         notes: list[dict] = []
         failures: list[dict] = []

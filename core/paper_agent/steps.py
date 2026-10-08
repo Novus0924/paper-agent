@@ -139,6 +139,20 @@ class Pipeline:
             hits = (list(docs) if source_used == "arxiv"
                     else litsearch.filter_by_relevance(docs, goal))
 
+        # 判断留痕：检索式生成 = query_generation 判断（「生成了什么检索式、
+        # 为何生成」必须可复核）。快照复用路径不重复登记（首次检索时已登记）；
+        # 首跑在线 / 本地 / 降级路径均登记。
+        if note != "snapshot_reused":
+            self.prov.append_judgment(
+                "query_generation", "P1_lit_search",
+                subject=goal,
+                verdict="generated",
+                rationale=(f"query built from research goal "
+                           f"(source={source_used}, note={note or 'none'})"),
+                meta={"query": query_used, "source": source_used,
+                      "degraded": degraded, "n_hits": len(hits)},
+            )
+
         # 在线首跑成功后冻结快照（含检索式与时间戳，供审计与离线复现）
         if source_used == "arxiv" and note != "snapshot_reused" and not full_corpus:
             write_json(snap_path, {
@@ -682,6 +696,17 @@ class Pipeline:
         return {"run_status": self.state.run_status.value,
                 "degraded": self.state.degraded}
 
+    def _fail_running_step(self, sid: str, exc: Exception) -> None:
+        """异常兜底：步骤若卡在 RUNNING 会让状态机永久拒绝重跑
+        （RUNNING→RUNNING 非法转移），run 从此无法 resume —— 变砖。
+        异常发生在 mark_step_* 收尾之前时，先落 FAILED 再把异常抛给上层，
+        保证 resume / run-step 可重试。兜底自身失败不得掩盖原始异常。"""
+        try:
+            if self.state.step_status.get(sid) is StepStatus.RUNNING:
+                self.state.mark_step_failed(sid, f"{type(exc).__name__}: {exc}")
+        except Exception:
+            pass
+
     def run_step(self, step: str) -> dict:
         if step not in self.STEP_FN:
             raise KeyError(f"unknown step {step}")
@@ -691,8 +716,14 @@ class Pipeline:
             self._autoconverge()
             return {"step": step, "reused": True, "status": st.value}
         self._ensure_running()
-        res = getattr(self, self.STEP_FN[step])()
-        # P2-3：步骤终态且全部完成后自动收敛 run_status。
+        try:
+            res = getattr(self, self.STEP_FN[step])()
+        except Exception as e:
+            # 兜底（origin/leyon）：步骤异常时把 RUNNING 步骤标记为失败，
+            # 避免 run 卡在「永远 RUNNING」的变砖态；异常继续上抛由调用方决策。
+            self._fail_running_step(step, e)
+            raise
+        # P2-3（HEAD）：步骤终态且全部完成后自动收敛 run_status。
         self._autoconverge()
         return res
 
@@ -721,6 +752,23 @@ class Pipeline:
         AGH 会话内应由大模型逐步调用 sciret_run_step / sciret_resume 驱动；
         本方法仅用于单测、离线演示与 CI，保证"不接模型也能验证 Python 核心逻辑"。
         """
+        # 终态幂等：DONE/FAILED 是不可逆终态（账本信任机制依赖终态守卫）。
+        # 重复 run-all 不再抛裸 StateError（"DONE -> DONE illegal"），
+        # 而是复用既有产物并如实标注；FAILED run 列出失败步骤供单步重试参考。
+        if self.state.run_status in (RunStatus.DONE, RunStatus.FAILED):
+            reused = {s: {"reused": True, "status": st.value}
+                      for s, st in self.state.step_status.items()}
+            out = {"results": reused,
+                   "run_status": self.state.run_status.value,
+                   "degraded": self.state.degraded,
+                   "idempotent_reuse": True,
+                   "note": (f"run 已处于终态 {self.state.run_status.value}，"
+                            "复用既有产物；重试失败步骤请用 run-step/step-driven"
+                            " 单步驱动")}
+            if self.state.run_status is RunStatus.FAILED:
+                out["failed_steps"] = [s for s, st in self.state.step_status.items()
+                                       if st is StepStatus.FAILED]
+            return out
         self._ensure_running()
         results = {}
         failed = False
@@ -729,20 +777,27 @@ class Pipeline:
             if cur in (StepStatus.DONE, StepStatus.SKIPPED):
                 results[step] = {"reused": True}
                 continue
-            res = getattr(self, fn)()
+            try:
+                res = getattr(self, fn)()
+            except Exception as e:
+                self._fail_running_step(step, e)
+                raise
             results[step] = res
             # 崩溃注入点：位于该步骤状态与双账本全部落盘之后（append-only 完整）
             chaos.CH.kill_after(step)
             if res.get("failed"):
                 failed = True
                 break
-        if failed:
-            self.state.finish_run(RunStatus.FAILED)
-        else:
-            if self.state.step_status["P4_verify"] is StepStatus.FAILED:
+        # 收尾仅对 RUNNING 生效：终态守卫要求 RUNNING→DONE/FAILED；
+        # 正常路径 run_status 必为 RUNNING（_ensure_running 已保证）。
+        if self.state.run_status is RunStatus.RUNNING:
+            if failed:
                 self.state.finish_run(RunStatus.FAILED)
             else:
-                self.state.finish_run(RunStatus.DONE)
+                if self.state.step_status["P4_verify"] is StepStatus.FAILED:
+                    self.state.finish_run(RunStatus.FAILED)
+                else:
+                    self.state.finish_run(RunStatus.DONE)
         return {"results": results,
                 "run_status": self.state.run_status.value,
                 "degraded": self.state.degraded}
