@@ -36,3 +36,6 @@ Thumbs.db
 workdir/
 workdir_*.json  
 workdir_*.err  
+
+# demo-kit 运行时（pid / 日志 / 自检产物）
+demo-kit/.run/
