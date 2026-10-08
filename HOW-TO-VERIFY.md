@@ -147,7 +147,7 @@ PY
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py"
-# 期望：Ran 164 tests ... OK
+# 期望：Ran 242 tests ... OK
 #   含 test_security_scan.py 的 14 项安全防御专项用例
 #       test_recovery.py 的 P5 幂等门禁回归用例 test_case_F2
 #       test_plugin_tools.py 的 9 项插件薄壳安全用例（JS 侧用 node 实跑验证）

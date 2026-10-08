@@ -200,25 +200,30 @@ node "$AGH" package add "file:./plugins/paper-agent-tools"
 
 CLI 路线装完后，插件处于 `installed-disabled-untrusted` 状态，还需手动 trust + enable：
 
+> ⚠️ **capabilityHash 的取法（务必看这条）**：以 `demo/install_plugin.sh` 的**输出为唯一可信取法**——
+> 脚本会打印可信值并在需要时自动补做 trust + enable，手工场景请**直接采用脚本给出的值**，不要自己拼。
+>
+> 有两个长得像、但**不同**的指纹，混用会报 `does not meet the required trust policy`：
+> - trust 需要的 `capabilityHash` = `snapshotHash({contributions, dependencies})`（**对象**形态）；
+> - 审计日志里的 `capabilityDiff.next` = `snapshotHash([contributions, dependencies])`（**数组**形态，
+>   是审计指纹，**与上面不是同一个值**）。**不要**把 `capabilityDiff.next` 当成 capabilityHash。
+> - 本插件（`paper-agent-tools@0.1.0`）的正确 `capabilityHash` 为
+>   `e3de4e5f2da4b8aa2650af5c4f822d397c2dadd7a6695e5071c0444d26a22b01`。
+
 ```bash
 # 取 integrity
 INTEGRITY=$(node "$AGH" package inspect "file:./plugins/paper-agent-tools" | grep -o 'sha256-[0-9a-f]*')
 
-# 取 capabilityHash（inspect 不输出它，要从审计日志取；路径 = ~/.agh/profiles/<profile>/.agnes-package-audit.jsonl）
-CAP_HASH=$(python -c "
-import json, os
-p = os.path.expanduser('~/.agh/profiles/local-dev/.agnes-package-audit.jsonl')
-ev = [json.loads(l) for l in open(p, encoding='utf-8')]
-ev = [e for e in ev if e['id'] == 'paper-agent-tools' and e['operation'] == 'install']
-print(ev[-1]['capabilityDiff']['next'] if ev else 'NOT_FOUND')
-")
+# 取 capabilityHash：优先用 install_plugin.sh 打印的值（本插件的正确值见上方）
+#   对象形态 snapshotHash({contributions, dependencies})，本插件 = e3de4e5f…
 
 # trust + enable
 node "$AGH" package trust paper-agent-tools "$INTEGRITY" "$CAP_HASH"
 node "$AGH" package enable paper-agent-tools
 ```
 
-> 上面 python 命令里的 profile 名按实际情况改（默认 `local-dev`，可在 AGH 配置里查）。
+> 上面命令里的 `$CAP_HASH` 请填 `install_plugin.sh` 给出的可信值（本插件为 `e3de4e5f…`）；
+> profile 名按实际情况改（默认 `local-dev`，可在 AGH 配置里查）。
 
 ---
 
@@ -287,7 +292,7 @@ env "paper-agent_PYTHON=$PY" "paper-agent_ROOT=$ROOT" node tools/verify-plugin-e
 | 4 | `package add` 输出 `Installation cancelled.` | 非 TTY 环境（机制③），无 bypass | 换真实终端人工敲 `y`，或走 Web 页面 |
 | 5 | `export "paper-agent_PYTHON=..."` 报 `not a valid identifier` | bash 变量名不允许连字符 | 用 `env "name=value" cmd` 前缀，或持久化到用户账户；取值用 `printenv` |
 | 6 | AGH 命令**零输出**、退出码 0 | 个别 Git Bash 的 `env → node` 链路静默失败 | 变量持久化后新开终端，**直接** `node <AGH绝对路径> <子命令>`，不经 env |
-| 7 | `package status` 显示 `desired=enabled` 但工具还是不可用 | `actual` 不是 `running` 或 `trusted` 不是 `true` | 补做 trustcapabilityHash 从审计日志取，见第 4 步路线 C；或重跑路线 A 脚本自动补全）和 enable |
+| 7 | `package status` 显示 `desired=enabled` 但工具还是不可用 | `actual` 不是 `running` 或 `trusted` 不是 `true` | 重跑 `demo/install_plugin.sh`（会打印可信值并自动补 trust+enable）；手工补 trust 时 `capabilityHash` 取 `snapshotHash({contributions, dependencies})`（本插件 `e3de4e5f…`），**勿用**审计日志的 `capabilityDiff.next`（数组形态，是不同值）——见第 4 步 |
 | 8 | 改了插件源码，重装前行为不变 | AGH 跑的是**拷贝快照**（机制①） | 重新 `package add`；integrity 变了的话旧 trust 记录失效，需重做 trust → enable |
 | 9 | `serve` 后浏览器 `ERR_CONNECTION_REFUSED` | 冷启动 20–30 秒静默期 | 等 30 秒再刷新；仍不行看服务日志 |
 | 10 | `inspect` 显示 `contributions none` | **正常**，不是错误 | 不用处理 |
