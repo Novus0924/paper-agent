@@ -161,7 +161,8 @@ class TestJudgmentEnforcement(unittest.TestCase):
 
     def test_p1_registers_query_generation_judgment(self):
         rid = steps_mod.new_run_id()
-        steps_mod.create_state(rid, self.root, GOAL, lit_source="local")
+        steps_mod.create_state(rid, self.root, GOAL, lit_source="local",
+                               workflow="materials")
         pipe = steps_mod.Pipeline(self.root, rid)
         pipe.run_step("P1_lit_search")
         qj = [j for j in pipe.prov.judgments()
@@ -174,7 +175,8 @@ class TestJudgmentEnforcement(unittest.TestCase):
     def test_p1_snapshot_reuse_does_not_duplicate_judgment(self):
         """auto 源首跑建快照后复跑 P1 → 走 snapshot_reused 分支，不重复登记。"""
         rid = steps_mod.new_run_id()
-        steps_mod.create_state(rid, self.root, GOAL, lit_source="auto")
+        steps_mod.create_state(rid, self.root, GOAL, lit_source="auto",
+                               workflow="materials")
         pipe = steps_mod.Pipeline(self.root, rid)
         pipe.run_step("P1_lit_search")  # 离线环境：auto → 回落本地语料
         n_before = len([j for j in pipe.prov.judgments()

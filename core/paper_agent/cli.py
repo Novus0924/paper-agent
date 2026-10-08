@@ -90,7 +90,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = mk("plan")
     p.add_argument("--goal", required=True)
     p.add_argument("--workflow", default="", choices=["", "materials", "research"],
-                   help="工作流：materials(默认，材料可复现实验) | research(科研全流程 P0-P2)")
+                   help="工作流：research(默认，科研全流程 R1-R6) | materials(材料可复现实验 P1-P5)")
     p.add_argument("--lit-source", default="", dest="lit_source",
                    choices=["", "local", "arxiv", "auto"],
                    help="P1 检索来源：local(离线) | arxiv(实时) | auto(先试 arxiv 再降级)")
@@ -119,7 +119,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--run", default="", help="existing run_id; omit to plan a new one")
     p.add_argument("--goal", default="", help="required when --run omitted")
     p.add_argument("--workflow", default="", choices=["", "materials", "research"],
-                   help="新 run 的工作流：materials(默认) | research")
+                   help="新 run 的工作流：research(默认) | materials")
     p.add_argument("--lit-source", default="", dest="lit_source",
                    choices=["", "local", "arxiv", "auto"],
                    help="新 run 的 P1 检索来源：local | arxiv | auto")

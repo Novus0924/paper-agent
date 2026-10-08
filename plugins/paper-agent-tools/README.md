@@ -8,7 +8,7 @@ AGH hot-tool 插件：**JS 薄壳层**——只做参数序列化 + 子进程调
 `sciret_plan` / `sciret_run_step` / `sciret_status` / `sciret_verify` /
 `sciret_report` / `sciret_cite` / `sciret_resume`
 
-双工作流：`materials`（P1–P5）/ `research`（R1_search–R6_review）。
+双工作流：`research`（R1_search–R6_review，默认）/ `materials`（P1–P5，显式选择）。
 
 ## 运行期要求（重要）
 

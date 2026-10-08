@@ -20,9 +20,9 @@
 ---------------------
 同一套状态机 / 账本 / 编排协议，服务两条**独立的科研工作流**：
 
-- ``materials``（默认，向后兼容）：P1..P5
+- ``materials``（显式选择，向后兼容）：P1..P5
     文献检索 → 数据清洗 → 真实实验 → 复现验证 → 报告（可复现实验底座）
-- ``research``（v0.3 PRD 核心链路）：R1..R6
+- ``research``（默认，v0.3 PRD 核心链路）：R1..R6
     多源检索 → 论文精读 → 创新点拆解 → 事实验证 → 综述写作 → 自评审
 
 工作流只决定「步骤 ID 列表」，状态机转移规则完全一致，
@@ -96,7 +96,15 @@ WORKFLOWS: dict[str, list[str]] = {
     "materials": MATERIALS_STEPS,
     "research": RESEARCH_STEPS,
 }
-DEFAULT_WORKFLOW = "materials"
+# P1-1 重新立项：默认工作流切换为 research。
+# 依据：① 此前切换触发的大面积测试失败，根因是"收敛逻辑四处重复"的耦合 +
+#       测试隐式依赖默认 materials——耦合已由统一收敛 maybe_converge_done
+#       （LOGIC-2）消除，测试隐式依赖已全部显式化（构造处显式传
+#       workflow="materials"）；
+#       ② 在 HEAD 上重做的切换实验仅余该类隐式依赖失败，无真语义耦合。
+# 兼容承诺：materials 仍为显式合法工作流（--workflow materials / workflow=
+# "materials"），历史 materials run 的 load 语义不受影响。
+DEFAULT_WORKFLOW = "research"
 
 # 向后兼容：历史上 STEP_IDS 指材料流水线五步
 STEP_IDS = MATERIALS_STEPS
@@ -104,7 +112,7 @@ STEP_NAMES = {sid: sid for sid in MATERIALS_STEPS + RESEARCH_STEPS}
 
 
 def steps_for(workflow: str | None) -> list[str]:
-    """按工作流名取步骤列表；未知工作流回落到默认（materials）。"""
+    """按工作流名取步骤列表；未知工作流回落到 materials（向后兼容）。"""
     wf = (workflow or DEFAULT_WORKFLOW).lower()
     return list(WORKFLOWS.get(wf, MATERIALS_STEPS))
 
@@ -203,9 +211,18 @@ class PipelineState:
         with open(self.state_path, "r", encoding="utf-8") as f:
             snap = json.load(f)
         self.run_status = RunStatus(snap["run_status"])
-        self.workflow = snap.get("workflow", DEFAULT_WORKFLOW)
+        # P1-1：历史快照（v0.3 之前）没有 workflow 字段，其 steps_order 是
+        # P1..P5。默认切到 research 后，若按 DEFAULT_WORKFLOW 兜底会把历史
+        # materials run 误标为 research（open_pipeline 随之分发到
+        # ResearchPipeline）。因此缺字段时按 steps_order 首步前缀推断，
+        # 而非盲目套用当前默认。
+        self.workflow = snap.get("workflow", "")
         if self.workflow not in WORKFLOWS:
-            self.workflow = DEFAULT_WORKFLOW
+            order = snap.get("steps_order") or []
+            if order and str(order[0]).startswith("R"):
+                self.workflow = "research"
+            else:
+                self.workflow = "materials"
         # 优先用快照里显式记录的 steps，保证历史 run 的前向兼容；
         # 必须**重建** step_status/attempts，清掉构造器按默认工作流预置的步骤，
         # 否则 research run 会混入 materials 的 P1..P5（PENDING）而无法收敛。

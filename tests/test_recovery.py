@@ -39,7 +39,7 @@ class TestRecovery(unittest.TestCase):
 
     def _plan(self, chaos=""):
         rid = new_run_id()
-        st = create_state(rid, self.root, "recovery goal")
+        st = create_state(rid, self.root, "recovery goal", workflow="materials")
         pipe = Pipeline(self.root, rid, chaos_mode=chaos)
         return rid, pipe
 
@@ -133,7 +133,8 @@ class TestRecovery(unittest.TestCase):
                    **{"paper-agent_ROOT": self.root})
         pr = subprocess.run(
             [sys.executable, "-m", "paper_agent.cli", "plan",
-             "--goal", "kill demo", "--chaos", "kill_after_p2"],
+             "--goal", "kill demo", "--chaos", "kill_after_p2",
+             "--workflow", "materials"],
             cwd=self.root, env=env, capture_output=True, text=True, timeout=120)
         self.assertEqual(pr.returncode, 0, pr.stderr)
         rid = json.loads(pr.stdout.strip())["run_id"]
@@ -169,7 +170,8 @@ class TestRecovery(unittest.TestCase):
                    PYTHONPATH=os.path.abspath(core),
                    **{"paper-agent_ROOT": self.root})
         pr = subprocess.run(
-            [sys.executable, "-m", "paper_agent.cli", "plan", "--goal", "runstep kill"],
+            [sys.executable, "-m", "paper_agent.cli", "plan", "--goal", "runstep kill",
+             "--workflow", "materials"],
             cwd=self.root, env=env, capture_output=True, text=True, timeout=120)
         self.assertEqual(pr.returncode, 0, pr.stderr)
         rid = json.loads(pr.stdout.strip())["run_id"]

@@ -13,6 +13,7 @@ from _util import isolate_temp_root  # noqa: E402
 from paper_agent.state import (  # noqa: E402
     PipelineState, StepStatus, RunStatus, StateError,
     create_state, load_state, new_run_id, STEP_IDS,
+    MATERIALS_STEPS, RESEARCH_STEPS,
 )
 
 
@@ -22,7 +23,7 @@ class TestStateMachine(unittest.TestCase):
 
     def test_plan_creates_run_and_events(self):
         rid = new_run_id()
-        st = create_state(rid, self.root, "goal-x")
+        st = create_state(rid, self.root, "goal-x", workflow="materials")
         self.assertTrue(os.path.exists(os.path.join(self.root, "runs", rid, "state.json")))
         self.assertTrue(os.path.exists(os.path.join(self.root, "runs", rid, "events.jsonl")))
         self.assertIs(st.run_status, RunStatus.PLANNED)
@@ -31,7 +32,7 @@ class TestStateMachine(unittest.TestCase):
 
     def test_legal_transitions(self):
         rid = new_run_id()
-        st = create_state(rid, self.root, "g")
+        st = create_state(rid, self.root, "g", workflow="materials")
         st.start_run()
         self.assertIs(st.run_status, RunStatus.RUNNING)
         st.mark_step_running("P1_lit_search")
@@ -43,7 +44,7 @@ class TestStateMachine(unittest.TestCase):
 
     def test_failed_step_can_retry(self):
         rid = new_run_id()
-        st = create_state(rid, self.root, "g")
+        st = create_state(rid, self.root, "g", workflow="materials")
         st.start_run()
         st.mark_step_running("P2_clean_data")
         st.mark_step_failed("P2_clean_data", "boom")
@@ -56,7 +57,7 @@ class TestStateMachine(unittest.TestCase):
 
     def test_done_is_terminal(self):
         rid = new_run_id()
-        st = create_state(rid, self.root, "g")
+        st = create_state(rid, self.root, "g", workflow="materials")
         st.start_run()
         st.mark_step_running("P3_run_experiment")
         st.mark_step_done("P3_run_experiment")
@@ -69,7 +70,7 @@ class TestStateMachine(unittest.TestCase):
 
     def test_skipped_is_terminal(self):
         rid = new_run_id()
-        st = create_state(rid, self.root, "g")
+        st = create_state(rid, self.root, "g", workflow="materials")
         st.start_run()
         st.mark_step_skipped("P4_verify", "skipping")
         self.assertIs(st.step_status["P4_verify"], StepStatus.SKIPPED)
@@ -78,7 +79,7 @@ class TestStateMachine(unittest.TestCase):
 
     def test_pending_to_done_illegal(self):
         rid = new_run_id()
-        st = create_state(rid, self.root, "g")
+        st = create_state(rid, self.root, "g", workflow="materials")
         st.start_run()
         with self.assertRaises(StateError):
             st.mark_step_done("P1_lit_search")  # PENDING -> DONE 非法
@@ -87,13 +88,13 @@ class TestStateMachine(unittest.TestCase):
 
     def test_run_finished_from_planned_illegal(self):
         rid = new_run_id()
-        st = create_state(rid, self.root, "g")
+        st = create_state(rid, self.root, "g", workflow="materials")
         with self.assertRaises(StateError):
             st.finish_run(RunStatus.DONE)  # PLANNED -> DONE 非法
 
     def test_state_persisted_and_reloaded(self):
         rid = new_run_id()
-        st = create_state(rid, self.root, "g")
+        st = create_state(rid, self.root, "g", workflow="materials")
         st.start_run()
         st.mark_step_running("P1_lit_search")
         st.mark_step_done("P1_lit_search")
@@ -108,7 +109,7 @@ class TestStateMachine(unittest.TestCase):
     def test_events_append_only(self):
         import json as _j
         rid = new_run_id()
-        st = create_state(rid, self.root, "g")
+        st = create_state(rid, self.root, "g", workflow="materials")
         st.start_run()
         st.mark_step_running("P5_report")
         st.mark_step_done("P5_report")
@@ -137,7 +138,7 @@ class TestMaybeConvergeDone(unittest.TestCase):
         self.root = isolate_temp_root(self, "pa_conv_")
 
     def _state_with_all_steps_done(self) -> PipelineState:
-        st = create_state(new_run_id(), self.root, "g")
+        st = create_state(new_run_id(), self.root, "g", workflow="materials")
         st.start_run()
         for sid in st.step_ids:
             st.mark_step_running(sid)
@@ -163,7 +164,7 @@ class TestMaybeConvergeDone(unittest.TestCase):
         self.assertEqual(rc[0]["to"], "DONE")
 
     def test_failed_run_with_failed_step_does_not_converge(self):
-        st = create_state(new_run_id(), self.root, "g")
+        st = create_state(new_run_id(), self.root, "g", workflow="materials")
         st.start_run()
         st.mark_step_running("P1_lit_search")
         st.mark_step_failed("P1_lit_search", "boom")
@@ -175,7 +176,7 @@ class TestMaybeConvergeDone(unittest.TestCase):
         self.assertIs(st.run_status, RunStatus.FAILED)
 
     def test_running_with_pending_does_not_converge(self):
-        st = create_state(new_run_id(), self.root, "g")
+        st = create_state(new_run_id(), self.root, "g", workflow="materials")
         st.start_run()
         st.mark_step_running("P1_lit_search")
         st.mark_step_done("P1_lit_search")
@@ -192,6 +193,47 @@ class TestMaybeConvergeDone(unittest.TestCase):
         # 已 DONE：再次调用不动、返回 False（幂等）
         self.assertFalse(st.maybe_converge_done())
         self.assertIs(st.run_status, RunStatus.DONE)
+
+
+class TestDefaultWorkflow(unittest.TestCase):
+    """P1-1 冒烟：默认工作流锁定为 research；materials 仍为显式合法工作流。"""
+
+    def setUp(self):
+        self.root = isolate_temp_root(self, "pa_dflt_")
+
+    def test_default_is_research(self):
+        """不传 workflow（构造 / create_state）默认得到 research 步骤集 R1..R6。"""
+        st = PipelineState(new_run_id(), self.root, "g")
+        self.assertEqual(st.workflow, "research")
+        self.assertEqual(st.step_ids, RESEARCH_STEPS)
+        st2 = create_state(new_run_id(), self.root, "g")
+        self.assertEqual(st2.step_ids, RESEARCH_STEPS)
+        self.assertTrue(all(sid.startswith("R") for sid in st2.step_ids))
+
+    def test_materials_remains_explicit(self):
+        """向后兼容承诺：显式 workflow="materials" 仍得到 P1..P5。"""
+        st = create_state(new_run_id(), self.root, "g", workflow="materials")
+        self.assertEqual(st.workflow, "materials")
+        self.assertEqual(st.step_ids, MATERIALS_STEPS)
+
+    def test_legacy_snapshot_without_workflow_field(self):
+        """历史快照缺 workflow 字段 → 按 steps_order 推断，不误标为 research。
+
+        v0.3 之前的 state.json 无 workflow 字段（steps_order=P1..P5）；
+        默认切到 research 后若按默认兜底，会把历史 materials run 误分发到
+        ResearchPipeline。锁定：按 steps_order 首步前缀推断回 materials。
+        """
+        rid = new_run_id()
+        st = create_state(rid, self.root, "g", workflow="materials")
+        st.start_run()
+        with open(st.state_path, "r", encoding="utf-8") as f:
+            snap = json.load(f)
+        snap.pop("workflow", None)
+        with open(st.state_path, "w", encoding="utf-8") as f:
+            json.dump(snap, f, ensure_ascii=False, indent=2, sort_keys=True)
+        st2 = load_state(rid, self.root)
+        self.assertEqual(st2.workflow, "materials")
+        self.assertEqual(st2.step_ids, MATERIALS_STEPS)
 
 
 if __name__ == "__main__":

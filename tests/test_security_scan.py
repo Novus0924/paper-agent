@@ -130,10 +130,10 @@ class TestStateRunIdGate(unittest.TestCase):
     def test_create_state_rejects_traversal(self):
         for bad in ("../escape", "/abs", "run-x/../../y"):
             with self.assertRaises(ValueError):
-                create_state(bad, self.root, goal="g")
+                create_state(bad, self.root, goal="g", workflow="materials")
 
     def test_create_state_accepts_valid_and_contained(self):
-        st = create_state("run-gate1", self.root, goal="g")
+        st = create_state("run-gate1", self.root, goal="g", workflow="materials")
         base = os.path.realpath(os.path.join(self.root, "runs"))
         self.assertTrue(os.path.realpath(st.run_dir).startswith(base + os.sep))
         self.assertTrue(os.path.exists(st.state_path))

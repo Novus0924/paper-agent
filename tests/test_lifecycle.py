@@ -92,7 +92,7 @@ class TestLifecycle(unittest.TestCase):
 
     def test_l2_failed_run_single_step_retry_converges_done(self):
         rid = new_run_id()
-        create_state(rid, self.root, "retry convergence")
+        create_state(rid, self.root, "retry convergence", workflow="materials")
         pipe = Pipeline(self.root, rid, chaos_mode="mutate_summary")
         out = pipe.run_all()
         self.assertEqual(out["run_status"], "FAILED")
@@ -125,7 +125,7 @@ class TestLifecycle(unittest.TestCase):
 
     def test_l3_p5_rebuilds_missing_report_with_real_hash(self):
         rid = new_run_id()
-        create_state(rid, self.root, "p5 rebuild")
+        create_state(rid, self.root, "p5 rebuild", workflow="materials")
         pipe = Pipeline(self.root, rid)
         out = pipe.run_all()
         self.assertEqual(out["run_status"], "DONE")
@@ -154,7 +154,7 @@ class TestLifecycle(unittest.TestCase):
 
     def test_l3b_p5_rebuild_failure_raises_evidence_error(self):
         rid = new_run_id()
-        create_state(rid, self.root, "p5 rebuild fail")
+        create_state(rid, self.root, "p5 rebuild fail", workflow="materials")
         pipe = Pipeline(self.root, rid)
         pipe.run_all()
         rpath = os.path.join(self.root, "runs", rid, "report.md")
@@ -170,7 +170,7 @@ class TestLifecycle(unittest.TestCase):
     def test_l3c_normal_p5_evidence_carries_real_hash(self):
         """正常路径回归：报告证据在生成成功后登记，sha256 为真实文件哈希。"""
         rid = new_run_id()
-        create_state(rid, self.root, "p5 normal")
+        create_state(rid, self.root, "p5 normal", workflow="materials")
         pipe = Pipeline(self.root, rid)
         pipe.run_all()
         rpath = os.path.join(self.root, "runs", rid, "report.md")

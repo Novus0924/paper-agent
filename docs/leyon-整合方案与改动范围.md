@@ -9,7 +9,7 @@
 
 ## 0. 结论前置
 
-- **主干采用 mike 的双工作流实现**：`materials`（P1–P5，向后兼容默认路径）+ `research`（R1–R6，PRD 核心链路），由 `state.py` 的 `WORKFLOWS`/`RESEARCH_STEPS` 决定步骤集合，状态机 / 账本 / 故障恢复协议复用。
+- **主干采用 mike 的双工作流实现**：`materials`（P1–P5，显式选择）+ `research`（R1–R6，PRD 核心链路，P1-1 起为默认工作流），由 `state.py` 的 `WORKFLOWS`/`RESEARCH_STEPS` 决定步骤集合，状态机 / 账本 / 故障恢复协议复用。
 - **novus 的可信 / 可复现增强作为可插拔层并入**：三级信任模型（fact / judgment）织入 `provenance.py` 内核；`judge` / `snapshot` / `sources` / `freezing` / `llm` / `anomaly` 作为可用模块保留；novus 的冻结快照版 `materials` 流水线以 `materials_snapshot.py` 保留可切换。
 - **三处核心合并文件**：`provenance.py`（合并版）、`litsearch.py`（扩充联网检索腿）、`cli.py`（mike 基 + `freeze` 命令）。
 - **验证**：合并后导入冒烟 + 迁移测试共 **137 项全部通过**（见第 7 节）。
@@ -74,7 +74,7 @@
 | `__init__.py` | leyon 基线（已正确） | 保持不变 |
 | `state.py` | mike | 覆盖（superset：含 `lit_source`/`workflow`/`step_ids`） |
 | `chaos.py` | mike | 覆盖（故障注入 `CH` 单例） |
-| `steps.py` | mike | 覆盖（默认 `materials` 流水线 + `open_pipeline` 分发） |
+| `steps.py` | mike | 覆盖（materials 流水线 + `open_pipeline` 分发；整合时默认 materials，P1-1 起默认 research） |
 | `research.py` | mike | 覆盖（`ResearchPipeline` R1–R6，调用 `ProvenanceLedger(..., root=root)`） |
 | `report.py` | mike | 覆盖（`generate_report` + `generate_research_report`） |
 | `analyze.py` / `writing.py` / `factcheck.py` / `review.py` / `evaluate.py` / `pdfparse.py` | mike | 新增 |

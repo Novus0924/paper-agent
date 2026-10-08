@@ -37,7 +37,7 @@ class TestStepExceptionGuard(unittest.TestCase):
         import paper_agent.steps as S
 
         rid = new_run_id()
-        create_state(rid, self.root, "guard goal")
+        create_state(rid, self.root, "guard goal", workflow="materials")
         pipe = Pipeline(self.root, rid)
         pipe._ensure_running()
 

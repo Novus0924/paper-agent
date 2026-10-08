@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 
 from .state import (
     PipelineState, StepStatus, RunStatus, create_state, load_state, new_run_id,
+    DEFAULT_WORKFLOW,
 )
 from .provenance import ProvenanceLedger, EvidenceError
 from . import chaos
@@ -858,7 +859,9 @@ class Pipeline:
 
 def plan_run(root: str, goal: str, chaos_mode: str = "",
              lit_source: str | None = None,
-             workflow: str = "materials") -> PipelineState:
+             workflow: str = DEFAULT_WORKFLOW) -> PipelineState:
+    # P1-1：默认工作流单一真源在 state.DEFAULT_WORKFLOW（现为 research），
+    # materials 由调用方显式传入。
     rid = new_run_id()
     st = create_state(rid, root, goal, lit_source=lit_source, workflow=workflow)
     return st
@@ -866,7 +869,7 @@ def plan_run(root: str, goal: str, chaos_mode: str = "",
 
 def run_pipeline(root: str, goal: str, chaos_mode: str = "",
                  lit_source: str | None = None,
-                 workflow: str = "materials") -> dict:
+                 workflow: str = DEFAULT_WORKFLOW) -> dict:
     """plan + run-all 一步完成（按 workflow 分发到对应编排器）。"""
     rid = new_run_id()
     create_state(rid, root, goal, lit_source=lit_source, workflow=workflow)

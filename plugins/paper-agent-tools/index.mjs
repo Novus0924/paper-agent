@@ -209,11 +209,11 @@ function makeRunner(argsOf, timeoutMs, { allowChaos = true } = {}) {
 const TOOLS = [
   {
     name: "sciret_plan",
-    description: "Plan a new pipeline run: create isolated run instance with a step state machine and append-only ledgers. workflow=materials runs P1..P5 (default); workflow=research runs the six-step R1_search..R6_review pipeline.",
+    description: "Plan a new pipeline run: create isolated run instance with a step state machine and append-only ledgers. workflow=research runs the six-step R1_search..R6_review pipeline (default); workflow=materials runs the five-step P1_lit_search..P5_report pipeline.",
     parameters: objectSchema(
       {
         goal: str("research goal / query text"),
-        workflow: optStr("materials | research (omit for materials)"),
+        workflow: optStr("materials | research (omit for research default)"),
         chaos: optStr(CHAOS_DESC),
       },
       ["goal"],

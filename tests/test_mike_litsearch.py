@@ -154,7 +154,8 @@ class TestP1Integration(unittest.TestCase):
 
     def _plan(self, goal, lit_source):
         rid = new_run_id()
-        create_state(rid, self.root, goal, lit_source=lit_source)
+        create_state(rid, self.root, goal, lit_source=lit_source,
+                     workflow="materials")
         return rid, Pipeline(self.root, rid)
 
     def _hits(self, rid):

@@ -772,15 +772,18 @@ class Pipeline:
 
 
 def plan_run(root: str, goal: str, chaos_mode: str = "") -> PipelineState:
+    # 本模块是 novus 冻结快照版 **materials** 流水线（预留、未接线）。
+    # P1-1 默认工作流切到 research 后，create_state 不再隐式落到 materials，
+    # 此处必须显式声明，避免"materials 模块建出 research run"的语义漂移。
     rid = new_run_id()
-    st = create_state(rid, root, goal)
+    st = create_state(rid, root, goal, workflow="materials")
     return st
 
 
 def run_pipeline(root: str, goal: str, chaos_mode: str = "") -> dict:
     """plan + run-all 一步完成。"""
     rid = new_run_id()
-    st = create_state(rid, root, goal)
+    st = create_state(rid, root, goal, workflow="materials")
     pipe = Pipeline(root, rid, chaos_mode=chaos_mode)
     out = pipe.run_all()
     out["run_id"] = rid
