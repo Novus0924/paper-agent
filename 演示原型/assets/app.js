@@ -1,192 +1,43 @@
 /* ============================================================
- * app.js —— 路由 / 状态 / 模拟推进器 / 外壳
+ * app.js —— 路由 / 外壳（Batch 3 · B3-2/B3-3 改为消费 store + api）
+ * 运行态与数据动作下沉到 api.js，pub/sub 与 run 注册表下沉到 store.js；
+ * 本文件只负责：选择器渲染（侧栏/顶栏）、路由分派、视图挂载。
  * 经典 <script> 全局协作：window.PA_APP
  * 无模块、无构建、无网络；file:// 双击即可运行。
  * ============================================================ */
 (function () {
   'use strict';
 
-  var D = window.PA_DATA, UI = window.PA_UI, V = window.PA_VIEWS;
+  var C = window.PA_CONST, D = window.PA_DATA, UI = window.PA_UI, V = window.PA_VIEWS,
+      STORE = window.PA_STORE, API = window.PA_API;
   var h = UI.h, icon = UI.icon;
 
-  var STEP_MS = 8000; // 模拟推进器：每 8s 推进一步（对齐规格）
+  /* ---------- 导航模型（元数据来自 constants.js） ---------- */
+  var NAV = C.NAV;
 
-  /* ---------- 轻量 store ---------- */
-  var listeners = [];
-  function on(fn) {
-    listeners.push(fn);
-    return function () { listeners = listeners.filter(function (f) { return f !== fn; }); };
-  }
-  function emit() { listeners.slice().forEach(function (f) { try { f(); } catch (e) { console.error(e); } }); }
-
-  /* ---------- 实时 run 注册表 ---------- */
-  var live = {}; // runId -> { run, timer, auto, busy, started }
-
-  /* ---------- 步骤 → 工具调用 / 结论 模板 ---------- */
-  function tcBase(run_id, step, output) {
-    return { step: step, tool: 'sciret_run_step', invoked_at: new Date().toISOString().slice(0, 19) + 'Z',
-      input: { run_id: run_id, step: step }, output: output };
-  }
-  function toolsFor(run) {
-    if (run.workflow === 'materials') {
-      return [
-        tcBase(run.run_id, 'P1_lit_search', { n_hits: 8, sources_status: D.SOURCES_STATUS, unavailable: D.UNAVAILABLE }),
-        tcBase(run.run_id, 'P2_clean_data', { rows_in: 1284, rows_out: 599, anomalies: 0 }),
-        tcBase(run.run_id, 'P3_run_experiment', { n_train: 479, n_test: 120, r2: 0.91 }),
-        tcBase(run.run_id, 'P4_verify', { n_checks: 5, n_pass: 5, status: 'PASS' }),
-        tcBase(run.run_id, 'P5_report', { report: 'report.md', n_conclusions: 3 }),
-      ];
-    }
-    return [
-      tcBase(run.run_id, 'R1_search', { n_hits: 10, sources_status: D.SOURCES_STATUS, unavailable: D.UNAVAILABLE }),
-      tcBase(run.run_id, 'R2_read', { n_read: 3, n_failed: 0, n_low_confidence: 0 }),
-      tcBase(run.run_id, 'R3_analyze', { n_innovations: 0, n_gaps: 3 }),
-      tcBase(run.run_id, 'R4_verify', { consistency_rate: 1.0, n_contradictions: 0 }),
-      tcBase(run.run_id, 'R5_write', { n_statements: 19, cite_rate: 1.0 }),
-      tcBase(run.run_id, 'R6_review', { overall: 7.67, n_blocking: 1, verdict: '需大修（Major Revision）' }),
-    ];
-  }
-  function conclusionsFor(run) {
-    if (run.workflow === 'materials') {
-      return [
-        { cid: 'M1', _after: 'P1_lit_search', text: '多源检索命中 8 篇；OBELiX 数据集 599 条已加载（CC-BY-4.0）。', evidence_ids: ['EV-0001', 'EV-0006'] },
-        { cid: 'M2', _after: 'P3_run_experiment', text: '交叉验证 R²=0.91；5 项容差检查全部通过。', evidence_ids: ['EV-0016'] },
-        { cid: 'M3', _after: 'P5_report', text: '报告生成完成，3 条结论均绑定数据溯源。', evidence_ids: ['EV-0019'] },
-      ];
-    }
-    return D.CONCLUSIONS.map(function (c, i) {
-      return { cid: c.cid, text: c.text, evidence_ids: c.evidence_ids.slice(), _after: ['R1_search', 'R2_read', 'R3_analyze', 'R4_verify', 'R5_write'][i] };
-    });
-  }
-
-  /* ---------- 模拟推进器 ---------- */
-  function nextStep(run) {
-    for (var i = 0; i < run.steps_order.length; i++) { if (run.steps[run.steps_order[i]] === 'PENDING') return run.steps_order[i]; }
-    return null;
-  }
-  function beginStep(run, sid) {
-    run.steps[sid] = 'RUNNING';
-    if (run.run_status === 'PLANNED') run.run_status = 'RUNNING';
-    emit();
-  }
-  function finishStep(run, sid) {
-    run.steps[sid] = 'DONE';
-    run.attempts[sid] = (run.attempts[sid] || 0) + 1;
-    var tc = (run._tools || []).filter(function (t) { return t.step === sid; })[0];
-    if (tc) run.toolcalls.push(tc);
-    var c = (run._conclusions || []).filter(function (x) { return x._after === sid; })[0];
-    if (c) run.conclusions.push({ cid: c.cid, text: c.text, evidence_ids: c.evidence_ids });
-    if (sid === 'R1_search' || sid === 'P1_lit_search') run.degraded = true; // 首步触发降级（演示）
-    if (run.steps_order.every(function (s) { return run.steps[s] === 'DONE'; })) run.run_status = 'DONE';
-    emit();
-  }
-  function tick(run) {
-    var st = live[run.run_id];
-    if (!st || !st.auto) { emit(); return; }
-    var sid = nextStep(run);
-    if (!sid) { st.auto = false; emit(); return; }
-    if (run.steps[sid] !== 'RUNNING') beginStep(run, sid);
-    st.timer = setTimeout(function () {
-      finishStep(run, sid);
-      var s2 = live[run.run_id];
-      if (s2 && s2.auto) tick(run); else emit();
-    }, STEP_MS);
-  }
-  function startAuto(id) {
-    var run = getRun(id), st = live[id];
-    if (!run || !st || run.run_status === 'DONE') return;
-    st.auto = true; st.busy = false; emit(); tick(run);
-  }
-  function stopAuto(id) {
-    var st = live[id]; if (!st) return;
-    st.auto = false; clearTimeout(st.timer); emit();
-  }
-  function stepOnce(id) {
-    var run = getRun(id), st = live[id]; if (!run || !st) return;
-    if (st.auto) { st.auto = false; clearTimeout(st.timer); }
-    if (st.busy) return;
-    var sid = nextStep(run); if (!sid) return;
-    if (run.steps[sid] !== 'RUNNING') beginStep(run, sid);
-    st.busy = true;
-    st.timer = setTimeout(function () { finishStep(run, sid); st.busy = false; emit(); }, STEP_MS);
-  }
-  function resetRun(id) {
-    var run = getRun(id), st = live[id]; if (!run || !st) return;
-    clearTimeout(st.timer);
-    run.steps_order.forEach(function (s) { run.steps[s] = 'PENDING'; });
-    run.attempts = {};
-    run.toolcalls = [];
-    run.conclusions = [];
-    run.degraded = false;
-    run.run_status = 'PLANNED';
-    st.auto = false; st.busy = false; st.started = false;
-    UI.toast('已重置并重放推进', run.run_id);
-    startAuto(id);
-  }
-  function ensureRunning(id) {
-    var run = getRun(id), st = live[id];
-    if (!run || !st || st.started || run.run_status === 'DONE') return;
-    st.started = true;
-    startAuto(id);
-  }
-
-  /* ---------- 创建 run ---------- */
-  var seq = 0;
-  function createRun(goal, workflow, source) {
-    seq++;
-    var ts = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15);
-    var id = 'run-' + ts + '-demo' + seq;
-    var steps = {}, attempts = {};
-    D.WORKFLOWS[workflow].forEach(function (s) { steps[s] = 'PENDING'; });
-    var run = {
-      run_id: id, workflow: workflow, run_status: 'PLANNED', degraded: false,
-      goal: goal, lit_source: source, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-      steps_order: D.WORKFLOWS[workflow].slice(), steps: steps, attempts: attempts,
-      toolcalls: [], conclusions: [], n_evidence: 0, _live: true, _rank: -1,
-    };
-    run._tools = toolsFor(run);
-    run._conclusions = conclusionsFor(run);
-    D.RUNS.unshift(run);
-    D.runsById[id] = run;
-    live[id] = { run: run, timer: null, auto: false, busy: false, started: false };
-    return id;
-  }
-  function getRun(id) { return D.runsById[id] || null; }
-  function isAuto(id) { return !!(live[id] && live[id].auto); }
-
-  /* ---------- 导航模型 ---------- */
-  var NAV = [
-    { key: 'overview', label: '总览', icon: 'grid' },
-    { key: 'new', label: '新建任务', icon: 'plus' },
-    { key: 'monitor', label: '运行监控', icon: 'activity' },
-    { key: 'evidence', label: '证据溯源', icon: 'link' },
-    { key: 'report', label: '报告与导出', icon: 'file' },
-    { key: 'library', label: '文献资源', icon: 'book' },
-    { key: 'health', label: '环境体检', icon: 'heart' },
-    { key: 'agh', label: 'AGH 集成', icon: 'box' },
-    { sep: true },
-    { key: 'settings', label: '设置', icon: 'gear' },
-    { key: 'recovery', label: '故障演练', icon: 'shield' },
-  ];
-  var ROUTES = {
-    overview: { view: V.overview, title: '总览' },
-    new: { view: V.newTask, title: '新建任务' },
-    monitor: { view: V.monitor, title: '运行监控', runScoped: true },
-    evidence: { view: V.evidence, title: '证据溯源', runScoped: true },
-    report: { view: V.report, title: '报告与审计导出', runScoped: true },
-    library: { view: V.library, title: '文献资源' },
-    health: { view: V.health, title: '环境体检' },
-    agh: { view: V.agh, title: 'AGH 集成' },
-    settings: { view: V.settings, title: '设置' },
-    recovery: { view: V.recovery, title: '故障恢复演练' },
+  /* ---------- 路由表（键来自 constants.js，视图来自 views.js） ---------- */
+  var VIEW_MAP = {
+    overview: V.overview, new: V.newTask, monitor: V.monitor, evidence: V.evidence,
+    report: V.report, library: V.library, health: V.health, agh: V.agh,
+    settings: V.settings, recovery: V.recovery,
   };
+  var TITLES = {
+    overview: '总览', new: '新建任务', monitor: '运行监控', evidence: '证据溯源',
+    report: '报告与审计导出', library: '文献资源', health: '环境体检', agh: 'AGH 集成',
+    settings: '设置', recovery: '故障恢复演练',
+  };
+  var RUN_SCOPED = { monitor: true, evidence: true, report: true };
+  var ROUTES = {};
+  C.ROUTE_KEYS.forEach(function (k) {
+    ROUTES[k] = { view: VIEW_MAP[k], title: TITLES[k], runScoped: !!RUN_SCOPED[k] };
+  });
 
-  /* ---------- app 接口 ---------- */
-  var cleanups = [];
+  /* ---------- app 接口（委托 api / store） ---------- */
   var app = {
-    on: on, emit: emit, getRun: getRun, createRun: createRun,
-    stepOnce: stepOnce, runAll: startAuto, stopAuto: stopAuto, isAuto: isAuto,
-    resetRun: resetRun, ensureRunning: ensureRunning,
+    on: STORE.on, emit: STORE.emit,
+    getRun: API.getRun, createRun: API.createRun,
+    stepOnce: API.stepOnce, runAll: API.runAll, stopAuto: API.stopAuto, isAuto: API.isAuto,
+    resetRun: API.resetRun, ensureRunning: API.ensureRunning,
     toast: UI.toast,
     go: function (hash) { if (location.hash === hash) render(); else location.hash = hash; },
     refresh: render,
@@ -194,6 +45,7 @@
 
   /* ---------- 外壳 DOM ---------- */
   var navList, brandBtn, appShell, topbar, viewHost, crumbSlot, tbTitle, tbActions;
+  var cleanups = [];
 
   function buildShell() {
     var root = document.getElementById('app');
@@ -237,7 +89,7 @@
     UI.clear(crumbSlot);
     UI.clear(tbActions);
     if (r.runScoped && runId) {
-      var run = getRun(runId) || D.runsById[D.SHOWCASE_ID];
+      var run = API.getRun(runId) || D.runsById[D.SHOWCASE_ID];
       crumbSlot.appendChild(h('span', { class: 'crumb-run', title: '点击复制 run_id', onclick: function () { UI.copyText(run.run_id, UI.toast); } },
         [icon('hash', 12), h('span', { class: 'mono' }, run.run_id)]));
       crumbSlot.appendChild(UI.runStatusBadge(run));
@@ -261,7 +113,7 @@
 
     var r = ROUTES[key];
     // 监控页：进入即自动开跑（对齐主线旅程）
-    if (key === 'monitor' && runId) ensureRunning(runId);
+    if (key === 'monitor' && runId) API.ensureRunning(runId);
 
     renderNav(key);
     renderTopbar(key, runId);
