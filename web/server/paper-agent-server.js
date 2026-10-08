@@ -655,6 +655,60 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  /* ══════ Batch 4 · 证据查询层（B4-3，只读）══════
+   * 实现真源 = core/paper_agent/query.py（经 CLI 复用，前端不做第二份实现）。
+   * 安全约定：
+   *   - runs_dir 一律钉死为本服务的 RUNS_DIR（**不来自请求参数**，防目录穿越）；
+   *   - run_id 走 validRunId 白名单；
+   *   - kw/doi/tier/kind/source 以独立 argv 传入（无 shell 拼接，无注入面）。
+   */
+  if (p === '/api/evidence/query' && m === 'GET') {
+    const q = url.searchParams;
+    const limitRaw = Number(q.get('limit'));
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 500) : 200;
+    const args = ['query', '--runs', RUNS_DIR, '--limit', String(limit)];
+    for (const [flag, key] of [['--kw', 'kw'], ['--doi', 'doi'], ['--tier', 'tier'], ['--kind', 'kind'], ['--source', 'source']]) {
+      const v = String(q.get(key) || '').trim();
+      if (v) args.push(flag, v);
+    }
+    for (const rid of String(q.get('run') || '').split(',').map((s) => s.trim()).filter(Boolean)) {
+      if (!validRunId(rid)) return err(res, 400, `run_id 格式非法：${rid}`, 'BAD_ID');
+      args.push('--run', rid);
+    }
+    const r = await runCli(args, { timeoutMs: 30000 });
+    if (r.code !== 0 || !r.json?.ok) {
+      const msg = r.json?.error
+        || (r.stderr || '').trim().split(/\r?\n/).slice(-1)[0]
+        || `query 失败（退出码 ${r.code}）`;
+      return err(res, 500, msg, 'QUERY_ERROR');
+    }
+    return json(res, 200, r.json);
+  }
+
+  if (p === '/api/evidence/graph' && m === 'GET') {
+    const rid = String(url.searchParams.get('run') || '');
+    if (!validRunId(rid)) return err(res, 400, 'run_id 格式非法', 'BAD_ID');
+    const r = await runCli(['query', '--runs', RUNS_DIR, '--graph', rid], { timeoutMs: 30000 });
+    if (r.code !== 0 || !r.json?.ok) {
+      const msg = r.json?.error
+        || (r.stderr || '').trim().split(/\r?\n/).slice(-1)[0]
+        || `graph 失败（退出码 ${r.code}）`;
+      return err(res, 500, msg, 'GRAPH_ERROR');
+    }
+    return json(res, 200, r.json);
+  }
+
+  if (p === '/api/evidence/aggregate' && m === 'GET') {
+    const r = await runCli(['query', '--runs', RUNS_DIR, '--aggregate'], { timeoutMs: 30000 });
+    if (r.code !== 0 || !r.json?.ok) {
+      const msg = r.json?.error
+        || (r.stderr || '').trim().split(/\r?\n/).slice(-1)[0]
+        || `aggregate 失败（退出码 ${r.code}）`;
+      return err(res, 500, msg, 'AGGREGATE_ERROR');
+    }
+    return json(res, 200, r.json);
+  }
+
   err(res, 404, `无此路由：${m} ${p}`, 'NO_ROUTE');
 });
 
