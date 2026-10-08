@@ -91,10 +91,15 @@ demo-kit/
 对 Python 是空操作）。本套件一律用 `env "name=value"` 前缀注入，统一入口见 `lib/env.sh` 的 `pa_py`。
 
 **已知环境坑（套件已自行规避）**：
-- 若系统里残留失效的 `paper-agent_ROOT` 用户变量，`doctor` 会在导入期明确报错、`health-check` 会将其标注为 ⚠ 并给出
-  「重新注入后重启 daemon」的指引（见 `docs/AGH插件安装指南.md`）。
+- 若系统里残留失效的 `paper-agent_ROOT` 用户变量（如指向一个已删除的目录），
+  `paper-agent` **不会在导入期崩溃**：它会回退到自动探测到的项目根、向 stderr 播报一行警告，
+  并让 `cli doctor` / `health-check` 把该项标注为 ⚠ 且给出「重新注入后重启 daemon」的指引
+  （见 `docs/AGH插件安装指南.md`）。设计取舍：**绝不静默指向错误的 `RUNS_DIR`**（回退到的一定是
+  "代码实际所在的那个仓库"，即真正正确的根），同时保证 `doctor` 这类最底层诊断工具在污染环境下也能运行。
 - 若系统设了 `http_proxy`/`https_proxy`，`curl` 到 `127.0.0.1` 也会走代理（返回 502）。套件的本地探测一律用
   `--noproxy '*'`（`lib/env.sh` 的 `pa_curl`）。手工验证时也请加 `--noproxy '*'`。
+- 一台机器可能装了多个 node（例如捆绑 v22 + 手动 v24）。套件会扫描 `where node` 全部命中 +
+  常见安装目录（`D:/Node.js`、`%ProgramFiles%/nodejs` 等），**取版本最高者**，避免漏掉能驱动 AGH 的 v24。
 
 ---
 

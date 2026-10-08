@@ -60,23 +60,39 @@ pa_detect_python() {
   return 1
 }
 
-# pa_detect_node：env AGH_NODE → node（返回满足 >=24 的第一个；demo-kit 不强制）
+# pa_detect_node：在常见位置里挑**版本最高**的一个（满足 >= PA_NODE_MIN）。
+# 候选来源：AGH_NODE > `where node`（Windows 全部命中）> PATH > 常见安装目录。
+# 之所以要"挑最高"：一台机器常同时存在多个 node（如捆绑 v22 + 手动装 v24），
+# 只取 PATH 第一个会漏掉能跑 AGH 的 v24（Batch 2 复验反馈）。
 pa_detect_node() {
-  local c v major
-  for c in "${AGH_NODE:-}" "$(command -v node 2>/dev/null || true)" \
-           "/c/Program Files/nodejs/node.exe"; do
-    [ -n "$c" ] || continue
+  local cands=() c v wl line
+  [ -n "${AGH_NODE:-}" ] && cands+=("$AGH_NODE")
+  if command -v where >/dev/null 2>&1; then
+    wl="$(where node 2>/dev/null | tr -d '\r' || true)"
+    if [ -n "$wl" ]; then
+      while IFS= read -r line; do [ -n "$line" ] && cands+=("$line"); done <<<"$wl"
+    fi
+  fi
+  c="$(command -v node 2>/dev/null || true)"; [ -n "$c" ] && cands+=("$c")
+  cands+=(
+    "D:/Node.js/node.exe" "/d/Node.js/node.exe"
+    "/c/Program Files/nodejs/node.exe" "/c/Program Files (x86)/nodejs/node.exe"
+    "$HOME/AppData/Roaming/npm/node.exe"
+  )
+  local best="" bestv="0.0.0"
+  for c in "${cands[@]}"; do
+    [ -n "$c" ] && [ -f "$c" ] || continue
     v="$("$c" -v 2>/dev/null || true)"
     [ -n "$v" ] || continue
-    major="${v#v}"; major="${major%%.*}"
-    if [ "$major" -ge "$PA_NODE_MIN" ] 2>/dev/null; then printf '%s' "$c"; return 0; fi
+    if pa_version_ge "$v" "$PA_NODE_MIN" && pa_version_ge "$v" "$bestv"; then
+      best="$c"; bestv="${v#v}"
+    fi
   done
+  [ -n "$best" ] && { printf '%s' "$best"; return 0; }
   return 1
 }
 
-# 探测结果（供调用方直接用；失败为空串）
-PA_PY="$(pa_detect_python || true)"
-PA_NODE="$(pa_detect_node || true)"
+# 探测函数见上；实际取值在**文件末尾**统一计算（依赖后面的 pa_version_ge）。
 
 # ---------- 统一 Python 调用入口（带连字符变量用 env 前缀注入）----------
 # 用法：pa_py -m paper_agent.cli doctor
@@ -153,3 +169,7 @@ g = {"__builtins__": builtins, "d": d, "len": len, "str": str, "bool": bool}
 print(eval(sys.argv[2], g))
 PY
 }
+
+# ---------- 探测结果（必须放在所有函数定义之后计算：pa_detect_node 依赖 pa_version_ge）----------
+PA_PY="$(pa_detect_python || true)"
+PA_NODE="$(pa_detect_node || true)"
