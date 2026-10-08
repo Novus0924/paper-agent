@@ -688,9 +688,30 @@ class Pipeline:
         # resume 语义：只执行 PENDING/FAILED；DONE/SKIPPED 复用
         st = self.state.step_status[step]
         if st in (StepStatus.DONE, StepStatus.SKIPPED):
+            self._autoconverge()
             return {"step": step, "reused": True, "status": st.value}
         self._ensure_running()
-        return getattr(self, self.STEP_FN[step])()
+        res = getattr(self, self.STEP_FN[step])()
+        # P2-3：步骤终态且全部完成后自动收敛 run_status。
+        self._autoconverge()
+        return res
+
+    def _autoconverge(self) -> None:
+        """步骤全部完成（DONE/SKIPPED）后自动收敛 run_status → DONE（P2-3）。
+
+        模型驱动路径（逐步 ``run-step``，等价于插件里的 ``sciret_run_step`` 循环）
+        此前不会触发收尾：六步全 DONE 后 ``state.json`` 里的 run_status 仍是 RUNNING，
+        必须显式调 ``finish`` 子命令。现由 Python 侧在最后一步完成时自动收敛，
+        消除后端的补丁式收尾。
+
+        只收敛到 DONE（全部 DONE/SKIPPED）；**不在此处收敛 FAILED** —— 失败需要由
+        模型/调用方显式决策（重试 ``resume`` 还是终止），以保持 resume / chaos 语义不变。
+        """
+        if self.state.run_status is not RunStatus.RUNNING:
+            return
+        steps = self.state.step_status
+        if all(st in (StepStatus.DONE, StepStatus.SKIPPED) for st in steps.values()):
+            self.state.finish_run(RunStatus.DONE)
 
     # ---------- 确定性兜底路径（非主导，仅供单测与离线演示）----------
 

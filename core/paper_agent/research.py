@@ -329,7 +329,10 @@ class ResearchPipeline:
             self.state.mark_degraded(
                 sid, note=f"检索源不可用已自动切换：{unavailable}（任务未中断）")
 
-        self._toolcall(sid, "sciret_search_papers",
+        # P0-1：工具名必须取真源。模型驱动路径下每一步都是 sciret_run_step
+        # （插件仅注册 sciret_plan/run_step/status/verify/report/cite/resume 共 7 个），
+        # 不得写入 sciret_search_papers 等插件中不存在的幻觉名。
+        self._toolcall(sid, "sciret_run_step",
                        {"goal": goal, "lit_source": source},
                        {"n_hits": len(docs), "unavailable": unavailable,
                         "sources_status": sources_status})
@@ -448,7 +451,7 @@ class ResearchPipeline:
         if scanned:
             self.state.mark_degraded(sid, note=f"{scanned} 篇为扫描件/低置信度解析")
 
-        self._toolcall(sid, "sciret_parse_paper",
+        self._toolcall(sid, "sciret_run_step",
                        {"input_hits": len(hits), "max_reads": limit},
                        {"n_read": len(notes), "n_failed": len(failures),
                         "scanned": scanned})
@@ -496,7 +499,7 @@ class ResearchPipeline:
             kind="analysis", ref=os.path.join("analysis", "gaps.json"),
             producer_step=sid, file_path=gap_path, meta={"n_gaps": gaps["n_gaps"]})
 
-        self._toolcall(sid, "sciret_analyze",
+        self._toolcall(sid, "sciret_run_step",
                        {"n_notes": len(notes)},
                        {"n_innovations": sum(i["n_innovations"] for i in innovations),
                         "n_gaps": gaps["n_gaps"]})
@@ -541,7 +544,7 @@ class ResearchPipeline:
             kind="factcheck", ref=os.path.join("factcheck", "factcheck.json"),
             producer_step=sid, file_path=fc_path,
             meta={"n_claims": cite["n"], "n_contradictions": contra["n_contradictions"]})
-        self._toolcall(sid, "sciret_factcheck", {"n_notes": len(notes)},
+        self._toolcall(sid, "sciret_run_step", {"n_notes": len(notes)},
                        {"consistency_rate": cite["consistency_rate"],
                         "n_contradictions": contra["n_contradictions"]})
         self.state.mark_step_done(sid, {"n_claims": cite["n"],
@@ -591,7 +594,7 @@ class ResearchPipeline:
         if not rv["consistency"]["ok"]:
             self.state.mark_degraded(sid, note=f"综述存在悬空引用：{rv['consistency']['dangling']}")
 
-        self._toolcall(sid, "sciret_write",
+        self._toolcall(sid, "sciret_run_step",
                        {"topic": self.state.goal, "n_docs": len(docs)},
                        {"n_citations": rv["n_citations"], "unsupported": len(rv["unsupported"]),
                         "n_bibtex": bib["n_entries"]})
@@ -629,7 +632,7 @@ class ResearchPipeline:
             producer_step=sid, file_path=out_path,
             meta={"overall": final["overall"], "verdict": final["verdict"],
                   "n_blocking": final["n_blocking"]})
-        self._toolcall(sid, "sciret_self_review", {"n_docs": len(docs)},
+        self._toolcall(sid, "sciret_run_step", {"n_docs": len(docs)},
                        {"overall": final["overall"], "verdict": final["verdict"]})
         self.state.mark_step_done(sid, {"overall": final["overall"],
                                         "verdict": final["verdict"]})
@@ -745,6 +748,7 @@ class ResearchPipeline:
             raise KeyError(f"unknown step {step} for research workflow")
         st = self.state.step_status[step]
         if st in (StepStatus.DONE, StepStatus.SKIPPED):
+            self._autoconverge()
             return {"step": step, "reused": True, "status": st.value}
         # 前置依赖不满足 → 返回可读失败（不抛栈、不隐式代跑），
         # 交由模型决定先补哪一步。
@@ -755,7 +759,23 @@ class ResearchPipeline:
                     "error_type": "StepDependencyError",
                     "missing_deps": list(self.STEP_DEPS.get(step, []))}
         self._ensure_running()
-        return getattr(self, self.STEP_FN[step])()
+        res = getattr(self, self.STEP_FN[step])()
+        # P2-3：步骤终态且全部完成后自动收敛 run_status。
+        self._autoconverge()
+        return res
+
+    def _autoconverge(self) -> None:
+        """步骤全部完成（DONE/SKIPPED）后自动收敛 run_status → DONE（P2-3）。
+
+        与 :meth:`steps.Pipeline._autoconverge` 语义一致：模型驱动逐步
+        ``run-step`` 路径在最后一步完成时自动收尾，消除后端补丁式 finish。
+        只收敛到 DONE，不收敛 FAILED（失败需调用方显式决策，保持 resume/chaos 语义）。
+        """
+        if self.state.run_status is not RunStatus.RUNNING:
+            return
+        steps = self.state.step_status
+        if all(st in (StepStatus.DONE, StepStatus.SKIPPED) for st in steps.values()):
+            self.state.finish_run(RunStatus.DONE)
 
     def finish_if_terminal(self) -> dict:
         if self.state.run_status is not RunStatus.RUNNING:
