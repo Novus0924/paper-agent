@@ -44,6 +44,10 @@ import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { buildSystemPrompt, savePrompt, loadPrompt, countPrompts } from './prompt.js';
+// MAINT-4：WORKFLOWS / STEP_LABELS 单一真源在 web/shared/prompt.mjs
+// （server.js 与 prompt.js 同为 ESM，见 web/package.json type:"module"），
+// 删除本地重复声明，防与 core/paper_agent/state.py 漂移。
+import { WORKFLOWS } from '../shared/prompt.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WEB_ROOT = path.resolve(__dirname, '..');
@@ -237,18 +241,6 @@ function validRunId(runId) {
 async function readState(runId) {
   return await readJson(path.join(runDir(runId), 'state.json'), null);
 }
-
-/** 步骤中文名（对齐 core/paper_agent/state.py 的 WORKFLOWS） */
-const STEP_LABELS = {
-  R1_search: '检索', R2_read: '精读', R3_analyze: '分析',
-  R4_verify: '核验', R5_write: '撰写', R6_review: '自审',
-  P1_lit_search: '检索', P2_clean_data: '清洗', P3_run_experiment: '实验',
-  P4_verify: '验证', P5_report: '报告',
-};
-const WORKFLOWS = {
-  research: ['R1_search', 'R2_read', 'R3_analyze', 'R4_verify', 'R5_write', 'R6_review'],
-  materials: ['P1_lit_search', 'P2_clean_data', 'P3_run_experiment', 'P4_verify', 'P5_report'],
-};
 
 /**
  * 读取某步骤最近一次工具调用的真实工具名（真源 = toolcalls/*.json 的 tool 字段）。
