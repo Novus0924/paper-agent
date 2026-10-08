@@ -16,10 +16,15 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-export PYTHONPATH="$PWD/core"
-export PAPER_AGENT_ROOT="$PWD"
+ROOT="$PWD"
+export PYTHONPATH="$ROOT/core"
+# ⚠️ PAPER_AGENT_ROOT 仅供脚本内部拼路径；Python 读的是带连字符的 paper-agent_ROOT
+#    —— bash 的 export 写不了带连字符的变量名（对 Python 是空操作），
+#    故统一用下面的 env 前缀注入（P0-2，与 demo/install_plugin.sh 一致）。
+export PAPER_AGENT_ROOT="$ROOT"
 export PYTHONIOENCODING="utf-8"
 PY="$(printenv paper-agent_PYTHON || echo python)"
+py() { env "paper-agent_ROOT=$ROOT" "paper-agent_PYTHON=$PY" "$PY" "$@"; }
 
 SRC_RUN="${1:?usage: demo_trust.sh <RUN_ID>}"
 DEMO_RUN="run-trust-demo"
@@ -34,11 +39,11 @@ rm -rf "$RUN_DIR"
 cp -r "runs/$SRC_RUN" "$RUN_DIR"
 
 echo "==> [1/3] 基线：干净副本正常出报告"
-"$PY" -m paper_agent.cli report --run "$DEMO_RUN" > /dev/null
+py -m paper_agent.cli report --run "$DEMO_RUN" > /dev/null
 echo "  PASS: report generated on clean copy (trust baseline)"
 
 echo "==> [2/3] 攻击 A：篡改 provenance.jsonl 第一条证据记录（不重算链哈希）"
-"$PY" - "$RUN_DIR/provenance.jsonl" <<'PYTAMPER'
+py - "$RUN_DIR/provenance.jsonl" <<'PYTAMPER'
 import json, sys
 p = sys.argv[1]
 with open(p, encoding="utf-8") as f:
@@ -51,7 +56,7 @@ with open(p, "w", encoding="utf-8") as f:
 print("  tampered record 1 ref ->", rec["ref"])
 PYTAMPER
 
-if "$PY" -m paper_agent.cli report --run "$DEMO_RUN" > runs_err.txt 2>&1; then
+if py -m paper_agent.cli report --run "$DEMO_RUN" > runs_err.txt 2>&1; then
   echo "  FAIL: tampered ledger accepted, report still generated!" >&2
   exit 1
 fi
@@ -62,7 +67,7 @@ rm -f runs_err.txt
 
 echo "==> [3/3] 攻击 B：恢复账本后伪造 verification.json（伪 PASS 短路）"
 rm -rf "$RUN_DIR" && cp -r "runs/$SRC_RUN" "$RUN_DIR"
-"$PY" - "$RUN_DIR/verification/verification.json" <<'PYFORGE'
+py - "$RUN_DIR/verification/verification.json" <<'PYFORGE'
 import json, sys
 p = sys.argv[1]
 with open(p, encoding="utf-8") as f:
@@ -74,7 +79,7 @@ with open(p, "w", encoding="utf-8") as f:
 print("  forged verification.json (status=PASS, extra field)")
 PYFORGE
 
-if "$PY" -m paper_agent.cli verify --run "$DEMO_RUN" > runs_err.txt 2>&1; then
+if py -m paper_agent.cli verify --run "$DEMO_RUN" > runs_err.txt 2>&1; then
   echo "  FAIL: forged verification accepted, P4 still PASS!" >&2
   exit 1
 fi

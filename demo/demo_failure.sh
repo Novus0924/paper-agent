@@ -6,11 +6,16 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-export PYTHONPATH="$PWD/core"
-export PAPER_AGENT_ROOT="$PWD"
+ROOT="$PWD"
+export PYTHONPATH="$ROOT/core"
+# ⚠️ PAPER_AGENT_ROOT 仅供脚本内部拼路径；Python 读的是带连字符的 paper-agent_ROOT
+#    —— bash 的 export 写不了带连字符的变量名（对 Python 是空操作），
+#    故统一用下面的 env 前缀注入（P0-2，与 demo/install_plugin.sh 一致）。
+export PAPER_AGENT_ROOT="$ROOT"
 # 强制 Python 输入输出 UTF-8，避免 Git Bash 管道按系统码页解码中文路径 JSON 失败
 export PYTHONIOENCODING="utf-8"
 PY="$(printenv paper-agent_PYTHON || echo python)"
+py() { env "paper-agent_ROOT=$ROOT" "paper-agent_PYTHON=$PY" "$PY" "$@"; }
 
 T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
 
@@ -18,7 +23,7 @@ T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
 # Git Bash 下会被系统码页污染，故改用文件方式，与 demo_e2e.sh 一致且已验证）。
 #   jfield <file> <python-expr-on-d>  → 打印表达式结果（表达式可引用顶层键 d）
 jfield(){
-  "$PY" - "$1" "$2" <<'PY'
+  py - "$1" "$2" <<'PY'
 import sys, json, builtins
 d = json.load(open(sys.argv[1], encoding="utf-8"))
 g = {"__builtins__": builtins, "d": d, "len": len}
@@ -32,7 +37,7 @@ bad(){ echo "  [FAIL] $1"; fail=$((fail+1)); }
 
 # ---------- 用例 A：p1_fail_first → 重试 1 次成功，DONE，degraded=False ----------
 echo "==> 用例 A  chaos=p1_fail_first"
-"$PY" -m paper_agent.cli run-all --goal "sulfide solid electrolyte conductivity" \
+py -m paper_agent.cli run-all --goal "sulfide solid electrolyte conductivity" \
       --chaos p1_fail_first > "$T/A.json" 2> "$T/A.err"
 A_RID="$(jfield "$T/A.json" "d['run_id']")"
 A_OK="$(jfield "$T/A.json" "1 if d['run_status']=='DONE' and d['degraded']==False else 0")"
@@ -42,7 +47,7 @@ A_RETRYCNT="$(grep -c '"type": "retry"' "$PAPER_AGENT_ROOT/runs/$A_RID/events.js
 
 # ---------- 用例 B：p1_fail_all → 耗尽降级，DONE，degraded=True，含 degrade 事件 ----------
 echo "==> 用例 B  chaos=p1_fail_all"
-"$PY" -m paper_agent.cli run-all --goal "garnet solid electrolyte" \
+py -m paper_agent.cli run-all --goal "garnet solid electrolyte" \
       --chaos p1_fail_all > "$T/B.json" 2> "$T/B.err"
 B_RID="$(jfield "$T/B.json" "d['run_id']")"
 B_OK="$(jfield "$T/B.json" "1 if d['run_status']=='DONE' and d['degraded']==True else 0")"
@@ -52,12 +57,12 @@ B_DEG="$(grep -c '"type": "degrade"' "$PAPER_AGENT_ROOT/runs/$B_RID/events.jsonl
 
 # ---------- 用例 C：P2 后中断，resume 只跑剩余，已 DONE 步骤复用 ----------
 echo "==> 用例 C  P2 后中断 resume"
-"$PY" -m paper_agent.cli plan --goal "argyrodite conductivity ranking" > "$T/Cplan.json" 2>/dev/null
+py -m paper_agent.cli plan --goal "argyrodite conductivity ranking" > "$T/Cplan.json" 2>/dev/null
 C_RID="$(jfield "$T/Cplan.json" "d['run_id']")"
-"$PY" -m paper_agent.cli run-step --run "$C_RID" --step P1_lit_search > /dev/null 2>&1
-"$PY" -m paper_agent.cli run-step --run "$C_RID" --step P2_clean_data > /dev/null 2>&1
+py -m paper_agent.cli run-step --run "$C_RID" --step P1_lit_search > /dev/null 2>&1
+py -m paper_agent.cli run-step --run "$C_RID" --step P2_clean_data > /dev/null 2>&1
 # 模拟 P2 后进程被杀：P3/P4/P5 仍 PENDING；resume 只跑剩余
-"$PY" -m paper_agent.cli resume --run "$C_RID" > "$T/C.json" 2> "$T/C.err"
+py -m paper_agent.cli resume --run "$C_RID" > "$T/C.json" 2> "$T/C.err"
 C_OK="$(jfield "$T/C.json" "1 if d['run_status']=='DONE' else 0")"
 C_REUSE="$(jfield "$T/C.json" "1 if d['results']['P1_lit_search'].get('reused') and d['results']['P2_clean_data'].get('reused') else 0")"
 [ "$C_OK" = "1" ] && ok "C: resume completes remaining steps to DONE" || bad "C: resume not DONE"
@@ -65,7 +70,7 @@ C_REUSE="$(jfield "$T/C.json" "1 if d['results']['P1_lit_search'].get('reused') 
 
 # ---------- 用例 D：mutate_summary → P4 FAIL，run FAILED，5 项校验可查 ----------
 echo "==> 用例 D  chaos=mutate_summary"
-"$PY" -m paper_agent.cli run-all --goal "sulfide ranking" \
+py -m paper_agent.cli run-all --goal "sulfide ranking" \
       --chaos mutate_summary > "$T/D.json" 2> "$T/D.err"
 D_OK="$(jfield "$T/D.json" "1 if d['run_status']=='FAILED' and d['results']['P4_verify']['status']=='FAIL' else 0")"
 D_CHECKS="$(jfield "$T/D.json" "len(d['results']['P4_verify']['checks'])")"

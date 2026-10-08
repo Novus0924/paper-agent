@@ -150,7 +150,12 @@ function runCli(argv, timeoutMs = 120_000) {
   const py = cfg.py;
   const env = curatedEnv(root);
   return new Promise((resolve) => {
-    const proc = spawn(py, argv, { env, cwd: root, stdio: ["ignore", "pipe", "pipe"] });
+    // windowsHide:true 防止 Windows 上每次调用工具都弹出一个命令行窗口。
+    // daemon 以 DETACHED_PROCESS（无控制台）启动；子进程 python.exe 若不带
+    // windowsHide 会自行分配一个新控制台 -> 每次 sciret_* 调用都会闪现一个
+    // 终端窗口。与 web/server/paper-agent-server.js 的 spawn（已设 windowsHide:true）
+    // 保持一致。
+    const proc = spawn(py, argv, { env, cwd: root, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
     let stdout = "";
     let stderr = "";
     const timer = setTimeout(() => proc.kill("SIGKILL"), timeoutMs);

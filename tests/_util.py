@@ -76,6 +76,10 @@ def build_temp_root(tmp: str) -> str:
     else:
         os.makedirs(dst_exp, exist_ok=True)
     os.makedirs(os.path.join(tmp, "runs"), exist_ok=True)
+    # 隔离根也必须是一个「合法项目根」：子进程（如 E2/E3 崩溃用例）会以
+    # paper-agent_ROOT=<tmp> 重新 import paper_agent，而 __init__ 现在会校验
+    # core/paper_agent 子目录存在（P0-2）。故镜像一个空的包标记目录。
+    os.makedirs(os.path.join(tmp, "core", "paper_agent"), exist_ok=True)
     # 指向临时根
     os.environ[_ENV_KEY] = tmp
     paper_agent.PAPER_AGENT_ROOT = tmp
