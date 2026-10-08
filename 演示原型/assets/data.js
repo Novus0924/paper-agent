@@ -27,52 +27,9 @@
     return out.slice(0, 64);
   }
 
-  /* ---------- 领域常量（对齐 web/src/api/constants.js） ---------- */
-  const WORKFLOWS = {
-    research: ['R1_search', 'R2_read', 'R3_analyze', 'R4_verify', 'R5_write', 'R6_review'],
-    materials: ['P1_lit_search', 'P2_clean_data', 'P3_run_experiment', 'P4_verify', 'P5_report'],
-  };
-  const STEP_LABELS = {
-    R1_search: '检索', R2_read: '精读', R3_analyze: '分析',
-    R4_verify: '核验', R5_write: '撰写', R6_review: '自审',
-    P1_lit_search: '检索', P2_clean_data: '清洗', P3_run_experiment: '实验',
-    P4_verify: '验证', P5_report: '报告',
-  };
-  const WORKFLOW_META = {
-    research: { label: 'research', desc: '六步文献综述：检索 → 精读 → 分析 → 核验 → 撰写 → 自审。不限领域', steps: WORKFLOWS.research },
-    materials: { label: 'materials', desc: '五步材料实验：检索 → 清洗 → 实验 → 验证 → 报告。含电解质数据集', steps: WORKFLOWS.materials },
-  };
-  const LIT_SOURCES = [
-    { id: 'auto', label: 'auto', desc: '先试 arXiv，失败自动降级', cliValue: 'auto', effective: true },
-    { id: 'arxiv', label: 'arXiv', desc: '仅 arXiv 实时检索', cliValue: 'arxiv', effective: true },
-    { id: 'local', label: '本地语料', desc: '离线内置语料，不联网', cliValue: 'local', effective: true },
-    { id: 'crossref', label: 'CrossRef', desc: 'CLI 暂不支持，将按 auto 执行', cliValue: 'auto', effective: false },
-    { id: 'openalex', label: 'OpenAlex', desc: 'CLI 暂不支持，将按 auto 执行', cliValue: 'auto', effective: false },
-    { id: 'semantic_scholar', label: 'Semantic Scholar', desc: 'CLI 暂不支持，将按 auto 执行', cliValue: 'auto', effective: false },
-  ];
-  const KIND_META = {
-    literature: '文献', data: '数据', note: '精读笔记', analysis: '分析',
-    factcheck: '核验', draft: '草稿', review: '自审', experiment: '实验',
-  };
-  const TIER_META = { fact: 'fact', artifact: 'artifact' };
-
-  /** 系统提示词模板（逐字对齐 server/prompt.js buildSystemPrompt） */
-  function buildSystemPrompt(goal, workflow, litSource) {
-    const steps = WORKFLOWS[workflow] || WORKFLOWS.research;
-    const chain = steps.map((s) => `${s}(${STEP_LABELS[s] || s})`).join(' → ');
-    const lines = [
-      '【角色】你是一个科研文献分析助手。',
-      '【硬约束】',
-      '1. 只使用已提供的检索结果作答，不得凭记忆补充文献；',
-      '2. 每条结论必须标注来源编号；',
-      '3. 资料不足时明确说「证据不足」，不要编造。',
-      `【工作流】${workflow}：${chain}`,
-    ];
-    const srcCn = { auto: '先试 arXiv，失败自动降级', arxiv: '仅 arXiv 实时检索', local: '离线内置语料，不联网' };
-    if (litSource && srcCn[litSource]) lines.push(`【检索来源】${litSource} —— ${srcCn[litSource]}`);
-    lines.push(`【本次目标】${goal}`);
-    return lines.join('\n');
-  }
+  /* ---------- 领域常量：已抽至 constants.js（唯一真源，Batch 3 · B3-1） ---------- */
+  // 本文件只保留 mock 数据；常量统一从 window.PA_CONST 取，避免双份真源漂移。
+  const C = window.PA_CONST;
 
   /* ---------- 真实文献（DOI 可核对） ---------- */
   const LITERATURE = [
@@ -230,7 +187,7 @@
     {
       run_id: 'run-20261008-075441-c881ac', workflow: 'research', run_status: 'RUNNING', degraded: false,
       goal: '固态电解质界面阻抗表征方法综述', lit_source: 'auto', created_at: '2026-10-08T07:54:41Z', updated_at: '2026-10-08T07:55:10Z',
-      steps_order: WORKFLOWS.research,
+      steps_order: C.WORKFLOWS.research,
       steps: { R1_search: 'DONE', R2_read: 'DONE', R3_analyze: 'RUNNING', R4_verify: 'PENDING', R5_write: 'PENDING', R6_review: 'PENDING' },
       attempts: { R1_search: 1, R2_read: 1, R3_analyze: 1 },
       _rank: 0,
@@ -238,7 +195,7 @@
     {
       run_id: SHOWCASE_ID, workflow: 'research', run_status: 'DONE', degraded: true,
       goal: '固态电解质界面阻抗的表征方法综述', lit_source: 'auto', created_at: '2026-10-08T06:43:50Z', updated_at: '2026-10-08T06:44:01Z',
-      steps_order: WORKFLOWS.research,
+      steps_order: C.WORKFLOWS.research,
       steps: { R1_search: 'DONE', R2_read: 'DONE', R3_analyze: 'DONE', R4_verify: 'DONE', R5_write: 'DONE', R6_review: 'DONE' },
       attempts: { R1_search: 1, R2_read: 1, R3_analyze: 1, R4_verify: 1, R5_write: 1, R6_review: 1 },
       toolcalls: makeToolcalls(SHOWCASE_ID), conclusions: CONCLUSIONS, n_evidence: 21,
@@ -247,7 +204,7 @@
     {
       run_id: 'run-20261008-064702-fede6b', workflow: 'materials', run_status: 'DONE', degraded: false,
       goal: '硫化物固态电解质离子电导率数据集清洗与建模', lit_source: 'local', created_at: '2026-10-08T06:47:02Z', updated_at: '2026-10-08T06:47:40Z',
-      steps_order: WORKFLOWS.materials,
+      steps_order: C.WORKFLOWS.materials,
       steps: { P1_lit_search: 'DONE', P2_clean_data: 'DONE', P3_run_experiment: 'DONE', P4_verify: 'DONE', P5_report: 'DONE' },
       attempts: { P1_lit_search: 1, P2_clean_data: 1, P3_run_experiment: 1, P4_verify: 1, P5_report: 1 },
       n_evidence: 9, _rank: 2,
@@ -255,7 +212,7 @@
     {
       run_id: 'run-20261008-064952-4eb61a', workflow: 'materials', run_status: 'FAILED', degraded: false,
       goal: 'OBELiX 数据集复现校验（容差检查）', lit_source: 'local', created_at: '2026-10-08T06:49:52Z', updated_at: '2026-10-08T06:50:30Z',
-      steps_order: WORKFLOWS.materials,
+      steps_order: C.WORKFLOWS.materials,
       steps: { P1_lit_search: 'DONE', P2_clean_data: 'DONE', P3_run_experiment: 'DONE', P4_verify: 'FAILED', P5_report: 'PENDING' },
       attempts: { P1_lit_search: 1, P2_clean_data: 1, P3_run_experiment: 1, P4_verify: 2, P5_report: 0 },
       n_evidence: 6, _rank: 3,
@@ -263,7 +220,7 @@
     {
       run_id: 'run-20261008-070248-15e0bb', workflow: 'research', run_status: 'DONE', degraded: false,
       goal: '钠离子固态电解质研究进展调研', lit_source: 'arxiv', created_at: '2026-10-08T07:02:48Z', updated_at: '2026-10-08T07:03:20Z',
-      steps_order: WORKFLOWS.research,
+      steps_order: C.WORKFLOWS.research,
       steps: { R1_search: 'DONE', R2_read: 'DONE', R3_analyze: 'DONE', R4_verify: 'DONE', R5_write: 'DONE', R6_review: 'DONE' },
       attempts: { R1_search: 1, R2_read: 1, R3_analyze: 1, R4_verify: 1, R5_write: 1, R6_review: 1 },
       n_evidence: 14, _rank: 4,
@@ -271,7 +228,7 @@
     {
       run_id: 'run-20261008-072945-866930', workflow: 'research', run_status: 'DONE', degraded: true,
       goal: '固态电池界面工程综述（含跨源降级）', lit_source: 'auto', created_at: '2026-10-08T07:29:45Z', updated_at: '2026-10-08T07:30:22Z',
-      steps_order: WORKFLOWS.research,
+      steps_order: C.WORKFLOWS.research,
       steps: { R1_search: 'DONE', R2_read: 'DONE', R3_analyze: 'DONE', R4_verify: 'DONE', R5_write: 'DONE', R6_review: 'DONE' },
       attempts: { R1_search: 1, R2_read: 1, R3_analyze: 1, R4_verify: 1, R5_write: 1, R6_review: 1 },
       n_evidence: 18, _rank: 5,
@@ -390,12 +347,11 @@
   };
 
   /* ---------- 导出 ---------- */
-  window.PA_DATA = {
-    hash64, WORKFLOWS, STEP_LABELS, WORKFLOW_META, LIT_SOURCES, KIND_META, TIER_META,
-    buildSystemPrompt, LITERATURE, PROVENANCE, provByEv, CONCLUSIONS, FACTCHECK, REVIEW,
+  // mock 数据 + 领域常量（来自 constants.js）一并挂到 PA_DATA，
+  // 视图层（views.js / components.js）继续从 window.PA_DATA 读，无需改动。
+  window.PA_DATA = Object.assign({
+    hash64, LITERATURE, PROVENANCE, provByEv, CONCLUSIONS, FACTCHECK, REVIEW,
     SOURCES_STATUS, UNAVAILABLE, SHOWCASE_ID, RUNS, runsById, KPI, TRUST, AUDIT_PACK,
     REPORT_MD, DATASETS, TOOLS, AGH_SESSION, HEALTH, SETTINGS,
-    RUN_STATUS_LABEL: { PLANNED: '待执行', RUNNING: '运行中', DONE: '已完成', FAILED: '失败' },
-    STEP_STATUS_LABEL: { PENDING: '待执行', RUNNING: '运行中', DONE: '完成', FAILED: '失败', SKIPPED: '跳过' },
-  };
+  }, C);
 })();

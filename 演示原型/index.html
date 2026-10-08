@@ -5,13 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>paper-agent 2.0 · 科研工作台（Demo）</title>
   <meta name="description" content="paper-agent 2.0 科研工作台高完成度交互原型（全假数据、零依赖、离线可运行）" />
+  <!-- 设计令牌须先于组件样式加载 -->
+  <link rel="stylesheet" href="assets/tokens.css" />
   <link rel="stylesheet" href="assets/styles.css" />
 </head>
 <body>
   <!-- 外壳：app.js 注入 侧边导航 + 顶部上下文栏 + 主内容区 -->
   <div id="app" class="app"></div>
 
-  <!-- 经典 <script src> 顺序加载（勿用 type="module"，以保证 file:// 双击可用） -->
+  <!-- 经典 <script src> 顺序加载（勿用 type="module"，以保证 file:// 双击可用）
+       顺序：常量 → 数据 → UI 原语 → 状态 → 适配层 → 视图 → 应用 -->
+  <script src="assets/constants.js"></script>
   <script src="assets/data.js"></script>
   <script src="assets/components.js"></script>
   <script src="assets/views.js"></script>

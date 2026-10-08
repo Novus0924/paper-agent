@@ -1,0 +1,33 @@
+/* ============================================================
+ * tokens.css —— 设计令牌（唯一真源）
+ * 从 styles.css 抽出；必须在 styles.css 之前加载（<link> 顺序）。
+ * 视觉基调：深色 + 唯一琥珀强调色（Swiss Modernism 2.0 × AI-Native）
+ * 间距走 4 的倍数；无障碍 AA。
+ * ============================================================ */
+:root {
+  --bg: #0B0B0C;
+  --surface: #141416;
+  --surface-2: #1A1A1D;
+  --raised: #202024;
+  --ink: #E8E8E6;
+  --ink-2: #B9B9B5;
+  --ink-3: #8A8A85;
+  --amber: #D9A441;
+  --amber-dim: rgba(217, 164, 65, 0.14);
+  --amber-line: rgba(217, 164, 65, 0.42);
+  --ok: #6BBF8A;
+  --run: #7FA8D9;
+  --warn: #D98A5A;
+  --fail: #E5646A;
+  --line: #26262B;
+  --line-2: #303036;
+
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px; --s8: 64px;
+  --r: 10px; --r-sm: 6px; --r-pill: 20px;
+  --nav-w: 220px; --nav-w-sm: 60px; --topbar-h: 56px;
+
+  --font: "Inter", "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", "Cascadia Code", "Consolas", monospace;
+  --ease: cubic-bezier(.4, 0, .2, 1);
+  --dur: 150ms;
+}
