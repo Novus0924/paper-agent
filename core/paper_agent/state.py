@@ -126,8 +126,15 @@ LIT_SOURCES = ("local", "arxiv", "auto")
 
 
 def default_lit_source() -> str:
-    """解析文献检索来源的默认值（环境变量 > 内置默认）。"""
-    env = os.environ.get("paper-agent_LIT_SOURCE", "").strip().lower()
+    """解析文献检索来源的默认值（环境变量 > 内置默认）。
+
+    MAINT-5：与 _root_override 同口径的双名兼容——标准名
+    ``PAPER_AGENT_LIT_SOURCE`` 优先（bash 可直接 export），历史名
+    ``paper-agent_LIT_SOURCE`` 兜底（AGH 注入名，含连字符）。
+    """
+    raw = (os.environ.get("PAPER_AGENT_LIT_SOURCE")
+           or os.environ.get("paper-agent_LIT_SOURCE") or "")
+    env = raw.strip().lower()
     return env if env in LIT_SOURCES else "auto"
 
 

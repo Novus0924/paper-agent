@@ -47,8 +47,15 @@ _CATS = ["方法创新", "理论创新", "数据创新", "应用创新", "工程
 
 
 def _read_limit() -> int:
+    """R2 精读篇数上限（环境变量 > 内置默认）。
+
+    MAINT-5：与 _root_override 同口径的双名兼容——标准名
+    ``PAPER_AGENT_READ_LIMIT`` 优先，历史名 ``paper-agent_READ_LIMIT`` 兜底。
+    """
     try:
-        return max(1, int(os.environ.get("paper-agent_READ_LIMIT", DEFAULT_READ_LIMIT)))
+        raw = (os.environ.get("PAPER_AGENT_READ_LIMIT")
+               or os.environ.get("paper-agent_READ_LIMIT") or "")
+        return max(1, int(raw))
     except ValueError:
         return DEFAULT_READ_LIMIT
 
