@@ -127,26 +127,33 @@ class ProvenanceLedger:
             records.append((lineno, rec))
             last_valid_idx = idx
 
-        # 尾部坏行 = 位置在最后一个有效行之后的坏行（其后无有效记录跟随）
+        # 尾部坏行 = 位置在最后一个有效行之后的坏行（其后无有效记录跟随）；
+        # 中间坏行 = 其余坏行（其后存在有效记录）。
         tail_bad = [b for b in bad_lines if b[0] > last_valid_idx + 1]
-        if bad_lines:
-            if tail_bad:
-                cut = tail_bad[0][1]  # 首个尾部坏行的字节偏移（= 有效记录终点）
-                truncated = len(data) - cut
-                # 自愈截断：同一文件以 'r+b' 重开 truncate（读句柄已关闭，
-                # Windows 下无句柄竞争）；截断点之前的有效记录原样保留。
-                with open(self.path, "r+b") as f:
-                    f.truncate(cut)
-                    f.flush()
-                print(f"[paper-agent] 警告：证据账本尾部发现崩溃残留"
-                      f"（append 中断的半行 JSON），已截断自愈 {truncated} 字节"
-                      f"（自第 {tail_bad[0][0]} 行起）：{self.path}",
-                      file=sys.stderr)
-            else:
-                lineno = bad_lines[0][0]
-                raise EvidenceError(
-                    f"证据账本第 {lineno} 行损坏且其后仍有有效记录"
-                    f"（疑似篡改或磁盘问题，拒绝加载）: {self.path}")
+        mid_bad = [b for b in bad_lines if b[0] <= last_valid_idx + 1]
+        # 复验修正：中间坏行**优先**响亮失败。中间坏行与尾部坏行并存时
+        # （如 [有效, 坏, 有效, 坏]）若先判尾部自愈，会把中间坏行静默放过
+        # ——load 成功但坏行留在文件里、verify_chain 却报 problem，load 与
+        # verify 信任语义分裂。故只要存在中间坏行即无条件拒绝加载。
+        if mid_bad:
+            lineno = mid_bad[0][0]
+            raise EvidenceError(
+                f"证据账本第 {lineno} 行损坏且其后仍有有效记录"
+                f"（疑似篡改或磁盘问题，拒绝加载）: {self.path}")
+        if tail_bad:
+            cut = tail_bad[0][1]  # 首个尾部坏行的字节偏移（= 有效记录终点）
+            truncated = len(data) - cut
+            # 自愈截断：同一文件以 'r+b' 重开 truncate（读句柄已关闭，
+            # Windows 下无句柄竞争）；截断点之前的有效记录原样保留。
+            # 注：截断点之前的坏行必然都是中间坏行（已被上面拒绝），
+            # 此处到达即意味着全部坏行都在最后一个有效记录之后。
+            with open(self.path, "r+b") as f:
+                f.truncate(cut)
+                f.flush()
+            print(f"[paper-agent] 警告：证据账本尾部发现崩溃残留"
+                  f"（append 中断的半行 JSON），已截断自愈 {truncated} 字节"
+                  f"（自第 {tail_bad[0][0]} 行起）：{self.path}",
+                  file=sys.stderr)
 
         for _lineno, rec in records:
             self._ev_index[rec["ev_id"]] = rec

@@ -183,6 +183,25 @@ class TestLedgerTailRecovery(unittest.TestCase):
         self.assertIn("第 2 行", msg)
         self.assertIn("拒绝加载", msg)
 
+    def test_mid_and_tail_bad_lines_fail_loud_without_truncation(self):
+        """复验修正：中间坏行与尾部坏行并存（[有效, 坏, 有效, 坏]）→ 必须响亮失败。
+
+        若先判尾部自愈，中间坏行（第 2 行）会被静默放过——load 成功但坏行
+        留在文件里、verify_chain 报 problem，load/verify 信任语义分裂。
+        锁定：中间坏行优先无条件拒绝加载，且文件不被截断。
+        """
+        lines = self._raw().splitlines()
+        corrupted = lines[:1] + ['{"ev_id": "EV-77", "brok'] \
+            + lines[1:2] + ['{"ev_id": "EV-88", "chain_hash": "xyz']
+        with open(self.path, "w", encoding="utf-8", newline="") as f:
+            f.write("\n".join(corrupted) + "\n")
+        before = self._raw()
+        with self.assertRaises(EvidenceError) as cm:
+            ProvenanceLedger(self.run_dir, "run-tail")
+        self.assertIn("第 2 行", str(cm.exception))
+        # 文件原样保留（不截断），保留现场供审计
+        self.assertEqual(self._raw(), before)
+
     def test_verify_chain_clean_after_self_heal(self):
         """自愈后 verify_chain() 返回空（链完整）。"""
         with open(self.path, "a", encoding="utf-8", newline="") as f:
