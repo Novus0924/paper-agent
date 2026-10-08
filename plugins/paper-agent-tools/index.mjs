@@ -183,15 +183,22 @@ function runCli(argv, timeoutMs = 120_000) {
   });
 }
 
-/** 统一的工具执行器：调用 CLI，按 AGH 返回格式包装。 */
-function makeRunner(argsOf, timeoutMs) {
+/** 统一的工具执行器：调用 CLI，按 AGH 返回格式包装。
+ *
+ * MAINT-6：只读工具（sciret_status / sciret_cite）不透传 --chaos——
+ * 读路径触发故障注入语义怪异（chaos 是写路径的故意设计，见各写工具 schema）。
+ * allowChaos 由调用方按工具性质显式声明，默认 true 保持写路径行为不变。
+ */
+function makeRunner(argsOf, timeoutMs, { allowChaos = true } = {}) {
   return async function execute(ctx) {
     // 防御 H1：run_id 边界白名单校验（与 Python 侧 state.py 双保险）
     if (ctx.run_id !== undefined && !validateRunId(ctx.run_id)) {
       return wrap({ ok: false,
                     error: `invalid run_id ${String(ctx.run_id)}: must match ^run-[\\w-]+$` });
     }
-    const chaos = (ctx.chaos && String(ctx.chaos).trim()) || undefined;
+    const chaos = allowChaos
+      ? ((ctx.chaos && String(ctx.chaos).trim()) || undefined)
+      : undefined;
     const argv = cliArgs(argsOf(ctx), chaos);
     const r = await runCli(argv, timeoutMs);
     return wrap(r.structured ?? r);
@@ -211,7 +218,10 @@ const TOOLS = [
       },
       ["goal"],
     ),
-    meta: writeMeta("never", 10_000),
+    // MAINT-7：costHint.wallMs 必须等于实际生效的超时。plan 的 makeRunner
+    // 未传 timeoutMs → 走 runCli 默认 120_000ms（:146），声明值原为 10_000，
+    // 与生效值不符。此处把声明对齐为生效值（不改变任何运行行为）。
+    meta: writeMeta("never", 120_000),
     execute: makeRunner((c) => {
       const a = ["plan", "--goal", c.goal];
       if (c.workflow) a.push("--workflow", c.workflow);
@@ -236,11 +246,12 @@ const TOOLS = [
     name: "sciret_status",
     description: "Read-only: return current run/step status, attempts, and degraded flag for a run.",
     parameters: objectSchema(
-      { run_id: str("run instance id"), chaos: optStr(CHAOS_DESC) },
+      { run_id: str("run instance id") },
       ["run_id"],
     ),
     meta: READONLY_META,
-    execute: makeRunner((c) => ["status", "--run", c.run_id]),
+    // MAINT-6：只读工具不暴露/不透传 chaos（allowChaos:false）
+    execute: makeRunner((c) => ["status", "--run", c.run_id], 120_000, { allowChaos: false }),
   },
   {
     name: "sciret_verify",
@@ -269,16 +280,16 @@ const TOOLS = [
       {
         run_id: str("run instance id"),
         ev: optStr("EV-XXXX evidence id; omit to list all evidence"),
-        chaos: optStr(CHAOS_DESC),
       },
       ["run_id"],
     ),
     meta: READONLY_META,
+    // MAINT-6：只读工具不暴露/不透传 chaos（allowChaos:false）
     execute: makeRunner((c) => {
       const a = ["cite", "--run", c.run_id];
       if (c.ev) a.push("--ev", c.ev);
       return a;
-    }),
+    }, 120_000, { allowChaos: false }),
   },
   {
     name: "sciret_resume",
