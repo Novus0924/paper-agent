@@ -8,6 +8,7 @@
 
   var UI = window.PA_UI;
   var D = window.PA_DATA;
+  var API = window.PA_API;
   var h = UI.h, icon = UI.icon;
 
   function goEv(ctx, ev) { ctx.app.go('#/evidence/' + D.SHOWCASE_ID + '/' + ev); }
@@ -166,9 +167,17 @@
         ta.focus(); return;
       }
       errNode.classList.add('hidden');
-      var rid = ctx.app.createRun(state.goal.trim(), state.workflow, state.source);
-      UI.toast('已创建任务，正在进入运行监控…', rid, 'ok');
-      ctx.app.go('#/monitor/' + rid);
+      var btn = this, orig = btn.innerHTML;
+      btn.disabled = true; btn.textContent = '创建中…（live：plan 需 1-2 秒）';
+      // live 的 createRun 返回 Promise（POST /api/runs）；mock 同步返回 id——Promise.resolve 统一两者
+      Promise.resolve(ctx.app.createRun(state.goal.trim(), state.workflow, state.source)).then(function (rid) {
+        UI.toast('已创建任务，正在进入运行监控…', rid, 'ok');
+        ctx.app.go('#/monitor/' + rid);
+      }).catch(function (e) {
+        btn.disabled = false; btn.innerHTML = orig;
+        errNode.textContent = (e && e.message) || '创建失败';
+        errNode.classList.remove('hidden');
+      });
     } }, [icon('play'), '开始研究']);
 
     return h('div', { class: 'grid gap5', style: { maxWidth: '1080px', margin: '0 auto' } }, [
@@ -295,12 +304,40 @@
     var evs = D.PROVENANCE;
     var filter = 'all', q = '';
 
-    var verdicts = h('div', { class: 'grid g4' }, [
-      verdict('100%', '引用一致性', '3 处引用全部一致', 'ok'),
-      verdict('7.67', '自审评分', '1 项待修（阻断）', 'warn'),
-      verdict('21', '证据条目', 'fact 21 · artifact 0', ''),
-      verdict('3.75', '来源可用', '/4 源 · 1 源降级', 'warn'),
-    ]);
+    var verdicts = h('div', { class: 'grid g4' }, (function () {
+      var isLiveUI = !!(window.PA_API && window.PA_API.isLive && window.PA_API.isLive());
+      if (!isLiveUI) {
+        // mock：保持与规格一致的演示数值（B3-1 像素级不变）
+        return [
+          verdict('100%', '引用一致性', '3 处引用全部一致', 'ok'),
+          verdict('7.67', '自审评分', '1 项待修（阻断）', 'warn'),
+          verdict('21', '证据条目', 'fact 21 · artifact 0', ''),
+          verdict('3.75', '来源可用', '/4 源 · 1 源降级', 'warn'),
+        ];
+      }
+      // live：从真实数据推导（materials 无 review/factcheck 时诚实显示 —）
+      var nFact = 0, nArt = 0;
+      evs.forEach(function (e) { if (e.tier === 'artifact') nArt++; else nFact++; });
+      var fc = D.FACTCHECK || {};
+      var rate = fc.citations ? fc.citations.consistency_rate : null;
+      var v1 = rate == null
+        ? ['—', '引用一致性', '本工作流无引用核查数据', '']
+        : [Math.round(rate * 100) + '%', '引用一致性', (fc.citations.n || 0) + ' 处引用全部核对', rate >= 1 ? 'ok' : 'warn'];
+      var fin = D.REVIEW && D.REVIEW.final ? D.REVIEW.final : null;
+      var v2 = (fin && fin.overall != null)
+        ? [String(fin.overall), '自审评分', (fin.n_blocking || 0) + ' 项待修（阻断）', fin.n_blocking > 0 ? 'warn' : 'ok']
+        : ['—', '自审评分', '本工作流无自审数据（无 review.json）', ''];
+      var v3 = [String(evs.length), '证据条目', 'fact ' + nFact + ' · artifact ' + nArt, ''];
+      var tcWithSrc = null;
+      (run.toolcalls || []).forEach(function (t) { if (t.sources_status) tcWithSrc = t; });
+      var ss = tcWithSrc ? tcWithSrc.sources_status : null;
+      var okN = 0, totN = 0, badN = 0;
+      if (ss) { Object.keys(ss).forEach(function (k) { totN++; if (String(ss[k]).indexOf('ok') === 0) okN++; else badN++; }); }
+      var v4 = ss
+        ? [okN + '/' + totN, '来源可用', '共 ' + totN + ' 源 · ' + badN + ' 源降级', badN > 0 ? 'warn' : 'ok']
+        : ['—', '来源可用', '尚未执行检索步骤', ''];
+      return [verdict(v1[0], v1[1], v1[2], v1[3]), verdict(v2[0], v2[1], v2[2], v2[3]), verdict(v3[0], v3[1], v3[2], v3[3]), verdict(v4[0], v4[1], v4[2], v4[3])];
+    })());
     function verdict(v, l, s, cls) {
       return h('div', { class: 'card verdict' }, [
         h('div', { class: 'v-val', style: { color: cls === 'ok' ? 'var(--ok)' : cls === 'warn' ? 'var(--warn)' : 'var(--ink)' } }, v),

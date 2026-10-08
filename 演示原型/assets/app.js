@@ -89,7 +89,10 @@
     UI.clear(crumbSlot);
     UI.clear(tbActions);
     if (r.runScoped && runId) {
-      var run = API.getRun(runId) || D.runsById[D.SHOWCASE_ID];
+      if (API.isLive()) API.ensureLoaded(runId); // live：按需拉详情（到达后 emit 重渲染）
+      var run = API.getRun(runId)
+        || (API.isLive() ? (D.RUNS[0] || null) : null)
+        || D.runsById[D.SHOWCASE_ID];
       crumbSlot.appendChild(h('span', { class: 'crumb-run', title: '点击复制 run_id', onclick: function () { UI.copyText(run.run_id, UI.toast); } },
         [icon('hash', 12), h('span', { class: 'mono' }, run.run_id)]));
       crumbSlot.appendChild(UI.runStatusBadge(run));
@@ -97,7 +100,8 @@
       crumbSlot.appendChild(h('span', { class: 'mono' }, 'paper-agent 2.0 · 展示原型'));
     }
     tbActions.appendChild(h('button', { class: 'btn', onclick: function () { app.go('#/new'); } }, [icon('plus'), '新建']));
-    tbActions.appendChild(h('button', { class: 'btn solid', onclick: function () { app.go('#/report/' + D.SHOWCASE_ID); } }, [icon('download'), '导出']));
+    var exportTarget = (API.isLive() && D.RUNS[0] && D.RUNS[0].run_id) || D.SHOWCASE_ID;
+    tbActions.appendChild(h('button', { class: 'btn solid', onclick: function () { app.go('#/report/' + exportTarget); } }, [icon('download'), '导出']));
   }
 
   function render() {
@@ -128,6 +132,7 @@
   function boot() {
     buildShell();
     if (!location.hash) location.replace('#/overview');
+    if (API.isLive()) API.loadRuns(); // live：启动即拉真实任务列表
     window.addEventListener('hashchange', render);
     render();
   }
