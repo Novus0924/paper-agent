@@ -15,6 +15,10 @@
 **可信框架**：
   verify --run RUN_ID / report --run RUN_ID / cite --run RUN_ID [--ev EV-XXXX]
 
+**证据查询层（Batch 4 / 只读）**：
+  query [--kw KW] [--doi DOI] [--tier TIER] [--kind KIND] [--source SRC]
+        [--run RUN_ID]... [--graph RUN_ID] [--aggregate] [--verify-all]
+
 **环境自检（B2-0）**：
   doctor                             # 单行 JSON：Python/项目根/runs/环境变量/端口/AGH 线索
 
@@ -134,6 +138,26 @@ def build_parser() -> argparse.ArgumentParser:
     # 环境自检（B2-0）：stdout 输出单行 JSON，供 demo-kit/health-check.sh 复用，
     # 避免"自检逻辑散落 Bash 与 Python 两处"。
     mk("doctor")
+
+    # 证据查询层（Batch 4 / B4-2）：跨 run 检索 / 引文图 / 聚合 / 全库链校验。
+    # 实现真源在 query.py（纯只读，零依赖）；runs 目录默认 <root>/runs，
+    # web 后端调用时显式钉死为本服务自己的 RUNS_DIR（防穿越）。
+    p = mk("query")
+    p.add_argument("--runs", default="", dest="runs_dir",
+                   help="runs 目录（默认 <项目根>/runs）")
+    p.add_argument("--kw", default="", help="关键词：命中 ev_id/ref/kind/producer_step/meta.title 等")
+    p.add_argument("--doi", default="", help="DOI 精确匹配（ref 或 meta.doi）")
+    p.add_argument("--tier", default="", help="fact | judgment（兼容旧记录默认 fact）")
+    p.add_argument("--kind", default="", help="证据种类，如 literature/data/note")
+    p.add_argument("--source", default="", help="检索来源（meta.sources 成员）")
+    p.add_argument("--run", action="append", default=[], metavar="RUN_ID",
+                   help="限定 run_id（可重复；--graph 时即目标 run）")
+    p.add_argument("--graph", default="", metavar="RUN_ID",
+                   help="输出该 run 的 结论-证据-文献 三层关系图")
+    p.add_argument("--aggregate", action="store_true", help="跨 run 聚合")
+    p.add_argument("--verify-all", action="store_true", dest="verify_all",
+                   help="全库哈希链校验（复用 provenance.verify_chain）")
+    p.add_argument("--limit", type=int, default=200, help="检索结果上限（默认 200）")
 
     # ---- 科研全流程单点工具（research 工作流的能力入口）----
     p = mk("search-papers")
@@ -834,6 +858,47 @@ def cmd_doctor(args) -> int:
 
 
 _HANDLERS["doctor"] = cmd_doctor
+
+
+# ---------- query：证据查询层（Batch 4 / B4-2）----------
+
+def cmd_query(args) -> int:
+    """证据查询（只读）。模式：search（默认）/ --graph / --aggregate / --verify-all。
+
+    退出码：0=正常（verify-all 全通过）；1=verify-all 检出坏链；
+    2=参数非法（如 run_id 穿越企图）。
+    """
+    from . import query as query_mod
+    runs_dir = (os.path.abspath(args.runs_dir) if args.runs_dir
+                else os.path.join(_root(), "runs"))
+    try:
+        if args.graph:
+            g = query_mod.citation_graph(runs_dir, args.graph)
+            g.update({"ok": True, "cmd": "query", "mode": "graph"})
+            return _emit(g)
+        if args.aggregate:
+            agg = query_mod.aggregate_runs(runs_dir)
+            agg.update({"ok": True, "cmd": "query", "mode": "aggregate"})
+            return _emit(agg)
+        if args.verify_all:
+            v = query_mod.verify_all_chains(runs_dir, run_ids=args.run or None)
+            v["cmd"] = "query"
+            v["mode"] = "verify-all"
+            code = 0 if v.get("ok") else 1
+            return _emit_fail(v, code) if code else _emit(v)
+        items = query_mod.query_runs(
+            runs_dir, kw=(args.kw or None), doi=(args.doi or None),
+            tier=(args.tier or None), kind=(args.kind or None),
+            source=(args.source or None), run_ids=(args.run or None),
+            limit=args.limit)
+        return _emit({"ok": True, "cmd": "query", "mode": "search",
+                      "runs_dir": runs_dir, "count": len(items),
+                      "items": items})
+    except query_mod.QueryError as e:
+        return _emit_fail({"ok": False, "cmd": "query", "error": str(e)}, 2)
+
+
+_HANDLERS["query"] = cmd_query
 
 
 def main(argv: list[str] | None = None) -> int:
