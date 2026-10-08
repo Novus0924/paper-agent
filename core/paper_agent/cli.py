@@ -31,7 +31,7 @@ import json
 import os
 import sys
 
-from . import PAPER_AGENT_ROOT, DATA_DIR
+from . import PAPER_AGENT_ROOT, DATA_DIR, _is_valid_root
 from .state import (
     PipelineState, StepStatus, RunStatus,
     create_state, load_state, new_run_id, STEP_IDS,
@@ -196,7 +196,15 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _root() -> str:
-    return os.environ.get("paper-agent_ROOT") or PAPER_AGENT_ROOT
+    """解析项目根：override 仅在合法时采用，否则用（已回退的）PAPER_AGENT_ROOT。
+
+    与 ``paper_agent._detect_root`` 同一口径，保证命令用的根**永远合法**；
+    环境变量失效时不会把操作导向错误目录（只会在别处显式播报该问题）。
+    """
+    override = os.environ.get("paper-agent_ROOT")
+    if override and _is_valid_root(override):
+        return os.path.abspath(override)
+    return PAPER_AGENT_ROOT
 
 
 # ---------- handlers ----------
@@ -670,13 +678,6 @@ def _port_in_use(port: int) -> bool:
             s.close()
         except OSError:
             pass
-
-
-def _is_valid_root(path: str) -> bool:
-    """路径是否为合法项目根（含 core/paper_agent/ 子目录）。"""
-    if not path:
-        return False
-    return os.path.isdir(os.path.join(os.path.abspath(path), "core", "paper_agent"))
 
 
 def _find_agh_entry(root: str) -> str:
