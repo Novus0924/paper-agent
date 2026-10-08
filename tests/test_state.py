@@ -1,4 +1,5 @@
 """test_state.py — 状态机转移、持久化、非法转移异常。"""
+import json
 import os
 import sys
 import tempfile
@@ -127,6 +128,70 @@ class TestStateMachine(unittest.TestCase):
         self.assertGreater(len(lines2), len(lines1))
         # 原始行未被修改（append-only 校验）
         self.assertEqual(lines1, lines2[:len(lines1)])
+
+
+class TestMaybeConvergeDone(unittest.TestCase):
+    """统一收敛方法 maybe_converge_done（LOGIC-2）的状态机级单测。"""
+
+    def setUp(self):
+        self.root = isolate_temp_root(self, "pa_conv_")
+
+    def _state_with_all_steps_done(self) -> PipelineState:
+        st = create_state(new_run_id(), self.root, "g")
+        st.start_run()
+        for sid in st.step_ids:
+            st.mark_step_running(sid)
+            st.mark_step_done(sid)
+        return st
+
+    def test_running_run_converges_done(self):
+        st = self._state_with_all_steps_done()
+        self.assertTrue(st.maybe_converge_done())
+        self.assertIs(st.run_status, RunStatus.DONE)
+
+    def test_failed_run_reconverges_with_event(self):
+        st = self._state_with_all_steps_done()
+        st.finish_run(RunStatus.FAILED)  # 模拟历史：曾以 FAILED 收尾
+        self.assertTrue(st.maybe_converge_done())
+        self.assertIs(st.run_status, RunStatus.DONE)
+        ev_path = os.path.join(self.root, "runs", st.run_id, "events.jsonl")
+        with open(ev_path, "r", encoding="utf-8") as f:
+            recs = [json.loads(l) for l in f.read().splitlines() if l.strip()]
+        rc = [e for e in recs if e["type"] == "run_reconverged"]
+        self.assertEqual(len(rc), 1)
+        self.assertEqual(rc[0]["from"], "FAILED")
+        self.assertEqual(rc[0]["to"], "DONE")
+
+    def test_failed_run_with_failed_step_does_not_converge(self):
+        st = create_state(new_run_id(), self.root, "g")
+        st.start_run()
+        st.mark_step_running("P1_lit_search")
+        st.mark_step_failed("P1_lit_search", "boom")
+        for sid in st.step_ids[1:]:
+            st.mark_step_running(sid)
+            st.mark_step_done(sid)
+        st.finish_run(RunStatus.FAILED)
+        self.assertFalse(st.maybe_converge_done())
+        self.assertIs(st.run_status, RunStatus.FAILED)
+
+    def test_running_with_pending_does_not_converge(self):
+        st = create_state(new_run_id(), self.root, "g")
+        st.start_run()
+        st.mark_step_running("P1_lit_search")
+        st.mark_step_done("P1_lit_search")
+        self.assertFalse(st.maybe_converge_done())
+        self.assertIs(st.run_status, RunStatus.RUNNING)
+
+    def test_public_transition_matrix_not_relaxed(self):
+        """受控收敛不开旁门：finish_run 仍硬编码 src=RUNNING，DONE 不可再收敛。"""
+        st = self._state_with_all_steps_done()
+        st.finish_run(RunStatus.FAILED)
+        with self.assertRaises(StateError):
+            st.finish_run(RunStatus.DONE)
+        self.assertTrue(st.maybe_converge_done())
+        # 已 DONE：再次调用不动、返回 False（幂等）
+        self.assertFalse(st.maybe_converge_done())
+        self.assertIs(st.run_status, RunStatus.DONE)
 
 
 if __name__ == "__main__":

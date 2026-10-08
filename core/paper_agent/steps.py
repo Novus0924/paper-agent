@@ -566,24 +566,61 @@ class Pipeline:
                     "binding invariants violated, report refused: "
                     + "; ".join(binding_problems))
             rpath = os.path.join(self.root, "runs", self.run_id, "report.md")
+            if not os.path.exists(rpath):
+                # 自愈路径（LOGIC-5）：旧时序（证据/收尾先于生成）可能在
+                # generate_report 抛异常时留下「P5 已 DONE 但 report.md 缺失」
+                # 的 run，且旧幂等复用只验账本不查文件，会以 ok:true 返回一个
+                # 不存在的文件。现不抛错、不把 DONE 变可逆，而是升级为**重建**：
+                # 此刻 P5 已 DONE，状态快照准确，重建的报告不会落后真实状态。
+                # 重建再失败才抛 EvidenceError。
+                try:
+                    from . import report as report_mod
+                    report_mod.generate_report(self.root, self.run_id,
+                                               self.state, self.prov)
+                except Exception as e:
+                    raise EvidenceError(
+                        f"report.md missing while P5_report DONE and "
+                        f"regeneration failed: {type(e).__name__}: {e}") from e
+                # 重建成功：补登一条带真实哈希的报告证据（旧登记 file_path=None
+                # 时 sha256 恒为空串，无法追溯），并返回重建标记。
+                ev_r = self.prov.append_evidence(
+                    kind="report", ref="report.md", producer_step=sid,
+                    file_path=rpath,
+                    meta={"conclusions": self._count_conclusions(),
+                          "regenerated": True})
+                return {"report": rpath, "idempotent_reuse": True,
+                        "report_regenerated": True, "evidence": [ev_r]}
             return {"report": rpath, "idempotent_reuse": True}
         self.state.mark_step_running(sid)
         from . import report as report_mod
         # 收集本步要写进报告的产物与证据，但**先不落盘**：
         # 报告正文里含"顶层状态 / 各步骤状态"快照，必须在 P5 自身 DONE 之后再落笔，
         # 否则报告会永远比真实状态落后一步（旧实现缺陷：报告自称 RUNNING）。
-        ev_r = self.prov.append_evidence(
-            kind="report",
-            ref=os.path.join("report.md"), producer_step="P5_report",
-            file_path=None, meta={"conclusions": 5})
-        self._toolcall("P5_report", "sciret_report", {"run_id": self.run_id},
-                       {"report": os.path.join(self.root, "runs",
-                                               self.run_id, "report.md")})
         self.state.mark_step_done(sid, {"report": "report.md"})
-        # P5 已 DONE 落盘，此刻状态快照才准确；此时才生成报告正文
+        # P5 已 DONE 落盘，此刻状态快照才准确；此时才生成报告正文。
+        # LOGIC-5：证据登记与工具留痕全部移到**生成成功之后**——旧实现在生成前
+        # 登记 file_path=None 的证据（sha256 恒为空串、conclusions 是写死魔法值 5），
+        # 生成失败会留下「步骤 DONE + 空哈希证据 + 无文件」的账本污染。
         rpath = report_mod.generate_report(self.root, self.run_id,
                                            self.state, self.prov)
+        ev_r = self.prov.append_evidence(
+            kind="report", ref="report.md", producer_step=sid,
+            file_path=rpath, meta={"conclusions": self._count_conclusions()})
+        self._toolcall("P5_report", "sciret_report", {"run_id": self.run_id},
+                       {"report": rpath})
         return {"report": rpath, "evidence": [ev_r]}
+
+    def _count_conclusions(self) -> int:
+        """从 conclusions.jsonl 读真实结论条数（可验证来源，替代写死魔法值 5）。"""
+        cpath = os.path.join(self.root, "runs", self.run_id, "conclusions.jsonl")
+        if not os.path.exists(cpath):
+            return 0
+        n = 0
+        with open(cpath, "r", encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    n += 1
+        return n
 
     # ---------- 调度 ----------
 
@@ -677,6 +714,8 @@ class Pipeline:
         """模型确认流水线已到终态时调用，收敛 run_status。
 
         由模型决定"收尾"后才调用——Python 不再自动收尾。
+        「有 FAILED 步骤 → FAILED」分支语义保留（RUNNING run 正常失败路径不变）；
+        「全部 DONE/SKIPPED → DONE」分支改为调用统一收敛方法（LOGIC-2）。
         """
         if self.state.run_status is not RunStatus.RUNNING:
             return {"run_status": self.state.run_status.value,
@@ -684,9 +723,8 @@ class Pipeline:
         steps = self.state.step_status
         if any(st is StepStatus.FAILED for st in steps.values()):
             self.state.finish_run(RunStatus.FAILED)
-        elif all(st in (StepStatus.DONE, StepStatus.SKIPPED) for st in steps.values()):
-            self.state.finish_run(RunStatus.DONE)
-        else:
+        elif not self.state.maybe_converge_done():
+            # RUNNING 且无 FAILED 步骤但仍有 PENDING/RUNNING → 未到终态
             pending = [s for s in self.STEP_FN
                        if steps[s] in (StepStatus.PENDING, StepStatus.RUNNING)]
             return {"run_status": self.state.run_status.value,
@@ -728,21 +766,19 @@ class Pipeline:
         return res
 
     def _autoconverge(self) -> None:
-        """步骤全部完成（DONE/SKIPPED）后自动收敛 run_status → DONE（P2-3）。
+        """步骤全部完成（DONE/SKIPPED）后自动收敛 run_status（P2-3）。
 
-        模型驱动路径（逐步 ``run-step``，等价于插件里的 ``sciret_run_step`` 循环）
-        此前不会触发收尾：六步全 DONE 后 ``state.json`` 里的 run_status 仍是 RUNNING，
-        必须显式调 ``finish`` 子命令。现由 Python 侧在最后一步完成时自动收敛，
-        消除后端的补丁式收尾。
+        收敛逻辑已统一下沉到 :meth:`state.PipelineState.maybe_converge_done`
+        （LOGIC-2）：本方法只做委托，消除原先 steps / research 两份拷贝的
+        语义漂移风险。
 
-        只收敛到 DONE（全部 DONE/SKIPPED）；**不在此处收敛 FAILED** —— 失败需要由
-        模型/调用方显式决策（重试 ``resume`` 还是终止），以保持 resume / chaos 语义不变。
+        语义边界保持不变：RUNNING run 中只收敛 DONE（全部 DONE/SKIPPED），
+        **不收敛 FAILED 步骤**——失败需由模型/调用方显式决策（重试 resume
+        还是终止），以保持 resume / chaos 语义不变。唯一的行为增强是：
+        FAILED run 的失败步骤被逐个单步重试到 DONE 后，run 能经受控边
+        （run_reconverged 事件）收敛回 DONE，不再永久卡在 FAILED。
         """
-        if self.state.run_status is not RunStatus.RUNNING:
-            return
-        steps = self.state.step_status
-        if all(st in (StepStatus.DONE, StepStatus.SKIPPED) for st in steps.values()):
-            self.state.finish_run(RunStatus.DONE)
+        self.state.maybe_converge_done()
 
     # ---------- 确定性兜底路径（非主导，仅供单测与离线演示）----------
 

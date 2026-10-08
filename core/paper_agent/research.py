@@ -803,28 +803,32 @@ class ResearchPipeline:
         return res
 
     def _autoconverge(self) -> None:
-        """步骤全部完成（DONE/SKIPPED）后自动收敛 run_status → DONE（P2-3）。
+        """步骤全部完成（DONE/SKIPPED）后自动收敛 run_status（P2-3）。
 
-        与 :meth:`steps.Pipeline._autoconverge` 语义一致：模型驱动逐步
-        ``run-step`` 路径在最后一步完成时自动收尾，消除后端补丁式 finish。
-        只收敛到 DONE，不收敛 FAILED（失败需调用方显式决策，保持 resume/chaos 语义）。
+        收敛逻辑已统一下沉到 :meth:`state.PipelineState.maybe_converge_done`
+        （LOGIC-2），与 :meth:`steps.Pipeline._autoconverge` 同为委托。
+
+        语义边界：RUNNING run 中只收敛 DONE、不收敛 FAILED（失败需调用方
+        显式决策，保持 resume/chaos 语义）；FAILED run 的失败步骤被逐个
+        单步重试到 DONE 后，经受控边（run_reconverged 事件）收敛回 DONE。
         """
-        if self.state.run_status is not RunStatus.RUNNING:
-            return
-        steps = self.state.step_status
-        if all(st in (StepStatus.DONE, StepStatus.SKIPPED) for st in steps.values()):
-            self.state.finish_run(RunStatus.DONE)
+        self.state.maybe_converge_done()
 
     def finish_if_terminal(self) -> dict:
+        """模型确认流水线已到终态时调用，收敛 run_status。
+
+        「有 FAILED 步骤 → FAILED」分支语义保留（RUNNING run 正常失败路径
+        不变）；「全部 DONE/SKIPPED → DONE」分支改为调用统一收敛方法
+        （LOGIC-2）。
+        """
         if self.state.run_status is not RunStatus.RUNNING:
             return {"run_status": self.state.run_status.value,
                     "note": f"run 已处于终态 {self.state.run_status.value}，无需收尾"}
         steps = self.state.step_status
         if any(st is StepStatus.FAILED for st in steps.values()):
             self.state.finish_run(RunStatus.FAILED)
-        elif all(st in (StepStatus.DONE, StepStatus.SKIPPED) for st in steps.values()):
-            self.state.finish_run(RunStatus.DONE)
-        else:
+        elif not self.state.maybe_converge_done():
+            # RUNNING 且无 FAILED 步骤但仍有 PENDING/RUNNING → 未到终态
             pending = [s for s in self.STEP_FN
                        if steps[s] in (StepStatus.PENDING, StepStatus.RUNNING)]
             return {"run_status": self.state.run_status.value,
@@ -832,6 +836,27 @@ class ResearchPipeline:
         return {"run_status": self.state.run_status.value, "degraded": self.state.degraded}
 
     def run_all(self) -> dict:
+        # 终态幂等守卫（与 steps.Pipeline.run_all 同语义）：DONE/FAILED 是
+        # 不可逆终态（账本信任机制依赖终态守卫）。此前 research 侧缺失该守卫，
+        # FAILED run 调 run_all/resume 会重新执行 FAILED 步骤（重复登记
+        # evidence/judgment 污染账本），并在末尾 finish_run 撞
+        # 「仅 RUNNING 可 finish」抛 StateError。现复用既有产物并如实标注；
+        # FAILED run 列出失败步骤供单步重试参考。
+        if self.state.run_status in (RunStatus.DONE, RunStatus.FAILED):
+            reused = {s: {"reused": True, "status": st.value}
+                      for s, st in self.state.step_status.items()}
+            out = {"results": reused,
+                   "run_status": self.state.run_status.value,
+                   "workflow": "research",
+                   "degraded": self.state.degraded,
+                   "idempotent_reuse": True,
+                   "note": (f"run 已处于终态 {self.state.run_status.value}，"
+                            "复用既有产物；重试失败步骤请用 run-step/step-driven"
+                            " 单步驱动")}
+            if self.state.run_status is RunStatus.FAILED:
+                out["failed_steps"] = [s for s, st in self.state.step_status.items()
+                                       if st is StepStatus.FAILED]
+            return out
         self._ensure_running()
         results = {}
         failed = False

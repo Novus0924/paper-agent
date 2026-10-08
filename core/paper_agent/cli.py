@@ -376,8 +376,33 @@ def cmd_report(args) -> int:
     return _emit_fail(res, code) if code else _emit(res)
 
 
+def _guard_run_id(run_id: str, cmd: str) -> int | None:
+    """SEC-2 纵深：对直接拼 ``runs/<run_id>`` 路径的入口统一做 run_id 白名单校验。
+
+    state.py 构造期会校验 run_id，但 cmd_cite / cmd_analyze_paper / cmd_eval
+    此前直接 ``os.path.join(_root(), "runs", args.run, ...)``，绕过了该校验——
+    恶意 run_id（``../../x``）可读/写 runs 之外。此处统一过
+    ``security_scan.validate_run_id``；非法时输出人话错误并返回退出码 2
+    （参数非法，与 query 子命令对 run_id 穿越企图的口径一致），
+    返回 None 表示校验通过。
+    """
+    from .security_scan import validate_run_id
+    try:
+        validate_run_id(run_id)
+    except ValueError as e:
+        return _emit_fail({
+            "ok": False, "cmd": cmd,
+            "error": (f"非法 run_id：{e}（仅允许 run- 前缀的字母数字/连字符/"
+                      f"下划线，禁止路径分隔符与相对路径）"),
+        }, 2)
+    return None
+
+
 def cmd_cite(args) -> int:
     from .provenance import ProvenanceLedger
+    guard = _guard_run_id(args.run, "cite")
+    if guard is not None:
+        return guard
     run_dir = os.path.join(_root(), "runs", args.run)
     prov = ProvenanceLedger(run_dir, args.run, root=_root())
     if args.ev:
@@ -463,6 +488,9 @@ def cmd_analyze_paper(args) -> int:
     from . import analyze
     notes = []
     if args.run:
+        guard = _guard_run_id(args.run, "analyze-paper")
+        if guard is not None:
+            return guard
         notes_dir = os.path.join(_root(), "runs", args.run, "reading", "notes")
         if os.path.isdir(notes_dir):
             for fn in sorted(os.listdir(notes_dir)):
@@ -575,6 +603,12 @@ def cmd_self_review(args) -> int:
 def cmd_eval(args) -> int:
     """量化验证（PRD F-7.1~7.4）。"""
     from . import evaluate
+    # SEC-2：eval 有两个直接拼 runs/<run_id> 的入口（写 evaluation/ 与
+    # ProvenanceLedger 构造），在执行任何写操作前统一校验。
+    if args.run:
+        guard = _guard_run_id(args.run, "eval")
+        if guard is not None:
+            return guard
     reports = evaluate.run_all(_root(), include_demo=True)
     out = {"ok": True, "cmd": "eval", "reports": reports}
     target = args.out_dir or ""

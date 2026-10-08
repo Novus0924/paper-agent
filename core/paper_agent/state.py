@@ -12,7 +12,8 @@
 - run 实例目录 runs/<run_id>/state.json 每次状态转移立即落盘
 - run_id 命名：run-YYYYMMDD-HHMMSS-<6位hex>（UTC）
 - events.jsonl append-only；事件类型：run_planned / run_started /
-  transition / retry / degrade / skip / run_finished
+  transition / retry / degrade / skip / run_finished / run_reconverged
+  （run_reconverged 仅由 maybe_converge_done 的受控收敛路径写入）
 - DONE 步骤产物损坏 → 不允许回退修改原 run；应新建 run 实例
 
 多工作流（v0.3 新增）
@@ -274,6 +275,45 @@ class PipelineState:
             )
         self.run_status = dst
         self._append_event(etype, {"from": src.value, "to": dst.value})
+
+    def maybe_converge_done(self, allow_failed_reopen: bool = True) -> bool:
+        """统一收敛：全部步骤 DONE/SKIPPED 时把 run 收敛为 DONE。
+
+        收敛下沉（LOGIC-2）：此前 steps.py 与 research.py 各有一份
+        「全 DONE/SKIPPED → finish_run(DONE)」的拷贝，且都只认 RUNNING——
+        FAILED run 单步重试全部失败步骤到 DONE 后，没有任何路径把 run
+        收敛回 DONE（web 端永远显示 FAILED）。现统一收敛到本方法：
+
+        - run 为 RUNNING → 正常 ``finish_run(DONE)``（原语义不变）；
+        - run 为 FAILED 且 ``allow_failed_reopen`` → **受控收敛**为 DONE：
+          不放宽 ``_RUN_TRANSITIONS`` 公开矩阵（``finish_run``/``_ensure_run``
+          的 src=RUNNING 约束保持，防御面最小化），而是显式走本路径并写
+          专用事件 ``run_reconverged``（from=FAILED, to=DONE），账本可追溯；
+        - 其余情况（仍有 PENDING/RUNNING/FAILED 步骤，或 run 为
+          PLANNED/DONE）一律不动，返回 False。
+
+        语义边界：RUNNING run 中「只收敛 DONE、不收敛 FAILED」的行为不变；
+        变化的只有「FAILED run 被逐步重试到全 DONE/SKIPPED」这一场景。
+
+        返回是否发生了收敛。
+        """
+        if not all(st in (StepStatus.DONE, StepStatus.SKIPPED)
+                   for st in self.step_status.values()):
+            return False
+        if self.run_status is RunStatus.RUNNING:
+            self.finish_run(RunStatus.DONE)
+            return True
+        if self.run_status is RunStatus.FAILED and allow_failed_reopen:
+            # 受控边：FAILED -> DONE 只在「全部步骤已终态成功」时由本方法
+            # 显式打开，并留 run_reconverged 事件痕迹（区别于正常 run_finished）。
+            self.run_status = RunStatus.DONE
+            self._append_event("run_reconverged", {
+                "from": RunStatus.FAILED.value,
+                "to": RunStatus.DONE.value,
+            })
+            self._persist_state()
+            return True
+        return False
 
     # ---------- step 级转移 ----------
 
