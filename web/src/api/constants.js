@@ -4,18 +4,11 @@
  * 步骤 id 与 core/paper_agent/state.py 的 WORKFLOWS 严格一致
  */
 
-export const WORKFLOWS = {
-  research: ['R1_search', 'R2_read', 'R3_analyze', 'R4_verify', 'R5_write', 'R6_review'],
-  materials: ['P1_lit_search', 'P2_clean_data', 'P3_run_experiment', 'P4_verify', 'P5_report'],
-};
+// P2-4：WORKFLOWS / STEP_LABELS / buildSystemPrompt 统一从共享单一真源引入
+// （web/shared/prompt.mjs），前端与后端不再各写一份，从结构上避免漂移。
+import { WORKFLOWS, STEP_LABELS, buildSystemPrompt } from '../../shared/prompt.mjs';
 
-/** 步骤中文名（短标签，用于步骤条） */
-export const STEP_LABELS = {
-  R1_search: '检索', R2_read: '精读', R3_analyze: '分析',
-  R4_verify: '核验', R5_write: '撰写', R6_review: '自审',
-  P1_lit_search: '检索', P2_clean_data: '清洗', P3_run_experiment: '实验',
-  P4_verify: '验证', P5_report: '报告',
-};
+export { WORKFLOWS, STEP_LABELS, buildSystemPrompt };
 
 /** 工作流说明（新任务页用） */
 export const WORKFLOW_META = {
@@ -83,35 +76,9 @@ export const TIER_META = {
 };
 
 /**
- * 系统提示词模板（对接方案 §5.2）
+ * 系统提示词模板（对接方案 §5.2）—— 已下沉为**共享单一真源**（P2-4）。
  *
- * ⚠️ 这份模板必须与 server/prompt.js 的 buildSystemPrompt() **逐字一致**。
- *    两边各写一份是因为用途不同：那份是**提交前给用户看的预览**，
- *    后端那份是**真正生成并存档的下发内容**。
- *    工作台渲染的是后端返回的存档版本（prompt.source==='server'），
- *    所以「用户最终看到的」永远等于「后端实际用的」。
- *    ⚠️ 改这个函数时请同步改server/prompt.js，否则预览与实际会不一致。
+ * buildSystemPrompt 现由 web/shared/prompt.mjs 提供并在本文件 re-export；
+ * 后端 server/prompt.js 引用同一份，从结构上消除"两份模板可能漂移"。
+ * server/verify-prompt-parity.mjs 保留为兜底回归（仍逐组比对两端产物）。
  */
-export function buildSystemPrompt(goal, workflow, litSource) {
-  const steps = WORKFLOWS[workflow] || WORKFLOWS.research;
-  const chain = steps.map((s) => `${s}(${STEP_LABELS[s] || s})`).join(' → ');
-  const lines = [
-    '【角色】你是一个科研文献分析助手。',
-    '【硬约束】',
-    '1. 只使用已提供的检索结果作答，不得凭记忆补充文献；',
-    '2. 每条结论必须标注来源编号；',
-    '3. 资料不足时明确说「证据不足」，不要编造。',
-    `【工作流】${workflow}：${chain}`,
-  ];
-  // 与后端 SRC_CN 保持一致；只写 CLI 真正支持的三个值
-  const srcCn = {
-    auto: '先试 arXiv，失败自动降级',
-    arxiv: '仅 arXiv 实时检索',
-    local: '离线内置语料，不联网',
-  };
-  if (litSource && srcCn[litSource]) {
-    lines.push(`【检索来源】${litSource} —— ${srcCn[litSource]}`);
-  }
-  lines.push(`【本次目标】${goal}`);
-  return lines.join('\n');
-}

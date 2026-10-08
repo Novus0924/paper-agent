@@ -28,56 +28,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.resolve(__dirname, '..', '.data');
 const PROMPT_DIR = path.join(DATA_DIR, 'prompts');
 
-/** 步骤id → 与 core/paper_agent/state.py 的 WORKFLOWS 严格一致 */
-const WORKFLOWS = {
-  research: ['R1_search', 'R2_read', 'R3_analyze', 'R4_verify', 'R5_write', 'R6_review'],
-  materials: ['P1_lit_search', 'P2_clean_data', 'P3_run_experiment', 'P4_verify', 'P5_report'],
-};
-
 /**
- * 步骤中文名。
- * ⚠️ 必须与 src/api/constants.js 的 STEP_LABELS **完全一致** —— 两边模板要逐字对齐，
- *    否则「用户看到的预览」和「后端实际下发的」会不一致（那等于欺骗）。
- *    这里直接 import 前端那份常量做单一真源，避免以后只改一边。
+ * P2-4：WORKFLOWS / STEP_LABELS / buildSystemPrompt 已下沉为共享单一真源
+ * （web/shared/prompt.mjs），前端 `src/api/constants.js` 与后端本文件都从那里引用，
+ * 从结构上消除"两份模板"。`server/verify-prompt-parity.mjs` 保留为兜底回归。
  */
-const { STEP_LABELS } = await import('../src/api/constants.js');
+import { WORKFLOWS, STEP_LABELS, buildSystemPrompt } from '../shared/prompt.mjs';
 
-/** 检索来源的人话说明（只写 CLI 真正支持的那几个，见 resolveLitSource） */
-const SRC_CN = {
-  auto: '先试 arXiv，失败自动降级',
-  arxiv: '仅 arXiv 实时检索',
-  local: '离线内置语料，不联网',
-};
+export { buildSystemPrompt };
 
-/**
- * 构造首轮系统提示词（方案 §5.2 的模板，逐字沿用）
- * @param {string} goal 研究目标
- * @param {string} workflow research | materials
- * @param {string} litSource 已归一化的 lit_source
- * @param {string[]} [extra] 追问轮追加的用户输入（§5.2：第一轮注入，之后不再重复）
- * @returns {string}
- */
-export function buildSystemPrompt(goal, workflow, litSource, extra = []) {
-  const steps = WORKFLOWS[workflow] || WORKFLOWS.research;
-  const chain = steps.map((s) => `${s}(${STEP_LABELS[s] || s})`).join(' → ');
-  const lines = [
-    '【角色】你是一个科研文献分析助手。',
-    '【硬约束】',
-    '1. 只使用已提供的检索结果作答，不得凭记忆补充文献；',
-    '2. 每条结论必须标注来源编号；',
-    '3. 资料不足时明确说「证据不足」，不要编造。',
-    `【工作流】${workflow}：${chain}`,
-  ];
-  if (litSource && SRC_CN[litSource]) {
-    lines.push(`【检索来源】${litSource} —— ${SRC_CN[litSource]}`);
-  }
-  lines.push(`【本次目标】${goal}`);
-  if (extra.length) {
-    lines.push('【追加要求】');
-    extra.forEach((e, i) => lines.push(`${i + 1}. ${e}`));
-  }
-  return lines.join('\n');
-}
 
 /** 提示词存档路径（run_id 由调用方保证已过白名单校验） */
 function promptPath(runId) {

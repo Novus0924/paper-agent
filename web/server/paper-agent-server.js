@@ -111,7 +111,18 @@ function runCli(args, { timeoutMs = 180000 } = {}) {
   return new Promise((resolve) => {
     const child = spawn(PYTHON, ['-m', 'paper_agent.cli', ...args], {
       cwd: AGENT_ROOT,
-      env: { ...process.env, PYTHONPATH: path.join(AGENT_ROOT, 'core') },
+      // ★ 关键：显式把子进程的 paper-agent_ROOT（带连字符，Python 真源）钉死为
+      //   本服务读取 runs/ 所用的 AGENT_ROOT，保证「服务读的目录」与「Python 写的
+      //   目录」永远一致。
+      //   - 不再盲传 process.env：本机若残留一个失效的 paper-agent_ROOT 用户变量，
+      //     会被 Python 侧 P0-2 的根校验拒绝（或更糟：写到另一个 runs/ 造成错位）。
+      //   - 覆盖掉（而非删除）该变量是安全的：当它本来为空/正确时，值与 Python 的
+      //     __file__ 自动探测结果完全相同。
+      env: {
+        ...process.env,
+        PYTHONPATH: path.join(AGENT_ROOT, 'core'),
+        'paper-agent_ROOT': AGENT_ROOT,
+      },
       windowsHide: true,
     });
 
@@ -193,16 +204,29 @@ const WORKFLOWS = {
   materials: ['P1_lit_search', 'P2_clean_data', 'P3_run_experiment', 'P4_verify', 'P5_report'],
 };
 
-/** 每个步骤对应的 CLI 工具名（toolcalls/*.json 里有 tool 字段，直接读更准） */
-function toolNameOf(step) {
-  return {
-    R1_search: 'sciret_search_papers', R2_read: 'sciret_parse_paper',
-    R3_analyze: 'sciret_analyze_paper', R4_verify: 'sciret_verify_facts',
-    R5_write: 'sciret_report', R6_review: 'sciret_self_review',
-    P1_lit_search: 'sciret_search_papers', P2_clean_data: 'sciret_clean_dataset',
-    P3_run_experiment: 'sciret_run_experiment', P4_verify: 'sciret_verify',
-    P5_report: 'sciret_report',
-  }[step] || 'sciret_run_step';
+/**
+ * 读取某步骤最近一次工具调用的真实工具名（真源 = toolcalls/*.json 的 tool 字段）。
+ *
+ * P0-1 修复：此前存在 `toolNameOf(step)` 硬编码映射，返回的是插件里**根本不存在的
+ * 幻觉工具名**（sciret_search_papers / sciret_parse_paper / sciret_analyze_paper /
+ * sciret_verify_facts / sciret_self_review …），而 plugins/paper-agent-tools/index.mjs
+ * 真实注册的只有 7 个：sciret_plan / sciret_run_step / sciret_status / sciret_verify /
+ * sciret_report / sciret_cite / sciret_resume。
+ * 后果：同一 run「实时 SSE 看到的工具名」≠「刷新后读文件得到的工具名」，且实时那个是错的。
+ * 现统一以 toolcalls/*.json 的 tool 字段为唯一真源（权威值 sciret_run_step；
+ * materials 的 P4/P5 为 sciret_verify / sciret_report），实时与刷新读同一真源。
+ */
+async function latestToolName(runId, step) {
+  const dir = path.join(runDir(runId), 'toolcalls');
+  let files = [];
+  try { files = (await fsp.readdir(dir)).filter((f) => f.endsWith('.json')).sort(); }
+  catch { return 'sciret_run_step'; }
+  let found = null;
+  for (const f of files) {
+    const d = await readJson(path.join(dir, f), null);
+    if (d && d.step === step && d.tool) found = d.tool;
+  }
+  return found || 'sciret_run_step';
 }
 
 /**
@@ -228,7 +252,7 @@ async function readToolcalls(runId, stepOutputs) {
     out.push({
       step: d.step,
       step_index: idx >= 0 ? idx + 1 : out.length + 1,
-      tool: d.tool || toolNameOf(d.step),
+      tool: d.tool || 'sciret_run_step',
       status: 'completed',
       elapsed_ms: so.elapsed_ms ?? null,
       input: d.input || {},
@@ -330,7 +354,7 @@ async function execStep(runId, step) {
   emit(runId, 'tool', {
     step,
     step_index: (await readState(runId))?.steps_order?.indexOf(step) + 1,
-    tool: toolNameOf(step),
+    tool: await latestToolName(runId, step),
     status: 'completed',
     elapsed_ms: elapsed,
     input: json.input || { step },
@@ -356,13 +380,15 @@ async function execStep(runId, step) {
   }
   getOutMap(runId).set('__cids', sentCids);
 
-  // 若这恰好是最后一步，同样要调 finish 收敛 run_status（理由见 execAll）
+  // 若这恰好是最后一步，run_status 已由 Python 侧自动收敛为 DONE（P2-3），
+  // 这里只读取真实状态并广播，不再做后端补丁式 finish。
   const stAfter = await readState(runId);
-  const allDone = stAfter
-    && Object.values(stAfter.steps || {}).every((s) => s === 'DONE' || s === 'SKIPPED');
-  if (allDone && stAfter.run_status === 'RUNNING') {
-    const { json: fj } = await runCli(['finish', '--run', runId]);
-    emit(runId, 'done', { run_status: fj?.run_status || 'DONE' });
+  if (stAfter) {
+    const allDone = Object.values(stAfter.steps || {})
+      .every((s) => s === 'DONE' || s === 'SKIPPED');
+    if (allDone && stAfter.run_status !== 'RUNNING') {
+      emit(runId, 'done', { run_status: stAfter.run_status });
+    }
   }
 
   return true;
@@ -379,19 +405,11 @@ async function execAll(runId) {
     if (!ok) return;
   }
 
-  // 收敛 run_status —— 必须调 CLI 的 finish，不能只改内存副本。
-  // 实测：research.run_all() 自己会 finish_run(DONE)，但本后端走的是
-  // 「逐步 run-step」的模型驱动路径（等价于插件里的 run_step 循环），
-  // 不会触发 run_all 的收尾；而 finish_if_terminal() 正是 CLI 为这条
-  // 路径准备的收尾命令（见 cli.py:cmd_finish）。不改的话 state.json 里
-  // run_status 会永远停在 RUNNING，证据页头部会显示「运行中」。
+  // P2-3：run_status 已由 Python 侧在最后一步完成时自动收敛
+  // （模型驱动逐步 run-step 路径现会自动 finish，无需后端补丁）。
+  // 这里只读取真实状态并广播。
   const st = await readState(runId);
-  let final = st?.run_status || 'DONE';
-  if (st && st.run_status === 'RUNNING') {
-    const { json } = await runCli(['finish', '--run', runId]);
-    final = json?.run_status || 'DONE';
-  }
-  emit(runId, 'done', { run_status: final });
+  emit(runId, 'done', { run_status: st?.run_status || 'DONE' });
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -463,24 +481,34 @@ const server = http.createServer(async (req, res) => {
     res.write('retry: 2000\n\n');
     res.write(`event: ping\ndata: ${JSON.stringify({ ts: Date.now() })}\n\n`);
 
-    // 补发当前状态，避免前端刷新后看到空白
+    // P0-3 修复：先把本连接加入订阅集合，再做补发。
+    // 此前顺序是「先 emit() 补发、后 subscribe()」——而 emit() 只在 subscribers
+    // 集合里广播，此刻本连接尚未入集合 → 补发事件全部丢失（新连接/刷新后看到空白）。
+    subscribe(runId, res);
+
+    // 补发当前状态，避免前端刷新后看到空白。
+    // 补发**直写本连接**（res.write），而不是走全局 emit()——否则会把快照
+    // 重复广播给其它已订阅的客户端。
+    const sse = (event, data) => {
+      try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); }
+      catch { /* 客户端已断开 */ }
+    };
     const st = await readState(runId);
     if (st) {
       for (const s of st.steps_order || []) {
-        emit(runId, 'step', { step: s, status: st.steps[s] });
+        sse('step', { step: s, status: st.steps[s] });
       }
       const tcs = await readToolcalls(runId, stepOutputs.get(runId) || new Map());
-      for (const tc of tcs) emit(runId, 'tool', tc);
+      for (const tc of tcs) sse('tool', tc);
       const concl = await readJsonl(path.join(runDir(runId), 'conclusions.jsonl'));
       for (const c of concl) {
-        emit(runId, 'conclusion', c);
+        sse('conclusion', c);
         const cids = getOutMap(runId).get('__cids') || new Set();
         cids.add(c.cid);
         getOutMap(runId).set('__cids', cids);
       }
     }
 
-    subscribe(runId, res);
     return;
   }
 

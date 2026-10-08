@@ -125,18 +125,21 @@ function makeToolcalls(workflow, degraded) {
     ? { arxiv: 'ok:10', crossref: 'ok:10', openalex: 'ok:10', semantic_scholar: 'unavailable:HTTPError' }
     : { arxiv: 'ok:10', crossref: 'ok:10', openalex: 'ok:10', semantic_scholar: 'ok:10' };
 
+  // ⚠️ 工具名必须与 plugins/paper-agent-tools/index.mjs 真实注册的 7 个一致，
+  //    以及 toolcalls/*.json 的真源（权威值 sciret_run_step）。此前这里是
+  //    sciret_search_papers / sciret_parse_paper 等**幻觉名**（P0-1 缺陷），已纠正。
   const nameOf = {
-    R1_search: ['sciret_search_papers', { goal: '', source: 'auto', n_hits: 10 }, srcStatus],
-    R2_read: ['sciret_parse_paper', { n_files: 3, n_sections: 42 }, null],
-    R3_analyze: ['sciret_analyze_paper', { n_gaps: 2, n_timeline_nodes: 7 }, null],
-    R4_verify: ['sciret_verify_facts', { n_cited: 3, consistency: 1.0 }, null],
-    R5_write: ['sciret_report', { n_words: 3120, n_citations: 10 }, null],
-    R6_review: ['sciret_self_review', { score: 7.56, converged: false }, null],
-    P1_lit_search: ['sciret_search_papers', { goal: '', source: 'auto', n_hits: 10 }, srcStatus],
-    P2_clean_data: ['sciret_clean_dataset', { n_rows_in: 1840, n_rows_out: 1791 }, null],
-    P3_run_experiment: ['sciret_run_experiment', { n_exp: 4, n_failed: 0 }, null],
-    P4_verify: ['sciret_verify', { n_checked: 1791 }, null],
-    P5_report: ['sciret_report', { n_figs: 5, n_tables: 3 }, null],
+    R1_search: ['sciret_run_step', { step: 'R1_search', source: 'auto', n_hits: 10 }, srcStatus],
+    R2_read: ['sciret_run_step', { step: 'R2_read', n_files: 3, n_sections: 42 }, null],
+    R3_analyze: ['sciret_run_step', { step: 'R3_analyze', n_gaps: 2, n_timeline_nodes: 7 }, null],
+    R4_verify: ['sciret_run_step', { step: 'R4_verify', n_cited: 3, consistency: 1.0 }, null],
+    R5_write: ['sciret_run_step', { step: 'R5_write', n_words: 3120, n_citations: 10 }, null],
+    R6_review: ['sciret_run_step', { step: 'R6_review', score: 7.56, converged: false }, null],
+    P1_lit_search: ['sciret_run_step', { step: 'P1_lit_search', source: 'auto', n_hits: 10 }, srcStatus],
+    P2_clean_data: ['sciret_run_step', { step: 'P2_clean_data', n_rows_in: 1840, n_rows_out: 1791 }, null],
+    P3_run_experiment: ['sciret_run_step', { step: 'P3_run_experiment', n_exp: 4, n_failed: 0 }, null],
+    P4_verify: ['sciret_verify', { step: 'P4_verify', n_checked: 1791 }, null],
+    P5_report: ['sciret_report', { step: 'P5_report', n_figs: 5, n_tables: 3 }, null],
   };
 
   return steps.map((sid, i) => {
