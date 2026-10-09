@@ -130,5 +130,91 @@ class TestAutoClient(unittest.TestCase):
         self.assertEqual(c.api_key, "sk-2")
 
 
+class _FakePostResponse:
+    """http_post_json 用最小 urlopen 返回值（上下文管理器 + read）。"""
+
+    def __init__(self, body: bytes):
+        self._body = body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def read(self):
+        return self._body
+
+
+class TestHttpPostJsonRetry(unittest.TestCase):
+    """PERF-3b：http_post_json 默认传输层的单次连接错误重试。
+
+    手法：monkeypatch ``urllib.request.urlopen`` 计数（默认传输层直连
+    urlopen，与注入 transport 的 OpenAiChatClient 用例互补）。
+    """
+
+    def _patch_urlopen(self, fn):
+        orig = urllib.request.urlopen
+        urllib.request.urlopen = fn
+        self.addCleanup(setattr, urllib.request, "urlopen", orig)
+
+    def test_connection_error_retries_once_then_success(self):
+        """连接建立失败（URLError 非 HTTPError）→ 重试 1 次后成功。"""
+        calls = {"n": 0}
+        sleeps = []
+        orig_sleep = LLM.time.sleep
+        LLM.time.sleep = sleeps.append  # 假时钟：不打真睡眠
+        self.addCleanup(setattr, LLM.time, "sleep", orig_sleep)
+
+        def _flaky(req, timeout=None):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise urllib.error.URLError(
+                    ConnectionRefusedError(111, "Connection refused"))
+            return _FakePostResponse(b'{"ok": 1}')
+
+        self._patch_urlopen(_flaky)
+        out = LLM.http_post_json("https://x/v1/chat/completions", {}, {},
+                                 timeout=5)
+        self.assertEqual(out, {"ok": 1})
+        self.assertEqual(calls["n"], 2)     # 首次 + 恰好 1 次重试
+        self.assertEqual(sleeps, [1])       # 退避 1 秒（假时钟记录）
+
+    def test_read_timeout_no_retry(self):
+        """读超时（socket.timeout / TimeoutError）不重试：恰好 1 次调用。
+
+        服务端可能已受理 POST，重发有重复计费/重复产出风险。
+        """
+        calls = {"n": 0}
+
+        def _slow(req, timeout=None):
+            calls["n"] += 1
+            raise TimeoutError("read timed out")
+
+        self._patch_urlopen(_slow)
+        with self.assertRaises(TimeoutError):
+            LLM.http_post_json("https://x/v1/chat/completions", {}, {},
+                               timeout=5)
+        self.assertEqual(calls["n"], 1)
+
+    def test_http_error_no_retry(self):
+        """HTTP 4xx/5xx 不重试（服务端已收到请求）：恰好 1 次调用。"""
+        for code in (400, 500):
+            with self.subTest(code=code):
+                calls = {"n": 0}
+
+                def _err(req, timeout=None, code=code):
+                    calls["n"] += 1
+                    raise urllib.error.HTTPError(
+                        "https://x/v1/chat/completions", code, "err", {},
+                        io.BytesIO(b"{}"))
+
+                self._patch_urlopen(_err)
+                with self.assertRaises(urllib.error.HTTPError):
+                    LLM.http_post_json("https://x/v1/chat/completions", {},
+                                       {}, timeout=5)
+                self.assertEqual(calls["n"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()

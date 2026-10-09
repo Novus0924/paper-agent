@@ -13,11 +13,14 @@
 """
 from __future__ import annotations
 
+import io
 import json
 import os
 import sys
 import tempfile
 import unittest
+import urllib.error
+import urllib.request
 
 _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(_TESTS_DIR, "..", "core"))
@@ -249,6 +252,125 @@ if os.environ.get("RUN_ONLINE") == "1":
             self.assertTrue(d["title"])
             self.assertTrue(d["url"].startswith("https://arxiv.org/abs/"))
             self.assertGreaterEqual(d["year"], 1991)
+
+
+class _FakeResponse:
+    """最小 urlopen 返回值：上下文管理器 + read()。"""
+
+    def __init__(self, body: bytes = b""):
+        self._body = body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def read(self):
+        return self._body
+
+
+class TestFetchJsonRetry(unittest.TestCase):
+    """PERF-3a：_fetch_json 瞬时错误退避重试。
+
+    手法：monkeypatch ``urllib.request.urlopen`` 计数 + 注入 ``sleep``
+    假时钟（不打真睡眠），口径对齐本文件既有离线测试风格。
+    """
+
+    def setUp(self):
+        self.sleeps = []
+
+    def _fake_sleep(self, seconds):
+        self.sleeps.append(seconds)
+
+    def _patch_urlopen(self, fn):
+        orig = urllib.request.urlopen
+        urllib.request.urlopen = fn
+        self.addCleanup(setattr, urllib.request, "urlopen", orig)
+
+    def test_transient_error_retries_then_success(self):
+        """连接类 URLError → 退避重试，3 次尝试内成功，按 BACKOFF=[1,2] 睡眠。"""
+        calls = {"n": 0}
+
+        def _flaky(req, timeout=None):
+            calls["n"] += 1
+            if calls["n"] < 3:
+                raise urllib.error.URLError(
+                    ConnectionRefusedError(111, "Connection refused"))
+            return _FakeResponse(b'{"ok": 1}')
+
+        self._patch_urlopen(_flaky)
+        out = LS._fetch_json("https://api.example.org/works", 5.0,
+                             sleep=self._fake_sleep)
+        self.assertEqual(out, {"ok": 1})
+        self.assertEqual(calls["n"], 3)          # 首次 + 2 次重试
+        self.assertEqual(self.sleeps, [1, 2])    # BACKOFF 退避序列
+
+    def test_timeout_is_transient_and_exhaustion_raises_original(self):
+        """超时为瞬时错误；重试耗尽后抛**原异常**（降级链语义不变）。"""
+        calls = {"n": 0}
+
+        def _slow(req, timeout=None):
+            calls["n"] += 1
+            raise TimeoutError("timed out")
+
+        self._patch_urlopen(_slow)
+        with self.assertRaises(TimeoutError):
+            LS._fetch_json("https://api.example.org/works", 5.0,
+                           sleep=self._fake_sleep)
+        self.assertEqual(calls["n"], 3)
+        self.assertEqual(self.sleeps, [1, 2])
+
+    def test_http_429_and_5xx_retry(self):
+        """HTTP 429 / 5xx 属瞬时错误：退避重试。"""
+        for code in (429, 500, 503):
+            with self.subTest(code=code):
+                calls = {"n": 0}
+                self.sleeps.clear()
+
+                def _err(req, timeout=None, code=code):
+                    calls["n"] += 1
+                    raise urllib.error.HTTPError(
+                        "https://api.example.org/works", code, "err", {},
+                        io.BytesIO(b""))
+
+                self._patch_urlopen(_err)
+                with self.assertRaises(urllib.error.HTTPError):
+                    LS._fetch_json("https://api.example.org/works", 5.0,
+                                   sleep=self._fake_sleep)
+                self.assertEqual(calls["n"], 3)
+                self.assertEqual(self.sleeps, [1, 2])
+
+    def test_http_4xx_no_retry(self):
+        """确定性 4xx（除 429）不重试：urlopen 恰好调用 1 次、零睡眠。"""
+        calls = {"n": 0}
+
+        def _denied(req, timeout=None):
+            calls["n"] += 1
+            raise urllib.error.HTTPError(
+                "https://api.example.org/works", 403, "Forbidden", {},
+                io.BytesIO(b"{}"))
+
+        self._patch_urlopen(_denied)
+        with self.assertRaises(urllib.error.HTTPError):
+            LS._fetch_json("https://api.example.org/works", 5.0,
+                           sleep=self._fake_sleep)
+        self.assertEqual(calls["n"], 1)
+        self.assertEqual(self.sleeps, [])
+
+    def test_bad_json_no_retry(self):
+        """JSON 解析失败不属于网络瞬时错误：不重试，原样上抛。"""
+        calls = {"n": 0}
+
+        def _garbage(req, timeout=None):
+            calls["n"] += 1
+            return _FakeResponse(b"not-json")
+
+        self._patch_urlopen(_garbage)
+        with self.assertRaises(json.JSONDecodeError):
+            LS._fetch_json("https://api.example.org/works", 5.0,
+                           sleep=self._fake_sleep)
+        self.assertEqual(calls["n"], 1)
 
 
 if __name__ == "__main__":

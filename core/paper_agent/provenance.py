@@ -321,6 +321,10 @@ class ProvenanceLedger:
 
         ① conclusions.jsonl 每条 evidence_ids 必须全部存在
         ② 且必须全部为 fact 级
+        ③ 坏行（JSONDecodeError 或解析结果非 dict）→ 记入问题列表并
+           continue（BIND-1：审计函数职责是**报告问题**而非崩溃，口径
+           对齐 ``verify_chain``；自愈截断是 load 侧 MAINT-9 的职责，
+           此处不做自愈，保持职责分离）
         """
         problems: list[str] = []
         path = self.conclusions_path
@@ -331,7 +335,15 @@ class ProvenanceLedger:
                 line = line.strip()
                 if not line:
                     continue
-                rec = json.loads(line)
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError as e:
+                    problems.append(f"line {lineno}: not valid JSON ({e})")
+                    continue
+                if not isinstance(rec, dict):
+                    problems.append(f"line {lineno}: not valid JSON "
+                                    f"(not an object)")
+                    continue
                 cid = rec.get("cid", f"<line {lineno}>")
                 ids = rec.get("evidence_ids") or []
                 if not ids:

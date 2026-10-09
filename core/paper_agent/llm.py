@@ -33,7 +33,10 @@ from __future__ import annotations
 
 import json
 import os
+import sys
+import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 ENV_BASE_URL = "PAPER_AGENT_LLM_BASE_URL"
@@ -49,14 +52,41 @@ class LlmError(RuntimeError):
 
 def http_post_json(url: str, payload: dict, headers: dict,
                    timeout: int = DEFAULT_TIMEOUT) -> dict:
-    """默认传输层：POST JSON 并解析响应（尊重 http(s)_proxy 环境变量）。"""
+    """默认传输层：POST JSON 并解析响应（尊重 http(s)_proxy 环境变量）。
+
+    PERF-3b 重试决策边界（POST **非幂等**，与 litsearch 的 GET 全量重试
+    口径刻意不同）：
+    - **仅重试"连接建立失败"**：URLError 且非 HTTPError —— 请求未到达
+      服务端，重发无副作用，重试 1 次（退避 1 秒）。
+    - **读超时不重试**：``socket.timeout`` 直接上抛（不经 URLError 包装），
+      此时服务端可能已受理并处理请求，盲目重发有重复计费 / 重复产出
+      的副作用风险。
+    - **HTTP 4xx / 5xx 不重试**：HTTPError 表示服务端已收到请求，
+      同样存在重复处理风险，交由上层（OpenAiChatClient）统一转 LlmError。
+    重试前向 stderr 输出一行告警（含目标主机），不污染 stdout。
+    """
     data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(url, data=data, method="POST",
-                                 headers={"Content-Type": "application/json",
-                                          **headers})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        body = resp.read()
-    return json.loads(body.decode("utf-8"))
+
+    def _once() -> dict:
+        req = urllib.request.Request(url, data=data, method="POST",
+                                     headers={"Content-Type": "application/json",
+                                              **headers})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            body = resp.read()
+        return json.loads(body.decode("utf-8"))
+
+    try:
+        return _once()
+    except urllib.error.HTTPError:
+        raise  # 服务端已收到请求：确定性/半确定性失败，重发有副作用风险
+    except urllib.error.URLError as e:
+        # URLError 且非 HTTPError = 连接建立失败（请求未到达服务端），可安全重试
+        reason = getattr(e, "reason", None)
+        print(f"[paper-agent] 警告：POST {urllib.parse.urlsplit(url).netloc} "
+              f"连接失败（{type(reason).__name__ if reason is not None else e}: "
+              f"{reason or e}），1s 后重试 1 次", file=sys.stderr)
+        time.sleep(1)
+        return _once()
 
 
 class CallableClient:

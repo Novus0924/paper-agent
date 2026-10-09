@@ -33,6 +33,8 @@ from __future__ import annotations
 import json
 import os
 import re
+import socket
+import sys
 import time
 import urllib.error
 import urllib.parse
@@ -124,16 +126,73 @@ def _authors(seq) -> list[str]:
     return out
 
 
+# PERF-3a：GET 幂等可安全重试的瞬时错误关键词（URLError.reason 文本匹配）。
+# 规格口径为连接类（refused / unknown host / getaddrinfo failed）；
+# 追加 reset / aborted / timed out 属同类网络抖动，一并归为瞬时错误。
+_TRANSIENT_NET_KEYWORDS = (
+    "connection refused", "unknown host", "getaddrinfo failed",
+    "temporary failure", "connection reset", "connection aborted",
+    "timed out", "timedout",
+)
+
+
+def _is_transient_error(exc: BaseException) -> bool:
+    """判定异常是否为瞬时网络错误（PERF-3a 重试判定核心）。
+
+    - HTTP 5xx / 429 → 瞬时（服务端过载或限流，退避后重试合理）
+    - HTTP 4xx（除 429）→ 确定性拒绝，不重试
+    - socket.timeout / TimeoutError（含 URLError.reason 携带者）→ 读/连超时
+    - URLError 连接类（connection refused / unknown host / getaddrinfo failed）
+    注意 HTTPError 是 URLError 子类，必须**先判 code 再归类**。
+    """
+    if isinstance(exc, urllib.error.HTTPError):
+        return exc.code == 429 or 500 <= exc.code < 600
+    if isinstance(exc, (socket.timeout, TimeoutError)):
+        return True
+    if isinstance(exc, urllib.error.URLError):
+        reason = getattr(exc, "reason", None)
+        if isinstance(reason, (socket.timeout, TimeoutError)):
+            return True
+        msg = str(reason or exc).lower()
+        return any(k in msg for k in _TRANSIENT_NET_KEYWORDS)
+    return False
+
+
 def _fetch_json(url: str, timeout: float,
-                headers: dict | None = None) -> dict:
-    """GET 一个 JSON 端点并解析。网络异常向上抛出，由调用方决定降级。"""
+                headers: dict | None = None,
+                retries: int = 2,
+                sleep=time.sleep) -> dict:
+    """GET 一个 JSON 端点并解析。
+
+    PERF-3a：GET 幂等，瞬时错误（连接类 URLError / 超时 / HTTP 5xx / 429）
+    按 ``BACKOFF`` 退避重试，最多 ``retries`` 次；确定性 4xx（除 429）
+    与 JSON 解析失败不重试。重试耗尽后抛出**原异常**——调用方降级链
+    语义不变（单源失败 → 降级，不中断整体）。每次重试向 stderr 输出
+    一行告警（含目标主机与尝试序号），不污染 stdout 的机器可读输出。
+    ``sleep`` 可注入（测试用假时钟）；口径对齐本文件 ``search_one``
+    （DEFAULT_RETRIES=2 / BACKOFF=[1,2] / 解析层异常不重试）。
+    """
     hdr = {"User-Agent": _UA}
     if headers:
         hdr.update(headers)
-    req = urllib.request.Request(url, headers=hdr)
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        data = resp.read()
-    return json.loads(data.decode("utf-8"))
+    host = urllib.parse.urlsplit(url).netloc
+    attempts = max(0, int(retries)) + 1
+    for attempt in range(attempts):
+        req = urllib.request.Request(url, headers=hdr)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = resp.read()
+            return json.loads(data.decode("utf-8"))
+        except Exception as e:  # noqa: BLE001 —— 分类后决定重试或原样上抛
+            if not _is_transient_error(e) or attempt >= attempts - 1:
+                raise
+            backoff = BACKOFF[min(attempt, len(BACKOFF) - 1)]
+            print(f"[paper-agent] 警告：{host} 瞬时错误"
+                  f"（第 {attempt + 1}/{attempts} 次尝试，"
+                  f"{type(e).__name__}: {e}），{backoff}s 后重试",
+                  file=sys.stderr)
+            sleep(backoff)
+    raise RuntimeError("unreachable: retry loop must return or raise")  # pragma: no cover
 
 
 def ref_of(doc: dict) -> str:

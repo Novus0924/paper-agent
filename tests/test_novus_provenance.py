@@ -191,6 +191,28 @@ class TestThreeTierTrust(unittest.TestCase):
                                   "goal", "generated", "拆分关键词")
         self.prov.require_judgment_batch()  # 存在判断记录 → 通过
 
+    def test_binding_invariants_tolerates_bad_line(self):
+        """BIND-1：conclusions.jsonl 坏行 → 审计函数报告行号问题而非崩溃。
+
+        审计职责是**报告问题**（口径对齐 verify_chain）；自愈截断是
+        load 侧的职责，此处不做自愈。
+        """
+        f = self.prov.append_evidence("literature", "10.1/ok", "P1_lit_search")
+        self.prov.link_conclusion("C1", "正常结论", [f])
+        cpath = os.path.join(self.run_dir, "conclusions.jsonl")
+        with open(cpath, "a", encoding="utf-8", newline="") as fh:
+            fh.write("{broken json\n")          # 行 2：JSONDecodeError
+            fh.write('"just a string"\n')       # 行 3：解析结果非 dict
+        problems = self.prov.check_binding_invariants()  # 不应抛异常
+        self.assertTrue(any("line 2" in p and "not valid JSON" in p
+                            for p in problems),
+                        f"坏行 2 未被报告: {problems}")
+        self.assertTrue(any("line 3" in p and "not valid JSON" in p
+                            for p in problems),
+                        f"非 dict 行 3 未被报告: {problems}")
+        # 正常行（行 1）不受坏行影响，仍参与校验且无问题
+        self.assertFalse(any("C1" in p for p in problems))
+
     def test_cite_judgment_is_readable(self):
         ev = self.prov.append_judgment("relevance", "P1_lit_search",
                                        "10.1038/nmat3066", "relevant",
