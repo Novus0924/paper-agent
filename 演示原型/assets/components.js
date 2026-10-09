@@ -22,6 +22,8 @@
         const v = attrs[k];
         if (v == null || v === false) continue;
         if (k === 'class' || k === 'className') el.className = v;
+        // SEC-4：html: 为受控逃逸口，当前零调用方；如需渲染富文本
+        // 必须先对 LLM 衍生产物消毒，禁止直传后端数据
         else if (k === 'html') el.innerHTML = v;
         else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
         else if (k === 'dataset' && typeof v === 'object') Object.assign(el.dataset, v);
